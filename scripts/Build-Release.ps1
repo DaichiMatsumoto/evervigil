@@ -314,8 +314,11 @@ function Assert-NativeAotRestoreGraph {
     foreach ($lockFilePath in $AotLockFilePath) {
         $document = $null
         try {
+            $lockJson = [IO.File]::ReadAllText(
+                $lockFilePath,
+                [Text.UTF8Encoding]::new($false, $true))
             $document = [Text.Json.JsonDocument]::Parse(
-                [IO.File]::ReadAllBytes($lockFilePath))
+                [string]$lockJson)
             $rootProperties = @($document.RootElement.EnumerateObject())
             $versionProperties = @($rootProperties | Where-Object Name -CEQ 'version')
             $dependencyProperties = @($rootProperties | Where-Object Name -CEQ 'dependencies')
@@ -526,15 +529,28 @@ if (-not [string]::Equals(
 Assert-NativeAotRestoreGraph `
     -ProjectAssetsPath $brokerProjectAssetsPath `
     -AotLockFilePath @($brokerAotLockPath, $brokerProtocolAotLockPath)
+$brokerTestBuildArguments = @(
+    'build'
+    $brokerTestProjectPath
+    '-c'
+    'Release'
+    '--no-restore'
+    '-m:1'
+    '-p:PublishAot=false'
+)
+$brokerTestBuildArguments += @($toolchainBuildProperties)
+& $dotnetCommand.Source @brokerTestBuildArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "Privileged broker release-gate build failed with exit code $LASTEXITCODE."
+}
 $brokerTestArguments = @(
     'run'
     '--project'
     $brokerTestProjectPath
     '-c'
     'Release'
-    '--no-restore'
+    '--no-build'
 )
-$brokerTestArguments += @($toolchainBuildProperties)
 if ($BrokerTestSkipPolicy -eq 'RequireNone') {
     $brokerTestArguments += @('--', '--fail-on-skip')
 }

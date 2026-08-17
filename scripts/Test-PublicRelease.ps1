@@ -216,14 +216,16 @@ function Test-Tree {
         throw "Scan root was not found: $Root"
     }
     $resolvedRoot = [IO.Path]::GetFullPath($Root)
-    $files = if ($IsPackage -or $IsPublish) {
-        @(Get-ChildItem -LiteralPath $resolvedRoot -File -Recurse -Force)
-    } else {
-        @(Get-ChildItem -LiteralPath $resolvedRoot -File -Recurse -Force |
-            Where-Object {
-                $_.FullName -notmatch '[\\/](?:\.git|\.jj|bin|obj|artifacts)[\\/]'
-            })
-    }
+    $files = @(
+        if ($IsPackage -or $IsPublish) {
+            Get-ChildItem -LiteralPath $resolvedRoot -File -Recurse -Force
+        } else {
+            Get-ChildItem -LiteralPath $resolvedRoot -File -Recurse -Force |
+                Where-Object {
+                    $_.FullName -notmatch '[\\/](?:\.git|\.jj|bin|obj|artifacts)[\\/]'
+                }
+        }
+    )
     if ($IsPackage) {
         if ($files.Count -eq 0) {
             Add-Failure 'Release package is empty.'

@@ -470,6 +470,20 @@ try {
         $failures.Add('Release contamination diagnostics must not disclose explicit deny values.')
     }
 
+    $singleFilePublishRoot = Join-Path $scannerFixtureRoot 'single-file-publish'
+    New-Item -ItemType Directory -Path $singleFilePublishRoot | Out-Null
+    [IO.File]::WriteAllBytes(
+        (Join-Path $singleFilePublishRoot 'EverVigil.Broker.exe'),
+        [Text.Encoding]::ASCII.GetBytes('reviewed single-file native publish fixture'))
+    try {
+        & (Join-Path $RepositoryRoot 'scripts\Test-PublicRelease.ps1') `
+            -PublishRoot $singleFilePublishRoot |
+            Out-Null
+    } catch {
+        $failures.Add(
+            "Release contamination scan rejected a valid single-file publish tree: $($_.Exception.Message)")
+    }
+
     $binaryBrandPath = Join-Path $binaryPublishRoot 'LegacyBrand.Dependency.dll'
     [IO.File]::WriteAllBytes(
         $binaryBrandPath,
@@ -1526,12 +1540,76 @@ foreach ($formalBrokerSkipGuard in @(
         "'tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.csproj'"
         "if (`$BrokerTestSkipPolicy -eq 'RequireNone')"
         "@('--', '--fail-on-skip')"
+        '$brokerTestBuildArguments'
+        "'-m:1'"
+        "'-p:PublishAot=false'"
+        "'--no-build'"
+        'Privileged broker release-gate build failed with exit code'
         'Privileged broker release-gate tests failed with exit code'
     )) {
     if (-not $buildReleaseContent.Contains(
             $formalBrokerSkipGuard,
             [StringComparison]::Ordinal)) {
         $failures.Add("Formal Build-Release broker skip gate is missing: $formalBrokerSkipGuard")
+    }
+}
+$brokerManagedBuildMatch = [regex]::Match(
+    $buildReleaseContent,
+    '(?ms)^\$brokerTestBuildArguments\s*=\s*@\(\r?\n(?<body>.*?)^\)\r?\n\$brokerTestBuildArguments\s*\+=\s*@\(\$toolchainBuildProperties\)\r?\n& \$dotnetCommand\.Source @brokerTestBuildArguments$')
+if (-not $brokerManagedBuildMatch.Success) {
+    $failures.Add('Formal Build-Release managed broker-test build block is not uniquely identifiable.')
+} else {
+    $brokerManagedBuildBody = $brokerManagedBuildMatch.Groups['body'].Value
+    foreach ($requiredManagedBuildArgument in @(
+            "'build'"
+            '$brokerTestProjectPath'
+            "'--no-restore'"
+            "'-m:1'"
+            "'-p:PublishAot=false'"
+        )) {
+        if ([regex]::Matches(
+                $brokerManagedBuildBody,
+                [regex]::Escape($requiredManagedBuildArgument)).Count -ne 1) {
+            $failures.Add(
+                "Managed broker-test build argument must occur exactly once: $requiredManagedBuildArgument")
+        }
+    }
+    foreach ($forbiddenManagedBuildArgument in @("'--project'", "'-p:PublishAot=true'")) {
+        if ($brokerManagedBuildBody.Contains(
+                $forbiddenManagedBuildArgument,
+                [StringComparison]::Ordinal)) {
+            $failures.Add(
+                "Managed broker-test build retained a forbidden argument: $forbiddenManagedBuildArgument")
+        }
+    }
+}
+$brokerManagedRunMatch = [regex]::Match(
+    $buildReleaseContent,
+    '(?ms)^\$brokerTestArguments\s*=\s*@\(\r?\n(?<body>.*?)^\)\r?\nif \(\$BrokerTestSkipPolicy -eq ''RequireNone''\)')
+if (-not $brokerManagedRunMatch.Success) {
+    $failures.Add('Formal Build-Release managed broker-test run block is not uniquely identifiable.')
+} else {
+    $brokerManagedRunBody = $brokerManagedRunMatch.Groups['body'].Value
+    foreach ($requiredManagedRunArgument in @(
+            "'run'"
+            "'--project'"
+            '$brokerTestProjectPath'
+            "'--no-build'"
+        )) {
+        if ([regex]::Matches(
+                $brokerManagedRunBody,
+                [regex]::Escape($requiredManagedRunArgument)).Count -ne 1) {
+            $failures.Add(
+                "Managed broker-test run argument must occur exactly once: $requiredManagedRunArgument")
+        }
+    }
+    foreach ($forbiddenManagedRunArgument in @('PublishAot', '$toolchainBuildProperties')) {
+        if ($brokerManagedRunBody.Contains(
+                $forbiddenManagedRunArgument,
+                [StringComparison]::Ordinal)) {
+            $failures.Add(
+                "Managed broker-test run retained a forbidden argument: $forbiddenManagedRunArgument")
+        }
     }
 }
 $innoResolverContent = Get-Content `
@@ -3505,19 +3583,24 @@ foreach ($nativePreMainGuard in @(
 $nativeAotPreflightIndex = $buildReleaseContent.LastIndexOf(
     'Assert-NativeAotRestoreGraph `',
     [StringComparison]::Ordinal)
-$brokerTestMutationIndex = $buildReleaseContent.IndexOf(
+$brokerTestBuildMutationIndex = $buildReleaseContent.IndexOf(
+    '& $dotnetCommand.Source @brokerTestBuildArguments',
+    [StringComparison]::Ordinal)
+$brokerTestRunMutationIndex = $buildReleaseContent.IndexOf(
     '& $dotnetCommand.Source @brokerTestArguments',
     [StringComparison]::Ordinal)
 $releaseOutputMutationIndex = $buildReleaseContent.IndexOf(
     'Remove-ReleaseWorkingTreesWithRetry `',
     [StringComparison]::Ordinal)
 if ($nativeAotPreflightIndex -lt 0 -or
-    $brokerTestMutationIndex -lt 0 -or
+    $brokerTestBuildMutationIndex -lt 0 -or
+    $brokerTestRunMutationIndex -lt 0 -or
     $releaseOutputMutationIndex -lt 0 -or
-    $nativeAotPreflightIndex -gt $brokerTestMutationIndex -or
-    $nativeAotPreflightIndex -gt $releaseOutputMutationIndex) {
+    $nativeAotPreflightIndex -gt $brokerTestBuildMutationIndex -or
+    $brokerTestBuildMutationIndex -gt $brokerTestRunMutationIndex -or
+    $brokerTestRunMutationIndex -gt $releaseOutputMutationIndex) {
     $failures.Add(
-        'NativeAOT lock/restore evidence must be rejected before tests or release-output mutation.')
+        'NativeAOT preflight, managed broker build, broker run, and release-output mutation are out of order.')
 }
 $privilegedPowerShellSurface = @(
     $installContent
