@@ -578,10 +578,9 @@ try {
         }
     )
     foreach ($partialName in $partialExternalRecoveryFiles) {
-        $partialBytes = if ($partialName -clike '*.tmp') {
-            [byte[]]@()
-        } else {
-            [Text.UTF8Encoding]::new($false).GetBytes(
+        [byte[]]$partialBytes = [byte[]]::new(0)
+        if ($partialName -cnotlike '*.tmp') {
+            $partialBytes = [Text.UTF8Encoding]::new($false).GetBytes(
                 'partial durable snapshot')
         }
         [IO.File]::WriteAllBytes(
