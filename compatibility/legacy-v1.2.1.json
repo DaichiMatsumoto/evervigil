@@ -1,0 +1,314 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    {
+      "name": "Source",
+      "purpose": "旧識別子を採取した不変の v1.2.1 ソースを監査時に照合する。",
+      "entries": [
+        {
+          "name": "ReleaseTag",
+          "value": "v1.2.1",
+          "purpose": "互換性調査の対象リリースを固定する。"
+        },
+        {
+          "name": "Commit",
+          "value": "2ab0e9ce475d14f37a1fe8d149e07bd925d6451d",
+          "purpose": "annotated tagをpeelしたv1.2.1 commitを一意に固定する。"
+        },
+        {
+          "name": "TagObject",
+          "value": "c2e8f19716bfdbd669fb0a5ced1bcf59c62b280c",
+          "purpose": "v1.2.1 annotated tag objectを監査時に照合する。"
+        }
+      ]
+    },
+    {
+      "name": "Application",
+      "purpose": "v1.2.1 のインストールを安全に発見し、in-place upgrade と清掃を行う。",
+      "entries": [
+        {
+          "name": "AppId",
+          "value": "D1ACB787-2308-4AC4-91BD-A6A3856E7AF0",
+          "purpose": "既存 Inno Setup 登録を同一製品として更新し、登録済みパスを検証する。"
+        },
+        {
+          "name": "ProductName",
+          "value": "Even Terminal Supervisor",
+          "purpose": "旧 executable の VersionInfo と既知レイアウトを検証する。"
+        },
+        {
+          "name": "ExecutableFileName",
+          "value": "EvenTerminalSupervisor.exe",
+          "purpose": "旧プロセスと旧インストール先 executable の所有権を検証する。"
+        },
+        {
+          "name": "ExecutableOriginalFileName",
+          "value": "EvenTerminalSupervisor.dll",
+          "purpose": "旧 executable の VersionInfo が v1.2.1 の既知ビルドであることを検証する。"
+        },
+        {
+          "name": "ExecutableFileVersion",
+          "value": "1.2.1.0",
+          "purpose": "旧 executable の FileVersion を v1.2.1 に限定して所有権の誤認を防ぐ。"
+        },
+        {
+          "name": "InstallRootRelativeToLocalAppData",
+          "value": "Programs\\EvenTerminalSupervisor",
+          "purpose": "v1.2.1 の既定インストール先を発見する。"
+        },
+        {
+          "name": "DataRootRelativeToLocalAppData",
+          "value": "EvenTerminalSupervisor",
+          "purpose": "旧 settings、DPAPI token、transaction journal を移行する。"
+        },
+        {
+          "name": "UninstallSupportRootRelativeToLocalAppData",
+          "value": "EvenTerminalSupervisor.Uninstall",
+          "purpose": "旧 Inno Setup の uninstall support directory を検証して清掃する。"
+        },
+        {
+          "name": "StartupShortcutFileName",
+          "value": "Even Terminal Supervisor.lnk",
+          "purpose": "旧 startup preference を検出し、重複 shortcut を除去する。"
+        },
+        {
+          "name": "OwnershipMarkerFileName",
+          "value": ".even-terminal-supervisor-install.json",
+          "purpose": "旧 install root が対象ユーザーと AppId に所有されることを検証する。"
+        },
+        {
+          "name": "UninstallRegistrySubKey",
+          "value": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{D1ACB787-2308-4AC4-91BD-A6A3856E7AF0}_is1",
+          "purpose": "HKCU の既存 Inno Setup 登録だけを参照する。"
+        }
+      ]
+    },
+    {
+      "name": "Data",
+      "purpose": "v1.2.1 の永続データを内容別に移行または保持する。",
+      "entries": [
+        {
+          "name": "SettingsFileName",
+          "value": "settings.json",
+          "purpose": "旧ユーザー設定を保全する。"
+        },
+        {
+          "name": "ProtectedTokenFileName",
+          "value": "token.dat",
+          "purpose": "旧 DPAPI CurrentUser token を暗号化されたまま保全する。"
+        },
+        {
+          "name": "TransactionJournalFileName",
+          "value": "install-transaction.json",
+          "purpose": "中断済みの旧 install transaction を検出する。"
+        },
+        {
+          "name": "TransactionRecoveryDirectoryName",
+          "value": "install-transactions",
+          "purpose": "旧 rollback snapshot と recovery evidence を検出する。"
+        },
+        {
+          "name": "TransactionSchemaVersion",
+          "value": "3",
+          "purpose": "中断済み v1.2.1 transaction journal を同じ検証規則で復旧する。"
+        },
+        {
+          "name": "InstallerPublishDirectoryPrefix",
+          "value": "install-publish-",
+          "purpose": "旧 transaction が作成した一時 publish directory だけを検証して清掃する。"
+        },
+        {
+          "name": "AppliedSystemConfigurationFileName",
+          "value": "applied-system-configuration.json",
+          "purpose": "旧 Tailscale Serve mapping と Firewall rule の所有権記録を継承する。"
+        },
+        {
+          "name": "SystemConfigurationRequiredFileName",
+          "value": "system-configuration-required",
+          "purpose": "未完了の旧system設定を安全側で再適用する。"
+        },
+        {
+          "name": "DiagnosticLoggingMarkerFileName",
+          "value": "diagnostic-logging.enabled",
+          "purpose": "旧diagnostic logging preferenceとrollback snapshotを保全する。"
+        },
+        {
+          "name": "LogDirectoryName",
+          "value": "Logs",
+          "purpose": "旧log directoryをrollbackとuninstallの対象として厳密に識別する。"
+        },
+        {
+          "name": "LogFileName",
+          "value": "supervisor.log",
+          "purpose": "旧data rootを継続利用する場合に既存log世代を保持する。"
+        }
+      ]
+    },
+    {
+      "name": "Cryptography",
+      "purpose": "v1.2.1 の DPAPI token を再生成せずに引き継ぐ。",
+      "entries": [
+        {
+          "name": "DpapiEntropyContext",
+          "value": "EvenTerminalSupervisor/token/v1",
+          "purpose": "DPAPI CurrentUser で保護された旧 token.dat の追加 entropy を再現する。"
+        }
+      ]
+    },
+    {
+      "name": "Synchronization",
+      "purpose": "旧プロセスとの競合を避け、移行と清掃を排他的に行う。",
+      "entries": [
+        {
+          "name": "InstanceScopeTemplate",
+          "value": "Global\\EvenTerminalSupervisor-{ownerSid}",
+          "purpose": "v1.2.1 のユーザー別 single-instance kernel object 群の基底名を再現する。"
+        },
+        {
+          "name": "InstanceMutexTemplate",
+          "value": "Global\\EvenTerminalSupervisor-{ownerSid}-Mutex",
+          "purpose": "旧 supervisor の single-instance ownership を獲得または検出する。"
+        },
+        {
+          "name": "InstanceShowEventTemplate",
+          "value": "Global\\EvenTerminalSupervisor-{ownerSid}-Show",
+          "purpose": "旧 supervisor の表示要求 event を識別する。"
+        },
+        {
+          "name": "InstanceShutdownEventTemplate",
+          "value": "Global\\EvenTerminalSupervisor-{ownerSid}-Shutdown",
+          "purpose": "旧 supervisor へ安全な shutdown を要求する。"
+        },
+        {
+          "name": "TokenMutexTemplate",
+          "value": "Global\\EvenTerminalSupervisor-Token-{ownerSid}",
+          "purpose": "旧 token.dat の読み書きと移行をユーザー別に排他する。"
+        },
+        {
+          "name": "SystemTransactionMutex",
+          "value": "Global\\EvenTerminalSupervisor.SystemTransaction",
+          "purpose": "旧 install、uninstall、Tailscale、Firewall transaction と競合しないよう排他する。"
+        }
+      ]
+    },
+    {
+      "name": "BridgeLaunch",
+      "purpose": "移行時に残存する v1.2.1 launcher の一時 IPC だけを識別する。",
+      "entries": [
+        {
+          "name": "GateNameTemplate",
+          "value": "Local\\EvenTerminalSupervisor-Launch-{launchId}",
+          "purpose": "旧 bridge launcher の手動リセット launch gate を識別する。"
+        },
+        {
+          "name": "PidPipeNameTemplate",
+          "value": "EvenTerminalSupervisor-Pid-{launchId}",
+          "purpose": "旧 bridge launcher が child PID を通知する current-user named pipe を識別する。"
+        }
+      ]
+    },
+    {
+      "name": "InstallerTask",
+      "purpose": "v1.2.1 setup が作成した一時 interactive task だけを検証して清掃する。",
+      "entries": [
+        {
+          "name": "Prefix",
+          "value": "Even Terminal Supervisor Installer",
+          "purpose": "旧 setup の temporary per-user task を列挙する際の固定 prefix とする。"
+        },
+        {
+          "name": "NameTemplate",
+          "value": "Even Terminal Supervisor Installer {transactionId} {purpose}",
+          "purpose": "32-hex transaction ID と許可済み purpose を含む完全な task 名を検証する。"
+        },
+        {
+          "name": "CommandPurpose",
+          "value": "Command",
+          "purpose": "旧 setup の設定検証 command task だけを許可する。"
+        },
+        {
+          "name": "LaunchPurpose",
+          "value": "Launch",
+          "purpose": "旧 setup の通常 launch task だけを許可する。"
+        },
+        {
+          "name": "RecoveryLaunchPurpose",
+          "value": "RecoveryLaunch",
+          "purpose": "旧 setup の rollback recovery launch task だけを許可する。"
+        }
+      ]
+    },
+    {
+      "name": "Firewall",
+      "purpose": "v1.2.1 が所有するユーザー別 backend block rule だけを移行または削除する。",
+      "entries": [
+        {
+          "name": "RulePrefix",
+          "value": "Even Terminal Supervisor - block direct backend access",
+          "purpose": "owner SID suffix を付けた旧 committed Firewall rule を識別する。"
+        },
+        {
+          "name": "TemporaryRulePrefix",
+          "value": "Even Terminal Supervisor - pending backend block",
+          "purpose": "owner SID suffix を付けた旧 transaction 中の Firewall rule を識別する。"
+        }
+      ]
+    },
+    {
+      "name": "OlderEvenTerminalCodex",
+      "purpose": "supervisor 導入以前の EvenTerminalCodex task、launcher、plaintext token を厳密一致で移行する。",
+      "entries": [
+        {
+          "name": "ScheduledTaskName",
+          "value": "EvenTerminalCodex",
+          "purpose": "既知 action identity と一致した older scheduled task だけを停止、移行、削除する。"
+        },
+        {
+          "name": "LocalAppDataRootRelativeToProfile",
+          "value": "AppData\\Local\\EvenTerminalCodex",
+          "purpose": "SID から解決した実 profile 配下の older data root を検証する。"
+        },
+        {
+          "name": "LocalAppDataLauncherRelativeToProfile",
+          "value": "AppData\\Local\\EvenTerminalCodex\\Start-EvenTerminalCodex.ps1",
+          "purpose": "older scheduled task action の標準 launcher path を検証する。"
+        },
+        {
+          "name": "LocalAppDataLauncherRelativeToLocalAppData",
+          "value": "EvenTerminalCodex\\Start-EvenTerminalCodex.ps1",
+          "purpose": "SID の User Shell Folders から解決した redirected Local AppData 配下の older launcher path を検証する。"
+        },
+        {
+          "name": "DriveLauncherRelativeToProfileDirectory",
+          "value": "Users\\{profileDirectory}\\Apps\\even-terminal\\Start-EvenTerminalCodex.ps1",
+          "purpose": "各ローカル drive 上に存在し得る旧 launcher path を厳密に検証する。"
+        },
+        {
+          "name": "LocalAppDataTokenRelativeToProfile",
+          "value": "AppData\\Local\\EvenTerminalCodex\\token.txt",
+          "purpose": "標準 older data root 内の plaintext token candidate だけを移行する。"
+        },
+        {
+          "name": "DriveTokenRelativeToProfileDirectory",
+          "value": "Users\\{profileDirectory}\\Apps\\even-terminal\\token.txt",
+          "purpose": "各ローカル drive 上の既知旧 root 内にある plaintext token candidate だけを移行する。"
+        },
+        {
+          "name": "PowerShellRelativeToProgramFiles",
+          "value": "PowerShell\\7\\pwsh.exe",
+          "purpose": "older scheduled task action が標準 PowerShell 7 executable を使うことを検証する。"
+        },
+        {
+          "name": "LauncherArgumentsTemplate",
+          "value": "-WindowStyle Hidden -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{launcherPath}\"",
+          "purpose": "older scheduled task または process の引数を完全一致で検証する。"
+        },
+        {
+          "name": "PlaintextTokenFileName",
+          "value": "token.txt",
+          "purpose": "older token candidate の file name を厳密に検証する。"
+        }
+      ]
+    }
+  ]
+}

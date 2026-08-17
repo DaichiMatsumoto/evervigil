@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="AppSubtitle" xml:space="preserve"><value>独立した WINDOWS トレイツール // ローカルプロセス監視</value></data>
+  <data name="HeaderNode" xml:space="preserve"><value>ノード制御 / {0}</value></data>
+  <data name="TabOverview" xml:space="preserve"><value>概要</value></data>
+  <data name="TabConnection" xml:space="preserve"><value>接続</value></data>
+  <data name="TabSettings" xml:space="preserve"><value>設定</value></data>
+  <data name="TabLogs" xml:space="preserve"><value>ターミナル</value></data>
+  <data name="TabAbout" xml:space="preserve"><value>情報</value></data>
+  <data name="SectionSignalMatrix" xml:space="preserve"><value>シグナル・マトリックス</value></data>
+  <data name="SectionRuntime" xml:space="preserve"><value>ランタイム</value></data>
+  <data name="SectionCredentials" xml:space="preserve"><value>アクセス認証情報</value></data>
+  <data name="SectionQr" xml:space="preserve"><value>ペアリング・マトリックス</value></data>
+  <data name="SectionNetwork" xml:space="preserve"><value>識別情報 + ネットワーク</value></data>
+  <data name="SectionPolicy" xml:space="preserve"><value>ランタイム・ポリシー</value></data>
+  <data name="SectionDependencies" xml:space="preserve"><value>依存コンポーネント</value></data>
+  <data name="SectionTerminal" xml:space="preserve"><value>ランタイムログ</value></data>
+  <data name="StateOnline" xml:space="preserve"><value>オンライン</value></data>
+  <data name="StateDegraded" xml:space="preserve"><value>接続低下</value></data>
+  <data name="StateStarting" xml:space="preserve"><value>起動中</value></data>
+  <data name="StateRestarting" xml:space="preserve"><value>再起動中</value></data>
+  <data name="StateFaulted" xml:space="preserve"><value>障害</value></data>
+  <data name="StateStopping" xml:space="preserve"><value>停止中</value></data>
+  <data name="StateStopped" xml:space="preserve"><value>停止</value></data>
+  <data name="StateDuration" xml:space="preserve"><value>状態継続 {0}</value></data>
+  <data name="DurationHours" xml:space="preserve"><value>{0}時間 {1}分</value></data>
+  <data name="DurationMinutes" xml:space="preserve"><value>{0}分</value></data>
+  <data name="DurationSeconds" xml:space="preserve"><value>{0}秒</value></data>
+  <data name="FieldBackendPid" xml:space="preserve"><value>バックエンド PID</value></data>
+  <data name="FieldLocalEndpoint" xml:space="preserve"><value>ローカルリンク</value></data>
+  <data name="FieldCodexProvider" xml:space="preserve"><value>CODEX プロバイダー</value></data>
+  <data name="FieldTailnetEndpoint" xml:space="preserve"><value>TAILNET エッジ</value></data>
+  <data name="FieldLastUpdated" xml:space="preserve"><value>最終サンプル</value></data>
+  <data name="StatusReady" xml:space="preserve"><value>正常</value></data>
+  <data name="StatusDown" xml:space="preserve"><value>停止</value></data>
+  <data name="ButtonStart" xml:space="preserve"><value>開始</value></data>
+  <data name="ButtonStop" xml:space="preserve"><value>停止</value></data>
+  <data name="ButtonRestart" xml:space="preserve"><value>再起動</value></data>
+  <data name="ButtonRefresh" xml:space="preserve"><value>更新</value></data>
+  <data name="ButtonCopy" xml:space="preserve"><value>コピー</value></data>
+  <data name="ButtonReveal" xml:space="preserve"><value>表示</value></data>
+  <data name="ButtonConceal" xml:space="preserve"><value>非表示</value></data>
+  <data name="ButtonRegenerate" xml:space="preserve"><value>再生成</value></data>
+  <data name="ButtonBrowse" xml:space="preserve"><value>参照</value></data>
+  <data name="ButtonSaveRestart" xml:space="preserve"><value>保存 + 再起動</value></data>
+  <data name="ButtonApplyNetwork" xml:space="preserve"><value>TAILSCALE + FIREWALL 適用</value></data>
+  <data name="ButtonOpenFolder" xml:space="preserve"><value>フォルダーを開く</value></data>
+  <data name="ButtonClear" xml:space="preserve"><value>消去</value></data>
+  <data name="FieldConnectionEndpoint" xml:space="preserve"><value>接続先</value></data>
+  <data name="FieldToken" xml:space="preserve"><value>アクセストークン</value></data>
+  <data name="FieldConnectionUrl" xml:space="preserve"><value>ペアリング URL</value></data>
+  <data name="QrHidden" xml:space="preserve"><value>ペアリング・マトリックスはロック中</value></data>
+  <data name="SecretHidden" xml:space="preserve"><value>表示操作でこの資格情報を確認できます</value></data>
+  <data name="TokenRegeneratePrompt" xml:space="preserve"><value>既存端末からの接続は無効になります。アクセストークンを再生成しますか？</value></data>
+  <data name="TokenRegenerateTitle" xml:space="preserve"><value>アクセストークンの再生成</value></data>
+  <data name="TokenRegenerated" xml:space="preserve"><value>アクセストークンを再生成しました</value></data>
+  <data name="TokenCopied" xml:space="preserve"><value>アクセストークンをコピーしました</value></data>
+  <data name="UrlCopied" xml:space="preserve"><value>ペアリング URL をコピーしました</value></data>
+  <data name="ClipboardClears" xml:space="preserve"><value>{0}。これは資格情報です。クリップボード履歴や他のアプリに残る可能性があります。内容が変わっていなければ{1}秒後に消去します。</value></data>
+  <data name="CopyFailedTitle" xml:space="preserve"><value>コピーできません</value></data>
+  <data name="ClipboardUnavailable" xml:space="preserve"><value>クリップボードを使用できませんでした。</value></data>
+  <data name="FieldLanguage" xml:space="preserve"><value>表示言語</value></data>
+  <data name="LanguageSystem" xml:space="preserve"><value>システム既定</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English / 英語</value></data>
+  <data name="LanguageJapanese" xml:space="preserve"><value>日本語</value></data>
+  <data name="FieldDisplayName" xml:space="preserve"><value>ノード名</value></data>
+  <data name="FieldPublicHost" xml:space="preserve"><value>Tailscale Self ホスト（自動）</value></data>
+  <data name="FieldPublicPort" xml:space="preserve"><value>公開ポート</value></data>
+  <data name="FieldBackendPort" xml:space="preserve"><value>バックエンドポート</value></data>
+  <data name="FieldCodexPort" xml:space="preserve"><value>Codex ポート</value></data>
+  <data name="FieldProjectDirectory" xml:space="preserve"><value>作業ディレクトリ</value></data>
+  <data name="FieldNodePath" xml:space="preserve"><value>Node.js</value></data>
+  <data name="FieldEvenTerminalPath" xml:space="preserve"><value>Even Terminal CLI</value></data>
+  <data name="FieldCodexPath" xml:space="preserve"><value>Codex CLI</value></data>
+  <data name="FieldTailscalePath" xml:space="preserve"><value>Tailscale CLI（固定）</value></data>
+  <data name="FieldHealthInterval" xml:space="preserve"><value>ヘルス確認 (秒)</value></data>
+  <data name="FieldProviderInterval" xml:space="preserve"><value>Provider 確認 (秒)</value></data>
+  <data name="FieldTailnetInterval" xml:space="preserve"><value>Tailnet 確認 (秒)</value></data>
+  <data name="FieldStartupTimeout" xml:space="preserve"><value>起動タイムアウト</value></data>
+  <data name="FieldStableRun" xml:space="preserve"><value>安定稼働判定</value></data>
+  <data name="FieldFailureThreshold" xml:space="preserve"><value>失敗しきい値</value></data>
+  <data name="FieldLogLimit" xml:space="preserve"><value>ログ上限 (MB)</value></data>
+  <data name="FieldLogCopies" xml:space="preserve"><value>ログ世代数</value></data>
+  <data name="FieldClipboardClear" xml:space="preserve"><value>クリップボード消去時間</value></data>
+  <data name="OptionDiagnosticLogging" xml:space="preserve"><value>診断ログを有効化</value></data>
+  <data name="OptionAutoStartService" xml:space="preserve"><value>トレイアプリと同時にブリッジを開始</value></data>
+  <data name="OptionStartOnLogin" xml:space="preserve"><value>Windows サインイン時に起動</value></data>
+  <data name="SettingsBusy" xml:space="preserve"><value>別のシステム設定操作が完了するまで待ってください。</value></data>
+  <data name="SettingsSaveFailedTitle" xml:space="preserve"><value>設定を保存できません</value></data>
+  <data name="AppliedSettingsUnreadable" xml:space="preserve"><value>適用済みシステム設定を確認できません。</value></data>
+  <data name="StoppingBackend" xml:space="preserve"><value>バックエンドを停止しています...</value></data>
+  <data name="ReconcilingSystemConfiguration" xml:space="preserve"><value>保留中のシステム設定を整合しています...</value></data>
+  <data name="AwaitingUac" xml:space="preserve"><value>Windows の昇格確認を待っています...</value></data>
+  <data name="SettingsSavedInstaller" xml:space="preserve"><value>保存しました。インストーラを再実行してシステム設定を完了してください。</value></data>
+  <data name="SettingsSavedAt" xml:space="preserve"><value>{0} に設定を保存しました</value></data>
+  <data name="SystemAppliedAt" xml:space="preserve"><value>{0} に Tailscale + Firewall を適用しました</value></data>
+  <data name="SystemNotChanged" xml:space="preserve"><value>システム設定は変更されませんでした。</value></data>
+  <data name="SystemFailed" xml:space="preserve"><value>システム設定に失敗しました。</value></data>
+  <data name="SystemFailedTitle" xml:space="preserve"><value>システム設定に失敗しました</value></data>
+  <data name="SystemAppliedStateFailed" xml:space="preserve"><value>Tailscale と Firewall は更新されましたが、適用済み状態を保存できませんでした。バックエンドは停止したままです。システム設定を再適用してください。</value></data>
+  <data name="LogsEmpty" xml:space="preserve"><value>&gt; ランタイムログを待機しています...</value></data>
+  <data name="LogsReadFailed" xml:space="preserve"><value>&gt; ランタイムログを読み込めませんでした: {0}</value></data>
+  <data name="LogsClearPrompt" xml:space="preserve"><value>EverVigilのランタイムログを消去しますか？</value></data>
+  <data name="LogsClearTitle" xml:space="preserve"><value>ランタイムログの消去</value></data>
+  <data name="LogsClearFailedTitle" xml:space="preserve"><value>ランタイムログを消去できません</value></data>
+  <data name="AboutVersion" xml:space="preserve"><value>バージョン {0}</value></data>
+  <data name="AboutLicenseNotice" xml:space="preserve"><value>無保証で提供されます。GPL-3.0-only の条件で再配布・変更できます。</value></data>
+  <data name="AboutLicenseLink" xml:space="preserve"><value>ライセンス全文</value></data>
+  <data name="AboutSourceLink" xml:space="preserve"><value>ソースコード + リリース</value></data>
+  <data name="AboutCommunityNotice" xml:space="preserve"><value>This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.</value></data>
+  <data name="ExternalLinkFailed" xml:space="preserve"><value>外部リンクを開けませんでした。</value></data>
+  <data name="TrayOpenDashboard" xml:space="preserve"><value>コントロールデッキを開く</value></data>
+  <data name="TrayConnection" xml:space="preserve"><value>ペアリング・マトリックス</value></data>
+  <data name="TrayLogs" xml:space="preserve"><value>ランタイムログ</value></data>
+  <data name="TrayStartOnLogin" xml:space="preserve"><value>Windows サインイン時に起動</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>終了</value></data>
+  <data name="TrayDegraded" xml:space="preserve"><value>接続状態が低下しました。</value></data>
+  <data name="TrayRecovered" xml:space="preserve"><value>接続が復旧しました。</value></data>
+  <data name="StartupRegistrationFailedTitle" xml:space="preserve"><value>スタートアップ設定に失敗しました</value></data>
+  <data name="ActionFailedTitle" xml:space="preserve"><value>操作に失敗しました</value></data>
+  <data name="ValidationDisplayName" xml:space="preserve"><value>ノード名は1文字以上64文字以下で指定してください。</value></data>
+  <data name="ValidationPortRange" xml:space="preserve"><value>{0}は{1}から{2}の範囲で指定してください。</value></data>
+  <data name="ValidationDistinctPorts" xml:space="preserve"><value>公開、バックエンド、Codex の各ポートは別の値にしてください。</value></data>
+  <data name="TailnetIdentityUnavailable" xml:space="preserve"><value>保護された Tailscale identity を確認できません</value></data>
+  <data name="TailnetIdentityUnavailableTitle" xml:space="preserve"><value>Tailnet identity を確認できません</value></data>
+  <data name="TailnetIdentityUnavailableMessage" xml:space="preserve"><value>保護ブローカーが、この端末の現在の Tailscale identity と適用済み構成を検証するまで、EverVigil は接続 URL の表示やコピーを行いません。システム構成を適用してから再試行してください。</value></data>
+  <data name="ValidationTrustedTailscalePath" xml:space="preserve"><value>Tailscaleは保護された固定導入pathを使用する必要があります: {0}</value></data>
+  <data name="ValidationAbsolutePath" xml:space="preserve"><value>{0}には絶対パスを指定してください。</value></data>
+  <data name="ValidationPathMissing" xml:space="preserve"><value>{0}が見つかりません: {1}</value></data>
+  <data name="ValidationLanguage" xml:space="preserve"><value>表示言語は system、en、ja のいずれかを指定してください。</value></data>
+  <data name="SettingsCreatedRecovery" xml:space="preserve"><value>設定ファイルを新規作成しました。Tailscale と Firewall を適用するまでサービスは起動しません。</value></data>
+  <data name="SettingsQuarantinedRecovery" xml:space="preserve"><value>無効な設定ファイルを隔離して既定値へ復旧しました。Tailscale と Firewall を再適用するまでサービスは起動しません。</value></data>
+  <data name="AppliedStateEmpty" xml:space="preserve"><value>適用済みシステム設定が空です。</value></data>
+  <data name="AppliedStateInvalid" xml:space="preserve"><value>適用済みシステム設定が無効です。</value></data>
+  <data name="AppliedStateUnreadable" xml:space="preserve"><value>最後に適用したシステム設定を安全に読み取れませんでした。</value></data>
+  <data name="TokenQuarantinedRecovery" xml:space="preserve"><value>保存済みトークンを読み取れなかったため隔離し、新しいアクセストークンを生成しました。</value></data>
+</root>

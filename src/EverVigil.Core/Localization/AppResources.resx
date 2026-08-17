@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="AppSubtitle" xml:space="preserve"><value>INDEPENDENT WINDOWS TRAY UTILITY // LOCAL PROCESS SUPERVISION</value></data>
+  <data name="HeaderNode" xml:space="preserve"><value>NODE CONTROL / {0}</value></data>
+  <data name="TabOverview" xml:space="preserve"><value>OVERVIEW</value></data>
+  <data name="TabConnection" xml:space="preserve"><value>CONNECT</value></data>
+  <data name="TabSettings" xml:space="preserve"><value>CONFIG</value></data>
+  <data name="TabLogs" xml:space="preserve"><value>TERMINAL</value></data>
+  <data name="TabAbout" xml:space="preserve"><value>ABOUT</value></data>
+  <data name="SectionSignalMatrix" xml:space="preserve"><value>SIGNAL MATRIX</value></data>
+  <data name="SectionRuntime" xml:space="preserve"><value>RUNTIME</value></data>
+  <data name="SectionCredentials" xml:space="preserve"><value>ACCESS CREDENTIALS</value></data>
+  <data name="SectionQr" xml:space="preserve"><value>PAIRING MATRIX</value></data>
+  <data name="SectionNetwork" xml:space="preserve"><value>IDENTITY + NETWORK</value></data>
+  <data name="SectionPolicy" xml:space="preserve"><value>RUNTIME POLICY</value></data>
+  <data name="SectionDependencies" xml:space="preserve"><value>DEPENDENCY PATHS</value></data>
+  <data name="SectionTerminal" xml:space="preserve"><value>RUNTIME LOGS</value></data>
+  <data name="StateOnline" xml:space="preserve"><value>ONLINE</value></data>
+  <data name="StateDegraded" xml:space="preserve"><value>DEGRADED</value></data>
+  <data name="StateStarting" xml:space="preserve"><value>STARTING</value></data>
+  <data name="StateRestarting" xml:space="preserve"><value>RESTARTING</value></data>
+  <data name="StateFaulted" xml:space="preserve"><value>FAULTED</value></data>
+  <data name="StateStopping" xml:space="preserve"><value>STOPPING</value></data>
+  <data name="StateStopped" xml:space="preserve"><value>STOPPED</value></data>
+  <data name="StateDuration" xml:space="preserve"><value>STATE STABLE FOR {0}</value></data>
+  <data name="DurationHours" xml:space="preserve"><value>{0}h {1}m</value></data>
+  <data name="DurationMinutes" xml:space="preserve"><value>{0}m</value></data>
+  <data name="DurationSeconds" xml:space="preserve"><value>{0}s</value></data>
+  <data name="FieldBackendPid" xml:space="preserve"><value>BACKEND PID</value></data>
+  <data name="FieldLocalEndpoint" xml:space="preserve"><value>LOCAL LINK</value></data>
+  <data name="FieldCodexProvider" xml:space="preserve"><value>CODEX PROVIDER</value></data>
+  <data name="FieldTailnetEndpoint" xml:space="preserve"><value>TAILNET EDGE</value></data>
+  <data name="FieldLastUpdated" xml:space="preserve"><value>LAST SAMPLE</value></data>
+  <data name="StatusReady" xml:space="preserve"><value>READY</value></data>
+  <data name="StatusDown" xml:space="preserve"><value>DOWN</value></data>
+  <data name="ButtonStart" xml:space="preserve"><value>START</value></data>
+  <data name="ButtonStop" xml:space="preserve"><value>STOP</value></data>
+  <data name="ButtonRestart" xml:space="preserve"><value>RESTART</value></data>
+  <data name="ButtonRefresh" xml:space="preserve"><value>REFRESH</value></data>
+  <data name="ButtonCopy" xml:space="preserve"><value>COPY</value></data>
+  <data name="ButtonReveal" xml:space="preserve"><value>REVEAL</value></data>
+  <data name="ButtonConceal" xml:space="preserve"><value>CONCEAL</value></data>
+  <data name="ButtonRegenerate" xml:space="preserve"><value>REGENERATE</value></data>
+  <data name="ButtonBrowse" xml:space="preserve"><value>BROWSE</value></data>
+  <data name="ButtonSaveRestart" xml:space="preserve"><value>SAVE + RESTART</value></data>
+  <data name="ButtonApplyNetwork" xml:space="preserve"><value>APPLY TAILSCALE + FIREWALL</value></data>
+  <data name="ButtonOpenFolder" xml:space="preserve"><value>OPEN FOLDER</value></data>
+  <data name="ButtonClear" xml:space="preserve"><value>CLEAR</value></data>
+  <data name="FieldConnectionEndpoint" xml:space="preserve"><value>EDGE ENDPOINT</value></data>
+  <data name="FieldToken" xml:space="preserve"><value>ACCESS TOKEN</value></data>
+  <data name="FieldConnectionUrl" xml:space="preserve"><value>PAIRING URL</value></data>
+  <data name="QrHidden" xml:space="preserve"><value>PAIRING MATRIX LOCKED</value></data>
+  <data name="SecretHidden" xml:space="preserve"><value>Reveal to inspect this credential</value></data>
+  <data name="TokenRegeneratePrompt" xml:space="preserve"><value>Existing device connections will stop working. Regenerate the access token?</value></data>
+  <data name="TokenRegenerateTitle" xml:space="preserve"><value>Regenerate access token</value></data>
+  <data name="TokenRegenerated" xml:space="preserve"><value>Access token regenerated</value></data>
+  <data name="TokenCopied" xml:space="preserve"><value>Access token copied</value></data>
+  <data name="UrlCopied" xml:space="preserve"><value>Pairing URL copied</value></data>
+  <data name="ClipboardClears" xml:space="preserve"><value>{0}. This clipboard content is a credential and may remain in clipboard history or other apps; it will be cleared in {1} seconds if unchanged.</value></data>
+  <data name="CopyFailedTitle" xml:space="preserve"><value>Copy failed</value></data>
+  <data name="ClipboardUnavailable" xml:space="preserve"><value>The clipboard could not be accessed.</value></data>
+  <data name="FieldLanguage" xml:space="preserve"><value>DISPLAY LANGUAGE</value></data>
+  <data name="LanguageSystem" xml:space="preserve"><value>System default</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="LanguageJapanese" xml:space="preserve"><value>Japanese / 日本語</value></data>
+  <data name="FieldDisplayName" xml:space="preserve"><value>NODE NAME</value></data>
+  <data name="FieldPublicHost" xml:space="preserve"><value>TAILSCALE SELF HOST (AUTO)</value></data>
+  <data name="FieldPublicPort" xml:space="preserve"><value>PUBLIC PORT</value></data>
+  <data name="FieldBackendPort" xml:space="preserve"><value>BACKEND PORT</value></data>
+  <data name="FieldCodexPort" xml:space="preserve"><value>CODEX PORT</value></data>
+  <data name="FieldProjectDirectory" xml:space="preserve"><value>WORKSPACE</value></data>
+  <data name="FieldNodePath" xml:space="preserve"><value>NODE.JS</value></data>
+  <data name="FieldEvenTerminalPath" xml:space="preserve"><value>EVEN TERMINAL CLI</value></data>
+  <data name="FieldCodexPath" xml:space="preserve"><value>CODEX CLI</value></data>
+  <data name="FieldTailscalePath" xml:space="preserve"><value>TAILSCALE CLI (FIXED)</value></data>
+  <data name="FieldHealthInterval" xml:space="preserve"><value>HEALTH SCAN (SEC)</value></data>
+  <data name="FieldProviderInterval" xml:space="preserve"><value>PROVIDER SCAN (SEC)</value></data>
+  <data name="FieldTailnetInterval" xml:space="preserve"><value>TAILNET SCAN (SEC)</value></data>
+  <data name="FieldStartupTimeout" xml:space="preserve"><value>STARTUP TIMEOUT</value></data>
+  <data name="FieldStableRun" xml:space="preserve"><value>STABLE RUN PERIOD</value></data>
+  <data name="FieldFailureThreshold" xml:space="preserve"><value>FAILURE THRESHOLD</value></data>
+  <data name="FieldLogLimit" xml:space="preserve"><value>LOG LIMIT (MB)</value></data>
+  <data name="FieldLogCopies" xml:space="preserve"><value>LOG GENERATIONS</value></data>
+  <data name="FieldClipboardClear" xml:space="preserve"><value>CLIPBOARD CLEAR PERIOD</value></data>
+  <data name="OptionDiagnosticLogging" xml:space="preserve"><value>Enable diagnostic logging</value></data>
+  <data name="OptionAutoStartService" xml:space="preserve"><value>Start bridge with the tray app</value></data>
+  <data name="OptionStartOnLogin" xml:space="preserve"><value>Launch at Windows sign-in</value></data>
+  <data name="SettingsBusy" xml:space="preserve"><value>Another system configuration operation is still running.</value></data>
+  <data name="SettingsSaveFailedTitle" xml:space="preserve"><value>Configuration not saved</value></data>
+  <data name="AppliedSettingsUnreadable" xml:space="preserve"><value>The applied system configuration could not be verified.</value></data>
+  <data name="StoppingBackend" xml:space="preserve"><value>Stopping the backend...</value></data>
+  <data name="ReconcilingSystemConfiguration" xml:space="preserve"><value>Reconciling pending system configuration...</value></data>
+  <data name="AwaitingUac" xml:space="preserve"><value>Waiting for Windows elevation...</value></data>
+  <data name="SettingsSavedInstaller" xml:space="preserve"><value>Saved. Run Setup again to complete system configuration.</value></data>
+  <data name="SettingsSavedAt" xml:space="preserve"><value>Configuration committed at {0}</value></data>
+  <data name="SystemAppliedAt" xml:space="preserve"><value>Tailscale + Firewall committed at {0}</value></data>
+  <data name="SystemNotChanged" xml:space="preserve"><value>System configuration was not changed.</value></data>
+  <data name="SystemFailed" xml:space="preserve"><value>System configuration failed.</value></data>
+  <data name="SystemFailedTitle" xml:space="preserve"><value>System configuration failed</value></data>
+  <data name="SystemAppliedStateFailed" xml:space="preserve"><value>Tailscale and Firewall were updated, but the applied-state record could not be saved. The backend remains stopped. Apply the system configuration again.</value></data>
+  <data name="LogsEmpty" xml:space="preserve"><value>&gt; awaiting runtime log output...</value></data>
+  <data name="LogsReadFailed" xml:space="preserve"><value>&gt; runtime log read failed: {0}</value></data>
+  <data name="LogsClearPrompt" xml:space="preserve"><value>Clear the EverVigil runtime log?</value></data>
+  <data name="LogsClearTitle" xml:space="preserve"><value>Clear runtime log</value></data>
+  <data name="LogsClearFailedTitle" xml:space="preserve"><value>Runtime log clear failed</value></data>
+  <data name="AboutVersion" xml:space="preserve"><value>VERSION {0}</value></data>
+  <data name="AboutLicenseNotice" xml:space="preserve"><value>Provided without warranty. Redistribution and modification are permitted under GPL-3.0-only.</value></data>
+  <data name="AboutLicenseLink" xml:space="preserve"><value>FULL LICENSE</value></data>
+  <data name="AboutSourceLink" xml:space="preserve"><value>SOURCE + RELEASES</value></data>
+  <data name="AboutCommunityNotice" xml:space="preserve"><value>This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.</value></data>
+  <data name="ExternalLinkFailed" xml:space="preserve"><value>The external link could not be opened.</value></data>
+  <data name="TrayOpenDashboard" xml:space="preserve"><value>Open control deck</value></data>
+  <data name="TrayConnection" xml:space="preserve"><value>Pairing matrix</value></data>
+  <data name="TrayLogs" xml:space="preserve"><value>Runtime logs</value></data>
+  <data name="TrayStartOnLogin" xml:space="preserve"><value>Launch at Windows sign-in</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>Exit</value></data>
+  <data name="TrayDegraded" xml:space="preserve"><value>Connection health degraded.</value></data>
+  <data name="TrayRecovered" xml:space="preserve"><value>Connection restored.</value></data>
+  <data name="StartupRegistrationFailedTitle" xml:space="preserve"><value>Startup registration failed</value></data>
+  <data name="ActionFailedTitle" xml:space="preserve"><value>Operation failed</value></data>
+  <data name="ValidationDisplayName" xml:space="preserve"><value>Node name must contain 1 to 64 characters.</value></data>
+  <data name="ValidationPortRange" xml:space="preserve"><value>{0} must be between {1} and {2}.</value></data>
+  <data name="ValidationDistinctPorts" xml:space="preserve"><value>Public, backend, and Codex ports must use different values.</value></data>
+  <data name="TailnetIdentityUnavailable" xml:space="preserve"><value>Protected Tailscale identity unavailable</value></data>
+  <data name="TailnetIdentityUnavailableTitle" xml:space="preserve"><value>Tailnet identity unavailable</value></data>
+  <data name="TailnetIdentityUnavailableMessage" xml:space="preserve"><value>EverVigil cannot reveal or copy the connection URL until the protected broker has verified this device's current Tailscale identity and applied configuration. Apply the system configuration, then try again.</value></data>
+  <data name="ValidationTrustedTailscalePath" xml:space="preserve"><value>Tailscale must use the protected fixed installation path: {0}</value></data>
+  <data name="ValidationAbsolutePath" xml:space="preserve"><value>{0} must be an absolute path.</value></data>
+  <data name="ValidationPathMissing" xml:space="preserve"><value>{0} was not found: {1}</value></data>
+  <data name="ValidationLanguage" xml:space="preserve"><value>Display language must be system, en, or ja.</value></data>
+  <data name="SettingsCreatedRecovery" xml:space="preserve"><value>A new configuration file was created. The service remains stopped until Tailscale and Firewall are applied.</value></data>
+  <data name="SettingsQuarantinedRecovery" xml:space="preserve"><value>The invalid configuration was quarantined and defaults were restored. The service remains stopped until Tailscale and Firewall are reapplied.</value></data>
+  <data name="AppliedStateEmpty" xml:space="preserve"><value>The applied system configuration was empty.</value></data>
+  <data name="AppliedStateInvalid" xml:space="preserve"><value>The applied system configuration is invalid.</value></data>
+  <data name="AppliedStateUnreadable" xml:space="preserve"><value>The last applied system configuration could not be read safely.</value></data>
+  <data name="TokenQuarantinedRecovery" xml:space="preserve"><value>The unreadable saved token was quarantined and a new access token was generated.</value></data>
+</root>
