@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0-windows7.0": {
+      "evervigil.broker": {
+        "type": "Project",
+        "dependencies": {
+          "EverVigil.Broker.Protocol": "[2.0.0, )"
+        }
+      },
+      "evervigil.broker.protocol": {
+        "type": "Project"
+      }
+    },
+    "net8.0-windows7.0/win-x64": {}
+  }
+}
