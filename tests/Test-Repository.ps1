@@ -1541,6 +1541,12 @@ foreach ($formalBrokerSkipGuard in @(
         "if (`$BrokerTestSkipPolicy -eq 'RequireNone')"
         "@('--', '--fail-on-skip')"
         '$brokerTestBuildArguments'
+        "foreach (`$releaseCleanRuntimeIdentifier in @(`$null, 'win-x64'))"
+        "'clean'"
+        '$solutionPath'
+        "'-p:PublishAot=false'"
+        '$releaseCleanArguments += @($toolchainBuildProperties)'
+        'Release output cleanup failed with exit code'
         "'-m:1'"
         "'-p:PublishAot=false'"
         "'--no-build'"
@@ -3587,6 +3593,12 @@ foreach ($nativePreMainGuard in @(
         $failures.Add("Native broker pre-Main negative guard is missing: $nativePreMainGuard")
     }
 }
+$nativeAotInitialPreflightIndex = $buildReleaseContent.IndexOf(
+    'Assert-NativeAotRestoreGraph `',
+    [StringComparison]::Ordinal)
+$releaseCleanMutationIndex = $buildReleaseContent.IndexOf(
+    '& $dotnetCommand.Source @releaseCleanArguments',
+    [StringComparison]::Ordinal)
 $nativeAotPreflightIndex = $buildReleaseContent.LastIndexOf(
     'Assert-NativeAotRestoreGraph `',
     [StringComparison]::Ordinal)
@@ -3599,15 +3611,19 @@ $brokerTestRunMutationIndex = $buildReleaseContent.IndexOf(
 $releaseOutputMutationIndex = $buildReleaseContent.IndexOf(
     'Remove-ReleaseWorkingTreesWithRetry `',
     [StringComparison]::Ordinal)
-if ($nativeAotPreflightIndex -lt 0 -or
+if ($nativeAotInitialPreflightIndex -lt 0 -or
+    $releaseCleanMutationIndex -lt 0 -or
+    $nativeAotPreflightIndex -le $nativeAotInitialPreflightIndex -or
     $brokerTestBuildMutationIndex -lt 0 -or
     $brokerTestRunMutationIndex -lt 0 -or
     $releaseOutputMutationIndex -lt 0 -or
+    $nativeAotInitialPreflightIndex -gt $releaseCleanMutationIndex -or
+    $releaseCleanMutationIndex -gt $nativeAotPreflightIndex -or
     $nativeAotPreflightIndex -gt $brokerTestBuildMutationIndex -or
     $brokerTestBuildMutationIndex -gt $brokerTestRunMutationIndex -or
     $brokerTestRunMutationIndex -gt $releaseOutputMutationIndex) {
     $failures.Add(
-        'NativeAOT preflight, managed broker build, broker run, and release-output mutation are out of order.')
+        'NativeAOT preflight, clean rebuild, managed broker build, broker run, and release-output mutation are out of order.')
 }
 $privilegedPowerShellSurface = @(
     $installContent

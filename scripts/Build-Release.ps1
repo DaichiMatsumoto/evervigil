@@ -495,6 +495,7 @@ if (-not [string]::Equals($validatedVersion, $Version, [StringComparison]::Ordin
     throw "Release version validation changed '$Version' unexpectedly."
 }
 $projectPath = Join-Path $repositoryRoot 'src\EverVigil\EverVigil.csproj'
+$solutionPath = Join-Path $repositoryRoot 'EverVigil.sln'
 $brokerProjectPath = Join-Path `
     $repositoryRoot `
     'src\EverVigil.Broker\EverVigil.Broker.csproj'
@@ -525,6 +526,28 @@ if (-not [string]::Equals(
         $Version,
         [StringComparison]::Ordinal)) {
     throw "Requested version '$Version' does not match broker version '$declaredBrokerVersion'."
+}
+Assert-NativeAotRestoreGraph `
+    -ProjectAssetsPath $brokerProjectAssetsPath `
+    -AotLockFilePath @($brokerAotLockPath, $brokerProtocolAotLockPath)
+foreach ($releaseCleanRuntimeIdentifier in @($null, 'win-x64')) {
+    $releaseCleanArguments = @(
+        'clean'
+        $solutionPath
+        '-c'
+        'Release'
+        '-m:1'
+        '-p:PublishAot=false'
+        '-v:minimal'
+    )
+    if ($null -ne $releaseCleanRuntimeIdentifier) {
+        $releaseCleanArguments += @('-r', $releaseCleanRuntimeIdentifier)
+    }
+    $releaseCleanArguments += @($toolchainBuildProperties)
+    & $dotnetCommand.Source @releaseCleanArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release output cleanup failed with exit code $LASTEXITCODE."
+    }
 }
 Assert-NativeAotRestoreGraph `
     -ProjectAssetsPath $brokerProjectAssetsPath `
