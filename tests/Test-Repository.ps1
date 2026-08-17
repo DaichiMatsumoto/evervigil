@@ -3424,7 +3424,7 @@ if (-not $tailscaleResolverAst) {
     }
 }
 $configurationReadIndex = $installContent.IndexOf('$configuredPorts = Get-ConfiguredPorts', [StringComparison]::Ordinal)
-$packageSelectionIndex = $installContent.IndexOf(
+$packageSelectionIndex = $installContent.LastIndexOf(
     'if (Test-Path -LiteralPath $BundledExecutable -PathType Leaf)',
     [StringComparison]::Ordinal)
 if ($configurationReadIndex -lt 0 -or
