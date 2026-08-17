@@ -428,8 +428,9 @@ internal sealed class PendingSystemConfigurationStore
                 writer.Flush();
                 stream.Flush(flushToDisk: true);
             }
+            // The protected temporary is on the destination volume and already
+            // carries the final ACL. Moving it is the last fallible commit point.
             File.Move(temporaryPath, destinationPath, overwrite);
-            AccessControlService.RestrictFile(destinationPath, _ownerSid);
         }
         finally
         {

@@ -68,6 +68,7 @@ var tests = new (string Name, Action Run)[]
     ("default single-instance scope spans login sessions", DefaultSingleInstanceScopeSpansLoginSessions),
     ("headless control commands suppress startup error dialogs", HeadlessCommandsSuppressStartupErrorDialogs),
     ("atomic files receive their protected ACL at creation", AtomicFilesReceiveProtectedAclAtCreation),
+    ("atomic replacement preserves the protected ACL", AtomicReplacementPreservesProtectedAcl),
     ("startup waits for dependency configuration", StartupWaitsForDependencyConfiguration),
     ("concurrent token stores converge on one token", ConcurrentTokenStoresConvergeOnOneToken),
     ("legacy import preserves an existing DPAPI token", LegacyImportPreservesExistingDpapiToken),
@@ -1222,44 +1223,7 @@ static void AtomicFilesReceiveProtectedAclAtCreation()
             FileShare.None,
             bufferSize: 4096,
             FileOptions.WriteThrough);
-
-        var security = System.IO.FileSystemAclExtensions.GetAccessControl(
-            new FileInfo(path),
-            System.Security.AccessControl.AccessControlSections.Access |
-            System.Security.AccessControl.AccessControlSections.Owner);
-        var currentSid = System.Security.Principal.WindowsIdentity.GetCurrent().User ??
-            throw new InvalidOperationException("The current Windows user SID is unavailable.");
-        var expectedSids = new HashSet<string>(StringComparer.Ordinal)
-        {
-            currentSid.Value,
-            new System.Security.Principal.SecurityIdentifier(
-                System.Security.Principal.WellKnownSidType.LocalSystemSid,
-                null).Value,
-            new System.Security.Principal.SecurityIdentifier(
-                System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid,
-                null).Value
-        };
-        var rules = security.GetAccessRules(
-                includeExplicit: true,
-                includeInherited: true,
-                typeof(System.Security.Principal.SecurityIdentifier))
-            .OfType<System.Security.AccessControl.FileSystemAccessRule>()
-            .ToArray();
-
-        Assert(security.AreAccessRulesProtected, "The atomic file inherited an access list.");
-        Assert(
-            currentSid.Equals(security.GetOwner(typeof(System.Security.Principal.SecurityIdentifier))),
-            "The atomic file owner is not the current Windows user.");
-        Assert(
-            rules.Length == expectedSids.Count &&
-            rules.All(rule =>
-                !rule.IsInherited &&
-                rule.AccessControlType == System.Security.AccessControl.AccessControlType.Allow &&
-                rule.IdentityReference is System.Security.Principal.SecurityIdentifier sid &&
-                expectedSids.Contains(sid.Value) &&
-                (rule.FileSystemRights & System.Security.AccessControl.FileSystemRights.FullControl) ==
-                System.Security.AccessControl.FileSystemRights.FullControl),
-            "The atomic file ACL was not the exact current-user/SYSTEM/Administrators allow-list.");
+        AssertProtectedFileAcl(path);
 
         stream.WriteByte(1);
         stream.Flush(flushToDisk: true);
@@ -1271,6 +1235,84 @@ static void AtomicFilesReceiveProtectedAclAtCreation()
             Directory.Delete(root, recursive: true);
         }
     }
+}
+
+static void AtomicReplacementPreservesProtectedAcl()
+{
+    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-AclMove-{Guid.NewGuid():N}");
+    var temporaryPath = Path.Combine(root, "state.transaction.tmp");
+    var destinationPath = Path.Combine(root, "state.json");
+    try
+    {
+        AccessControlService.RestrictDirectory(root);
+        File.WriteAllText(destinationPath, "previous");
+        using (var stream = AccessControlService.CreateRestrictedFile(
+                   temporaryPath,
+                   FileMode.CreateNew,
+                   FileShare.None,
+                   bufferSize: 4096,
+                   FileOptions.WriteThrough))
+        using (var writer = new StreamWriter(stream, new System.Text.UTF8Encoding(false), leaveOpen: true))
+        {
+            writer.Write("replacement");
+            writer.Flush();
+            stream.Flush(flushToDisk: true);
+        }
+
+        File.Move(temporaryPath, destinationPath, overwrite: true);
+
+        Assert(!File.Exists(temporaryPath), "The moved atomic temporary still exists.");
+        Assert(File.ReadAllText(destinationPath) == "replacement", "The atomic replacement content is stale.");
+        AssertProtectedFileAcl(destinationPath);
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static void AssertProtectedFileAcl(string path)
+{
+    var security = System.IO.FileSystemAclExtensions.GetAccessControl(
+        new FileInfo(path),
+        System.Security.AccessControl.AccessControlSections.Access |
+        System.Security.AccessControl.AccessControlSections.Owner);
+    var currentSid = System.Security.Principal.WindowsIdentity.GetCurrent().User ??
+        throw new InvalidOperationException("The current Windows user SID is unavailable.");
+    var expectedSids = new HashSet<string>(StringComparer.Ordinal)
+    {
+        currentSid.Value,
+        new System.Security.Principal.SecurityIdentifier(
+            System.Security.Principal.WellKnownSidType.LocalSystemSid,
+            null).Value,
+        new System.Security.Principal.SecurityIdentifier(
+            System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid,
+            null).Value
+    };
+    var rules = security.GetAccessRules(
+            includeExplicit: true,
+            includeInherited: true,
+            typeof(System.Security.Principal.SecurityIdentifier))
+        .OfType<System.Security.AccessControl.FileSystemAccessRule>()
+        .ToArray();
+
+    Assert(security.AreAccessRulesProtected, "The atomic file inherited an access list.");
+    Assert(
+        currentSid.Equals(security.GetOwner(typeof(System.Security.Principal.SecurityIdentifier))),
+        "The atomic file owner is not the current Windows user.");
+    Assert(
+        rules.Length == expectedSids.Count &&
+        rules.All(rule =>
+            !rule.IsInherited &&
+            rule.AccessControlType == System.Security.AccessControl.AccessControlType.Allow &&
+            rule.IdentityReference is System.Security.Principal.SecurityIdentifier sid &&
+            expectedSids.Contains(sid.Value) &&
+            (rule.FileSystemRights & System.Security.AccessControl.FileSystemRights.FullControl) ==
+            System.Security.AccessControl.FileSystemRights.FullControl),
+        "The atomic file ACL was not the exact current-user/SYSTEM/Administrators allow-list.");
 }
 
 static void StartupWaitsForDependencyConfiguration()

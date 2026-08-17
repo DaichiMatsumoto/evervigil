@@ -2730,11 +2730,18 @@ foreach ($postCommitAclRewrite in @(
             "An atomic journal writer performs a fallible ACL rewrite after its durable Move: $postCommitAclRewrite")
     }
 }
+$atomicCommitGuardCorpus = [regex]::Replace(
+    [regex]::Replace(
+        $installContent + $installTransactionContent,
+        '(?m)^\s*#\s?',
+        ' '),
+    '\s+',
+    ' ')
 foreach ($atomicMoveFinalGuard in @(
         'new phase is already durable.'
         'Atomic replacement is the final fallible operation'
         'Moving it is the commit point and must be the last fallible operation.')) {
-    if (-not ($installContent + $installTransactionContent).Contains(
+    if (-not $atomicCommitGuardCorpus.Contains(
             $atomicMoveFinalGuard,
             [StringComparison]::Ordinal)) {
         $failures.Add("An atomic journal commit-point guard is missing: $atomicMoveFinalGuard")
@@ -3766,11 +3773,35 @@ foreach ($pendingJournalGuard in @(
         'EnsureRegularFile(temporaryPath);'
         'EnsureNoReparsePoint('
         'ResolveLocalAppData(_ownerSid)'
-        'AccessControlService.RestrictFile(temporaryPath, _ownerSid);'
+        'using (var stream = AccessControlService.CreateRestrictedFile('
+        'File.Move(temporaryPath, destinationPath, overwrite);'
     )) {
     if (-not $pendingSystemContent.Contains($pendingJournalGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Pending system configuration journal guard is missing: $pendingJournalGuard")
     }
+}
+if ($pendingSystemContent.Contains(
+        'AccessControlService.RestrictFile(destinationPath, _ownerSid);',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'Pending system configuration rewrites the ACL after its durable atomic Move.')
+}
+$pendingCreateIndex = $pendingSystemContent.IndexOf(
+    'using (var stream = AccessControlService.CreateRestrictedFile(',
+    [StringComparison]::Ordinal)
+$pendingFlushIndex = $pendingSystemContent.IndexOf(
+    'stream.Flush(flushToDisk: true);',
+    $pendingCreateIndex + 1,
+    [StringComparison]::Ordinal)
+$pendingMoveIndex = $pendingSystemContent.IndexOf(
+    'File.Move(temporaryPath, destinationPath, overwrite);',
+    $pendingFlushIndex + 1,
+    [StringComparison]::Ordinal)
+if ($pendingCreateIndex -lt 0 -or
+    $pendingFlushIndex -le $pendingCreateIndex -or
+    $pendingMoveIndex -le $pendingFlushIndex) {
+    $failures.Add(
+        'Pending system configuration must create a protected temporary, flush it, then commit by Move.')
 }
 foreach ($pendingCommitGuard in @(
         'SystemConfigurationService.ExecuteUnderSystemTransaction(() =>'
