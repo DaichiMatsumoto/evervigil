@@ -50,6 +50,7 @@ $requiredFiles = @(
     'Directory.Build.props'
     'NuGet.config'
     '.github\release-host-lock.json'
+    '.github\release-source-manifest.json'
     'installer\EverVigil.iss'
     'licenses\INNO-SETUP-LICENSE.txt'
     'licenses\QRCODER-LICENSE.txt'
@@ -121,6 +122,7 @@ $requiredFiles = @(
     'tests\Test-ProductionInstallerAuditReport.ps1'
     'tests\Test-ReleaseResourceAudit.ps1'
     'tests\Test-ReleaseHost.ps1'
+    'tests\ReleasePathIsolation.ps1'
     'tests\Invoke-ReleaseShell.cmd'
     'tests\Test-SystemMaintenance.ps1'
     '.github\workflows\release.yml'
@@ -578,7 +580,7 @@ foreach ($releaseGuard in @(
         'group: evervigil-release'
         'labels: [self-hosted, Windows, X64, ephemeral, windows-11-pro, tailscale-pinned]'
         'persist-credentials: false'
-        '%GITHUB_WORKSPACE%\tests\Invoke-ReleaseShell.cmd'
+        'C:\Program Files\EverVigil Release Host\Invoke-ReleaseShell.cmd'
         '.\tests\Test-ReleaseHost.ps1'
         '.\.github\release-host-lock.json'
         'contents: read'
@@ -593,6 +595,11 @@ foreach ($releaseGuard in @(
         'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'
         'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093'
         'candidate-manifest.json'
+        'candidate-manifest-sha256: ${{ steps.release.outputs.candidate-manifest-sha256 }}'
+        'installer-sha256: ${{ steps.release.outputs.installer-sha256 }}'
+        'report-sha256: ${{ steps.audit.outputs.report-sha256 }}'
+        'The downloaded candidate manifest does not match the validation job output.'
+        'A downloaded production audit report does not match its audit job output.'
         'release-host-evidence.json'
         '$powerShellPath = [string]$lock.powerShell.hostPath'
         '$resourceCompilerPath = [string]$lock.windowsResourceCompiler.compilerPath'
@@ -610,6 +617,49 @@ foreach ($releaseGuard in @(
         '-p:RestoreAdditionalProjectSources='
         '-p:RestoreAdditionalProjectFallbackFolders='
         '-p:ContinuousIntegrationBuild=true'
+        '[string]$releaseCriticalSourceContents[''.\tests\ReleasePathIsolation.ps1'']'
+        'The release-build working directory must exactly match GITHUB_WORKSPACE.'
+        'Assert-EverVigilDirectoryOutside'
+        'Assert-EverVigilReleaseStateDirectorySecurity'
+        'New-EverVigilFreshIsolatedRoot'
+        'Lock-EverVigilDirectoryAncestries'
+        'New-EverVigilDirectorySentinelLocks'
+        'New-EverVigilSourceTreeLocks'
+        'Assert-EverVigilSourceTreeLockState'
+        'Close-EverVigilSourceTreeLocks'
+        'Assert-EverVigilGeneratedOutputTreeState'
+        'Assert-EverVigilReleaseIsolationState'
+        'Assert-NoEverVigilSourceNuGetMigrationState'
+        'Close-EverVigilDirectorySentinelLocks'
+        'Close-EverVigilDirectoryLocks'
+        '$releaseCriticalSourceLocks'
+        '$releaseCriticalSourceHashes'
+        '$releaseCriticalSourceContents'
+        '$releaseSourceManifest'
+        '$sourceManifestEntries'
+        '$heldSourceFiles'
+        'The reviewed source lock set does not exactly match the release source manifest.'
+        'A reviewed source hash does not match the release source manifest:'
+        '[Security.Cryptography.SHA256]::HashData($criticalSourceBytes)'
+        '[ScriptBlock]::Create('
+        '$releaseSourceTreeLocks'
+        '$releaseArtifactFileLocks'
+        '-ExcludedRootNames @(''.git'', ''artifacts'')'
+        '$dependencyRootIdentity'
+        '$releaseFailure = $null'
+        'Release isolation cleanup also failed:'
+        'Remove-Item -LiteralPath $dependencyRoot -Recurse -Force -ErrorAction Stop'
+        '$isolatedUserProfile = Join-Path $dependencyRoot ''user-profile'''
+        'APPDATA = Join-Path $isolatedUserProfile ''AppData\Roaming'''
+        'LOCALAPPDATA = Join-Path $isolatedUserProfile ''AppData\Local'''
+        'USERPROFILE = $isolatedUserProfile'
+        '''NUGET_PLUGIN_PATHS'''
+        '''NUGET_NETCORE_PLUGIN_PATHS'''
+        '''NUGET_NETFX_PLUGIN_PATHS'''
+        '$pluginPathVariable,'
+        ''';'','
+        'NuGet migration state was not isolated as a regular empty marker.'
+        'NuGet migration state escaped into the reviewed source checkout.'
         '-p:DirectoryBuildPropsPath=$env:GITHUB_WORKSPACE\Directory.Build.props'
         'dotnet restore failed with exit code'
         'dotnet build failed with exit code'
@@ -718,6 +768,314 @@ foreach ($releaseGuard in @(
     if (-not $releaseWorkflowContent.Contains($releaseGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Private draft release guard is missing: $releaseGuard")
     }
+}
+$reviewedBootstrapSources = [ordered]@{
+    '.\.github\release-host-lock.json' = '.github\release-host-lock.json'
+    '.\.github\release-source-manifest.json' = '.github\release-source-manifest.json'
+    '.\tests\ReleasePathIsolation.ps1' = 'tests\ReleasePathIsolation.ps1'
+    '.\tests\Test-ReleaseHost.ps1' = 'tests\Test-ReleaseHost.ps1'
+}
+foreach ($bootstrapSource in $reviewedBootstrapSources.GetEnumerator()) {
+    $expectedBootstrapHash = (Get-FileHash `
+            -LiteralPath (Join-Path $RepositoryRoot ([string]$bootstrapSource.Value)) `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+    $expectedBootstrapEntry =
+        "'$([string]$bootstrapSource.Key)' = '$expectedBootstrapHash'"
+    if (-not $releaseWorkflowContent.Contains(
+            $expectedBootstrapEntry,
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            "The server-reviewed release bootstrap hash is stale or missing: $($bootstrapSource.Value)")
+    }
+}
+if (-not $releaseWorkflowContent.Contains(
+        '$releaseCriticalSourceLocks.Count -ne 4',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'Private release must keep all four server-reviewed bootstrap sources locked and live.')
+}
+
+$releaseSourceManifestPath =
+    Join-Path $RepositoryRoot '.github\release-source-manifest.json'
+try {
+    $releaseSourceManifest =
+        Get-Content -LiteralPath $releaseSourceManifestPath -Raw | ConvertFrom-Json
+    $manifestTopLevelProperties = @(
+        $releaseSourceManifest.PSObject.Properties.Name | Sort-Object)
+    if ([string]::Join("`n", $manifestTopLevelProperties) -cne
+            "files`nschemaVersion" -or
+        [int]$releaseSourceManifest.schemaVersion -ne 1 -or
+        @($releaseSourceManifest.files).Count -eq 0) {
+        throw 'The source manifest top-level schema is invalid.'
+    }
+
+    $manifestSourcePaths = [Collections.Generic.List[string]]::new()
+    $manifestSourceEntries =
+        [Collections.Generic.Dictionary[string, object]]::new(
+            [StringComparer]::OrdinalIgnoreCase)
+    $previousManifestSourcePath = $null
+    foreach ($manifestEntry in @($releaseSourceManifest.files)) {
+        $entryProperties = @($manifestEntry.PSObject.Properties.Name | Sort-Object)
+        $manifestSourcePath = [string]$manifestEntry.path
+        if ([string]::Join("`n", $entryProperties) -cne "length`npath`nsha256" -or
+            [string]::IsNullOrWhiteSpace($manifestSourcePath) -or
+            $manifestSourcePath.Contains('\') -or
+            [IO.Path]::IsPathFullyQualified($manifestSourcePath) -or
+            @($manifestSourcePath.Split('/') | Where-Object {
+                    [string]::IsNullOrWhiteSpace($_) -or $_ -ceq '.' -or $_ -ceq '..'
+                }).Count -ne 0 -or
+            @($manifestSourcePath.Split('/') | Where-Object {
+                    $_ -ieq 'bin' -or $_ -ieq 'obj'
+                }).Count -ne 0 -or
+            $manifestSourcePath -ieq '.github/release-source-manifest.json' -or
+            $manifestSourcePath -ieq '.github/workflows/release.yml' -or
+            [string]$manifestEntry.sha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            [string]$manifestEntry.length -cnotmatch '\A(?:0|[1-9]\d*)\z' -or
+            [long]$manifestEntry.length -lt 0 -or
+            ($null -ne $previousManifestSourcePath -and
+                [string]::CompareOrdinal(
+                    $previousManifestSourcePath,
+                    $manifestSourcePath) -ge 0) -or
+            -not $manifestSourceEntries.TryAdd($manifestSourcePath, $manifestEntry)) {
+            throw "The source manifest contains a non-canonical entry: $manifestSourcePath"
+        }
+        $manifestSourcePaths.Add($manifestSourcePath)
+        $previousManifestSourcePath = $manifestSourcePath
+        $manifestFile = Get-Item `
+            -LiteralPath (Join-Path $RepositoryRoot $manifestSourcePath) `
+            -Force `
+            -ErrorAction Stop
+        $manifestFileHash = (Get-FileHash `
+                -LiteralPath $manifestFile.FullName `
+                -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($manifestFile.PSIsContainer -or
+            ($manifestFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            $manifestFile.Length -ne [long]$manifestEntry.length -or
+            $manifestFileHash -cne [string]$manifestEntry.sha256) {
+            throw "The source manifest does not match the current file bytes: $manifestSourcePath"
+        }
+    }
+
+    $actualManifestSourcePathList = [Collections.Generic.List[string]]::new()
+    foreach ($actualSourceFile in @(
+            Get-ChildItem -LiteralPath $RepositoryRoot -File -Recurse -Force)) {
+        $actualRelativePath = [IO.Path]::GetRelativePath(
+            $RepositoryRoot,
+            $actualSourceFile.FullName).Replace('\', '/')
+        $actualPathSegments = @($actualRelativePath.Split('/'))
+        if ($actualPathSegments[0] -in @('.git', '.jj', '.codex', 'artifacts') -or
+            $actualPathSegments -contains 'bin' -or
+            $actualPathSegments -contains 'obj' -or
+            $actualRelativePath -in @(
+                '.github/release-source-manifest.json',
+                '.github/workflows/release.yml')) {
+            continue
+        }
+        $actualManifestSourcePathList.Add($actualRelativePath)
+    }
+    [string[]]$actualManifestSourcePaths = @($actualManifestSourcePathList)
+    [Array]::Sort($actualManifestSourcePaths, [StringComparer]::Ordinal)
+    if ($manifestSourcePaths.Count -ne $actualManifestSourcePaths.Count -or
+        [string]::Join("`n", $manifestSourcePaths) -cne
+            [string]::Join("`n", $actualManifestSourcePaths)) {
+        throw 'The source manifest file set is not the exact current repository file set.'
+    }
+
+    $attributesContent = Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot '.gitattributes') `
+        -Raw
+    foreach ($requiredLfAttribute in @(
+            '* text=auto eol=lf',
+            '*.ps1 text eol=lf',
+            '*.psd1 text eol=lf',
+            '*.cmd text eol=lf')) {
+        if (-not $attributesContent.Contains(
+                $requiredLfAttribute,
+                [StringComparison]::Ordinal)) {
+            throw "The release source EOL contract is missing: $requiredLfAttribute"
+        }
+    }
+    if ($attributesContent.Contains('eol=crlf', [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The release source EOL contract must not request CRLF checkout bytes.'
+    }
+
+    $strictManifestUtf8 = [Text.UTF8Encoding]::new($false, $true)
+    foreach ($manifestEntry in @($releaseSourceManifest.files)) {
+        $manifestExtension = [IO.Path]::GetExtension([string]$manifestEntry.path)
+        if ($manifestExtension -in @('.png', '.ico')) {
+            continue
+        }
+        $manifestTextBytes = [IO.File]::ReadAllBytes(
+            (Join-Path $RepositoryRoot ([string]$manifestEntry.path)))
+        [void]$strictManifestUtf8.GetString($manifestTextBytes)
+        if ($manifestTextBytes -contains 13) {
+            throw "A release source does not use canonical LF bytes: $($manifestEntry.path)"
+        }
+    }
+} catch {
+    $failures.Add("Release source manifest validation failed: $($_.Exception.Message)")
+}
+foreach ($unsafeReleaseProfilePath in @(
+        "APPDATA = Join-Path `$dependencyRoot 'app-data'",
+        "LOCALAPPDATA = Join-Path `$dependencyRoot 'local-app-data'")) {
+    if ($releaseWorkflowContent.Contains(
+            $unsafeReleaseProfilePath,
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            "Private release paths must use the coherent isolated user profile hierarchy: $unsafeReleaseProfilePath")
+    }
+}
+foreach ($unsafeReleaseIsolationPattern in @(
+        '[IO.Directory]::CreateDirectory($dependencyRoot)',
+        'if (Test-Path $bundleRoot) { Remove-Item $bundleRoot -Recurse -Force }',
+        "[string[]]`$ExcludedRootNames = @('.git', 'artifacts')",
+        '$isolatedPath.StartsWith(',
+        "foreach (`$sourceRootName in @('.github', 'docs', 'installer', 'scripts', 'src', 'tests'))")) {
+    if ($releaseWorkflowContent.Contains(
+            $unsafeReleaseIsolationPattern,
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            "Private release still contains a weak lexical or partial-scan isolation pattern: $unsafeReleaseIsolationPattern")
+    }
+}
+$releaseNuGetPluginSentinelMatch = [regex]::Match(
+    $releaseWorkflowContent,
+    '(?s)foreach \(\$pluginPathVariable in @\((?<variables>.*?)\)\) \{(?<body>.*?)\n\s*\}')
+if (-not $releaseNuGetPluginSentinelMatch.Success) {
+    $failures.Add('Private release NuGet plugin isolation block is missing.')
+} else {
+    $pluginVariables = $releaseNuGetPluginSentinelMatch.Groups['variables'].Value
+    foreach ($requiredPluginVariable in @(
+            'NUGET_PLUGIN_PATHS',
+            'NUGET_NETCORE_PLUGIN_PATHS',
+            'NUGET_NETFX_PLUGIN_PATHS')) {
+        if ([regex]::Matches(
+                $pluginVariables,
+                "'" + [regex]::Escape($requiredPluginVariable) + "'").Count -ne 1) {
+            $failures.Add(
+                "Private release must disable each NuGet plugin selector exactly once: $requiredPluginVariable")
+        }
+    }
+    $pluginIsolationBody = $releaseNuGetPluginSentinelMatch.Groups['body'].Value
+    if (-not $pluginIsolationBody.Contains("';'", [StringComparison]::Ordinal) -or
+        -not $pluginIsolationBody.Contains('-cne '';''', [StringComparison]::Ordinal)) {
+        $failures.Add(
+            'Private release must set and re-read the NuGet 6.8.2 explicit zero-plugin sentinel.')
+    }
+    $firstDotnetInvocationIndex = $releaseWorkflowContent.IndexOf(
+        '& $dotnetPath',
+        [StringComparison]::Ordinal)
+    if ($firstDotnetInvocationIndex -lt 0 -or
+        $releaseNuGetPluginSentinelMatch.Index +
+            $releaseNuGetPluginSentinelMatch.Length -ge $firstDotnetInvocationIndex -or
+        [regex]::Matches(
+            $releaseWorkflowContent,
+            '(?s)SetEnvironmentVariable\(\s*\$pluginPathVariable,\s*'';''').Count -ne 1 -or
+        [regex]::IsMatch(
+            $releaseWorkflowContent,
+            '(?im)^\s*\$env:NUGET_(?:NETCORE_|NETFX_)?PLUGIN_PATHS\s*=')) {
+        $failures.Add(
+            'Private release must set the zero-plugin sentinel once before the first dotnet invocation and never overwrite it.')
+    }
+}
+foreach ($releaseIsolationGuard in @(
+        'Assert-EverVigilDirectoryWithin',
+        'The isolated release environment changed:',
+        'The release directory locks are not held.',
+        '$nuGetMigrationMarker = Join-Path $env:LOCALAPPDATA ''NuGet\Migrations\1''',
+        'Get-ChildItem -LiteralPath $workspaceRoot -Force',
+        '$sourceEntry.Name -ceq ''.git''',
+        '$sourceMigrationMarkers.Count -ne 0')) {
+    if (-not $releaseWorkflowContent.Contains(
+            $releaseIsolationGuard,
+            [StringComparison]::Ordinal)) {
+        $failures.Add("Private release isolation guard is missing: $releaseIsolationGuard")
+    }
+}
+if ([regex]::Matches(
+        $releaseWorkflowContent,
+        '(?m)^\s+Assert-EverVigilReleaseIsolationState\s*$').Count -ne 12) {
+    $failures.Add(
+        'Private release must revalidate and retain isolation before every restore/build/test boundary.')
+}
+$releaseAncestryLockIndex = $releaseWorkflowContent.IndexOf(
+    '$releaseDirectoryLocks += @(Lock-EverVigilDirectoryAncestries',
+    [StringComparison]::Ordinal)
+$releaseSourceTreeLockIndex = $releaseWorkflowContent.IndexOf(
+    '$releaseSourceTreeLocks = New-EverVigilSourceTreeLocks',
+    [StringComparison]::Ordinal)
+$releaseRepositoryTestIndex = $releaseWorkflowContent.IndexOf(
+    '.\tests\Test-Repository.ps1',
+    [StringComparison]::Ordinal)
+if ($releaseAncestryLockIndex -lt 0 -or
+    $releaseSourceTreeLockIndex -le $releaseAncestryLockIndex -or
+    $releaseRepositoryTestIndex -le $releaseSourceTreeLockIndex -or
+    [regex]::Matches(
+        $releaseWorkflowContent,
+        'Assert-EverVigilSourceTreeLockState -LockSet \$releaseSourceTreeLocks').Count -ne 1) {
+    $failures.Add(
+        'Private release must lock and revalidate the complete source tree after ancestry review and before repository code runs.')
+}
+$releasePathIsolationContent = Get-Content `
+    -LiteralPath (Join-Path $RepositoryRoot 'tests\ReleasePathIsolation.ps1') `
+    -Raw
+$releasePathIsolationSha256 = (Get-FileHash `
+        -LiteralPath (Join-Path $RepositoryRoot 'tests\ReleasePathIsolation.ps1') `
+        -Algorithm SHA256).Hash.ToLowerInvariant()
+if ([regex]::Matches(
+        $releaseWorkflowContent,
+        [regex]::Escape($releasePathIsolationSha256)).Count -ne 3) {
+    $failures.Add(
+        'Private release must bind all three release jobs to the exact reviewed path-isolation helper bytes.')
+}
+foreach ($releasePathGuard in @(
+        'public sealed class ReleaseDirectoryLock : IDisposable'
+        'FileShareRead = 0x00000001'
+        'FileFlagOpenReparsePoint = 0x00200000'
+        'GetFinalPathNameByHandleW'
+        'QueryDosDeviceW'
+        'GetVolumePathNamesForVolumeNameW'
+        'IsNativeDriveRoot'
+        'IsRegisteredVolumeMount'
+        'public static string GetFinalPath(SafeFileHandle file)'
+        '$stream.SafeFileHandle'
+        'VolumeNameGuid = 0x00000001'
+        'CreateFreshDirectory'
+        '[IO.FileMode]::CreateNew'
+        '[IO.FileShare]::Read'
+        '$stream.Flush($true)'
+        'RawSecurityDescriptor'
+        '$null -eq $rawDescriptor.DiscretionaryAcl'
+        'Assert-EverVigilAccessControlDescriptor'
+        '0x50000000'
+        '[Security.AccessControl.QualifiedAce]'
+        'public bool IsAlive'
+        'function New-EverVigilSourceTreeLocks'
+        'function Assert-EverVigilSourceTreeLockState'
+        'function Close-EverVigilSourceTreeLocks'
+        'function Assert-EverVigilGeneratedOutputTreeState'
+        'The fresh reviewed source checkout contains generated output:'
+        'The reviewed non-generated source tree changed after it was locked.'
+        'DeleteSubdirectoriesAndFiles'
+        'ChangePermissions'
+        'TakeOwnership')) {
+    if (-not $releasePathIsolationContent.Contains(
+            $releasePathGuard,
+            [StringComparison]::Ordinal)) {
+        $failures.Add("Release path isolation contract is missing: $releasePathGuard")
+    }
+}
+if (-not [regex]::IsMatch(
+        $releaseWorkflowContent,
+        '(?s)\.\\scripts\\Build-Release\.ps1.*?Assert-EverVigilReleaseIsolationState\s+Assert-NoEverVigilSourceNuGetMigrationState.*?\$installerName')) {
+    $failures.Add(
+        'Private release must perform the final isolation and migration scan after Build-Release and before manifest assembly.')
+}
+if (-not [regex]::IsMatch(
+        $releaseWorkflowContent,
+        '(?s)\$releaseFailure\s*=\s*\$null.*?try\s*\{.*?\}\s*catch\s*\{\s*\$releaseFailure\s*=\s*\$_.*?\}\s*finally\s*\{.*?Close-EverVigilSourceTreeLocks.*?\$sourceCheckoutLock\.Dispose\(\).*?\$releaseCriticalSourceLocks\[\$index\]\.Dispose\(\).*?\$releaseArtifactFileLocks\[\$index\]\.Dispose\(\).*?Close-EverVigilDirectorySentinelLocks.*?Close-EverVigilDirectoryLocks.*?Remove-Item -LiteralPath \$dependencyRoot')) {
+    $failures.Add(
+        'Private release must clean all isolation locks and the identity-bound dependency root in finally.')
 }
 if ([regex]::Matches(
         $releaseWorkflowContent,
@@ -971,7 +1329,7 @@ if ($releaseJobSeparatorIndex -lt 0) {
             'contents: read'
             'persist-credentials: false'
             'C:\Windows\System32\cmd.exe /D /S /C'
-            '%GITHUB_WORKSPACE%\tests\Invoke-ReleaseShell.cmd'
+            'C:\Program Files\EverVigil Release Host\Invoke-ReleaseShell.cmd'
             'labels: [self-hosted, Windows, X64, ephemeral, windows-11-pro, tailscale-pinned]'
             '.\tests\Test-ReleaseHost.ps1'
             '--fail-on-skip')) {
@@ -1163,6 +1521,8 @@ $releaseShellCanaries = [ordered]@{
     COMPlus_ReadyToRun = '0'
     MSBuildSDKsPath = 'evervigil-test-sdk-path'
     NUGET_PLUGIN_PATHS = 'evervigil-test-plugin-path'
+    NUGET_NETCORE_PLUGIN_PATHS = 'evervigil-test-netcore-plugin-path'
+    NUGET_NETFX_PLUGIN_PATHS = 'evervigil-test-netfx-plugin-path'
     RestoreFallbackFolders = 'evervigil-test-fallback-path'
     ProjectAssetsFile = 'evervigil-test-assets-path'
     NuGetLockFilePath = 'evervigil-test-lock-path'
@@ -1248,6 +1608,1198 @@ if (-not $passed) { exit 23 }
     Remove-Item -LiteralPath $releaseShellFixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+$releaseProfileFixtureRoot = Join-Path `
+    ([IO.Path]::GetTempPath()) `
+    ("evervigil-release-profile-" + [Guid]::NewGuid().ToString('N'))
+$releaseProfileProbePath = Join-Path $releaseProfileFixtureRoot 'probe.ps1'
+$releaseProfileResultPath = Join-Path $releaseProfileFixtureRoot 'result.txt'
+$releaseProfileRoot = Join-Path $releaseProfileFixtureRoot 'user-profile'
+$releaseProfileEnvironment = [ordered]@{
+    USERPROFILE = $releaseProfileRoot
+    APPDATA = Join-Path $releaseProfileRoot 'AppData\Roaming'
+    LOCALAPPDATA = Join-Path $releaseProfileRoot 'AppData\Local'
+    NUGET_PLUGIN_PATHS = ';'
+    NUGET_NETCORE_PLUGIN_PATHS = ';'
+    NUGET_NETFX_PLUGIN_PATHS = ';'
+    EVERVIGIL_RELEASE_PROFILE_RESULT = $releaseProfileResultPath
+}
+$releaseProfilePreviousEnvironment = @{}
+try {
+    foreach ($directory in @(
+            $releaseProfileRoot,
+            $releaseProfileEnvironment.APPDATA,
+            $releaseProfileEnvironment.LOCALAPPDATA)) {
+        [IO.Directory]::CreateDirectory([string]$directory) | Out-Null
+    }
+    $releaseProfileProbe = @'
+$passed =
+    [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData) -ceq $env:APPDATA -and
+    [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData) -ceq $env:LOCALAPPDATA -and
+    $env:NUGET_PLUGIN_PATHS -ceq ';' -and
+    $env:NUGET_NETCORE_PLUGIN_PATHS -ceq ';' -and
+    $env:NUGET_NETFX_PLUGIN_PATHS -ceq ';'
+[IO.File]::WriteAllText(
+    $env:EVERVIGIL_RELEASE_PROFILE_RESULT,
+    $(if ($passed) { 'PASS' } else { 'FAIL' }),
+    [Text.UTF8Encoding]::new($false))
+if (-not $passed) { exit 31 }
+'@
+    [IO.File]::WriteAllText(
+        $releaseProfileProbePath,
+        $releaseProfileProbe,
+        [Text.UTF8Encoding]::new($false))
+    foreach ($entry in $releaseProfileEnvironment.GetEnumerator()) {
+        $releaseProfilePreviousEnvironment[[string]$entry.Key] =
+            [Environment]::GetEnvironmentVariable([string]$entry.Key, 'Process')
+        [Environment]::SetEnvironmentVariable(
+            [string]$entry.Key,
+            [string]$entry.Value,
+            'Process')
+    }
+    & 'C:\Program Files\PowerShell\7\pwsh.exe' `
+        -NoLogo `
+        -NoProfile `
+        -NonInteractive `
+        -File $releaseProfileProbePath
+    if ($LASTEXITCODE -ne 0 -or
+        -not (Test-Path -LiteralPath $releaseProfileResultPath -PathType Leaf) -or
+        [IO.File]::ReadAllText($releaseProfileResultPath) -cne 'PASS') {
+        $failures.Add(
+            'The coherent private-release profile did not isolate Windows known folders and NuGet plugins.')
+    }
+} catch {
+    $failures.Add("Private-release profile isolation test failed: $($_.Exception.Message)")
+} finally {
+    foreach ($entry in $releaseProfilePreviousEnvironment.GetEnumerator()) {
+        [Environment]::SetEnvironmentVariable(
+            [string]$entry.Key,
+            $entry.Value,
+            'Process')
+    }
+    Remove-Item -LiteralPath $releaseProfileFixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+$nuGetPluginFixtureRoot = Join-Path `
+    ([IO.Path]::GetTempPath()) `
+    ("evervigil-nuget-plugin-" + [Guid]::NewGuid().ToString('N'))
+$nuGetPluginServerJob = $null
+$nuGetPluginProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
+$nuGetPluginTimeoutMilliseconds = 15000
+$invokeNuGetPluginProcess = {
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$Arguments,
+
+        [Parameter(Mandatory)]
+        [string]$CaseRoot,
+
+        [Parameter(Mandatory)]
+        [string]$PluginPathValue,
+
+        [Parameter(Mandatory)]
+        [string]$MarkerPath
+    )
+
+    foreach ($directory in @(
+            $CaseRoot,
+            (Join-Path $CaseRoot 'profile'),
+            (Join-Path $CaseRoot 'profile\AppData\Roaming'),
+            (Join-Path $CaseRoot 'profile\AppData\Local'),
+            (Join-Path $CaseRoot 'packages'),
+            (Join-Path $CaseRoot 'http-cache'),
+            (Join-Path $CaseRoot 'plugins-cache'))) {
+        [IO.Directory]::CreateDirectory($directory) | Out-Null
+    }
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = 'C:\Program Files\dotnet\dotnet.exe'
+    $startInfo.WorkingDirectory = $nuGetPluginFixtureRoot
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.Environment.Clear()
+    foreach ($entry in ([ordered]@{
+                SystemRoot = $env:SystemRoot
+                windir = $env:SystemRoot
+                ComSpec = Join-Path $env:SystemRoot 'System32\cmd.exe'
+                OS = 'Windows_NT'
+                ProgramData = 'C:\ProgramData'
+                ProgramFiles = 'C:\Program Files'
+                ProgramW6432 = 'C:\Program Files'
+                'ProgramFiles(x86)' = 'C:\Program Files (x86)'
+                CommonProgramFiles = 'C:\Program Files\Common Files'
+                CommonProgramW6432 = 'C:\Program Files\Common Files'
+                'CommonProgramFiles(x86)' = 'C:\Program Files (x86)\Common Files'
+                PATH = 'C:\Program Files\dotnet;C:\Windows\System32;C:\Windows'
+                PATHEXT = '.COM;.EXE;.BAT;.CMD'
+                DOTNET_ROOT = 'C:\Program Files\dotnet'
+                DOTNET_CLI_HOME = Join-Path $CaseRoot 'profile'
+                DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+                DOTNET_CLI_UI_LANGUAGE = 'en-US'
+                DOTNET_NOLOGO = '1'
+                DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
+                DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE = 'true'
+                DOTNET_MULTILEVEL_LOOKUP = '0'
+                DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER = '1'
+                MSBUILDDISABLENODEREUSE = '1'
+                USERPROFILE = Join-Path $CaseRoot 'profile'
+                USERNAME = $env:USERNAME
+                USERDOMAIN = $env:USERDOMAIN
+                HOMEDRIVE = [IO.Path]::GetPathRoot($CaseRoot).TrimEnd('\')
+                HOMEPATH =
+                    (Join-Path $CaseRoot 'profile').Substring(
+                        [IO.Path]::GetPathRoot($CaseRoot).TrimEnd('\').Length)
+                APPDATA = Join-Path $CaseRoot 'profile\AppData\Roaming'
+                LOCALAPPDATA = Join-Path $CaseRoot 'profile\AppData\Local'
+                COMPUTERNAME = $env:COMPUTERNAME
+                PROCESSOR_ARCHITECTURE = $env:PROCESSOR_ARCHITECTURE
+                PROCESSOR_IDENTIFIER = $env:PROCESSOR_IDENTIFIER
+                PROCESSOR_LEVEL = $env:PROCESSOR_LEVEL
+                PROCESSOR_REVISION = $env:PROCESSOR_REVISION
+                NUMBER_OF_PROCESSORS = $env:NUMBER_OF_PROCESSORS
+                TEMP = $CaseRoot
+                TMP = $CaseRoot
+                NUGET_PACKAGES = Join-Path $CaseRoot 'packages'
+                NUGET_HTTP_CACHE_PATH = Join-Path $CaseRoot 'http-cache'
+                NUGET_PLUGINS_CACHE_PATH = Join-Path $CaseRoot 'plugins-cache'
+                NUGET_PLUGIN_PATHS = $PluginPathValue
+                NUGET_NETCORE_PLUGIN_PATHS = $PluginPathValue
+                NUGET_NETFX_PLUGIN_PATHS = $PluginPathValue
+                EVERVIGIL_NUGET_PLUGIN_MARKER = $MarkerPath
+            }).GetEnumerator()) {
+        $startInfo.Environment[[string]$entry.Key] = [string]$entry.Value
+    }
+    foreach ($argument in $Arguments) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $nuGetPluginProcesses.Add($process)
+    $started = $false
+    try {
+        $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+        $started = $process.Start()
+        if (-not $started) {
+            throw 'dotnet process did not start'
+        }
+        $standardOutput = $process.StandardOutput.ReadToEndAsync()
+        $standardError = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($nuGetPluginTimeoutMilliseconds)) {
+            $process.Kill($true)
+            $process.WaitForExit()
+            throw "dotnet process exceeded $nuGetPluginTimeoutMilliseconds ms"
+        }
+        $stopwatch.Stop()
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            ElapsedMilliseconds = $stopwatch.ElapsedMilliseconds
+            Output =
+                $standardOutput.GetAwaiter().GetResult() +
+                [Environment]::NewLine +
+                $standardError.GetAwaiter().GetResult()
+        }
+    } finally {
+        if ($started -and -not $process.HasExited) {
+            $process.Kill($true)
+            $process.WaitForExit()
+        }
+        $process.Dispose()
+        [void]$nuGetPluginProcesses.Remove($process)
+    }
+}
+try {
+    [IO.Directory]::CreateDirectory($nuGetPluginFixtureRoot) | Out-Null
+    $nuGetPluginEmptySource = Join-Path $nuGetPluginFixtureRoot 'empty-source'
+    $nuGetPluginProjectRoot = Join-Path $nuGetPluginFixtureRoot 'PoisonPlugin'
+    $nuGetRestoreProjectRoot = Join-Path $nuGetPluginFixtureRoot 'RestoreTarget'
+    foreach ($directory in @(
+            $nuGetPluginEmptySource,
+            $nuGetPluginProjectRoot,
+            $nuGetRestoreProjectRoot)) {
+        [IO.Directory]::CreateDirectory($directory) | Out-Null
+    }
+    [IO.File]::WriteAllText(
+        (Join-Path $nuGetPluginFixtureRoot 'global.json'),
+        '{"sdk":{"version":"8.0.130","rollForward":"disable"}}',
+        [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText(
+        (Join-Path $nuGetPluginProjectRoot 'PoisonPlugin.csproj'),
+        @'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>
+'@,
+        [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText(
+        (Join-Path $nuGetPluginProjectRoot 'Program.cs'),
+        @'
+var markerPath = Environment.GetEnvironmentVariable("EVERVIGIL_NUGET_PLUGIN_MARKER");
+if (!string.IsNullOrWhiteSpace(markerPath))
+{
+    File.WriteAllText(markerPath, "EXECUTED");
+}
+return 86;
+'@,
+        [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText(
+        (Join-Path $nuGetRestoreProjectRoot 'RestoreTarget.csproj'),
+        @'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="EverVigil.NuGetPlugin.Probe" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+'@,
+        [Text.UTF8Encoding]::new($false))
+
+    $nuGetPluginPublishRoot = Join-Path $nuGetPluginFixtureRoot 'plugin-publish'
+    $nuGetPluginBuildRoot = Join-Path $nuGetPluginFixtureRoot 'build-process'
+    $nuGetPluginBuildMarker = Join-Path $nuGetPluginFixtureRoot 'build-marker.txt'
+    $nuGetPluginBuild = & $invokeNuGetPluginProcess `
+        -Arguments @(
+            'publish'
+            (Join-Path $nuGetPluginProjectRoot 'PoisonPlugin.csproj')
+            '--configuration'
+            'Release'
+            '--source'
+            $nuGetPluginEmptySource
+            '--packages'
+            (Join-Path $nuGetPluginBuildRoot 'packages')
+            '--output'
+            $nuGetPluginPublishRoot
+            '--nologo'
+            '-p:NuGetAudit=false'
+            '-p:UseSharedCompilation=false') `
+        -CaseRoot $nuGetPluginBuildRoot `
+        -PluginPathValue ';' `
+        -MarkerPath $nuGetPluginBuildMarker
+    $nuGetPoisonPluginPath = Join-Path $nuGetPluginPublishRoot 'PoisonPlugin.dll'
+    if ($nuGetPluginBuild.ExitCode -ne 0 -or
+        $nuGetPluginBuild.ElapsedMilliseconds -gt $nuGetPluginTimeoutMilliseconds -or
+        -not (Test-Path -LiteralPath $nuGetPoisonPluginPath -PathType Leaf) -or
+        (Test-Path -LiteralPath $nuGetPluginBuildMarker)) {
+        throw "poison plugin build failed: $($nuGetPluginBuild.Output.Trim())"
+    }
+
+    $nuGetPluginServerJob = Start-Job -ScriptBlock {
+        $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+        $listener.Start()
+        $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port
+        "READY:$port"
+        try {
+            while ($true) {
+                if (-not $listener.Pending()) {
+                    Start-Sleep -Milliseconds 20
+                    continue
+                }
+                $client = $listener.AcceptTcpClient()
+                try {
+                    $stream = $client.GetStream()
+                    $reader = [IO.StreamReader]::new(
+                        $stream,
+                        [Text.Encoding]::ASCII,
+                        $false,
+                        4096,
+                        $true)
+                    $requestLine = $reader.ReadLine()
+                    while (($headerLine = $reader.ReadLine()) -ne $null -and
+                        $headerLine.Length -gt 0) {
+                    }
+                    $path = ($requestLine -split ' ')[1]
+                    if ($path -match '\A/(?<case>baseline|guarded)/v3/index\.json\z') {
+                        $caseName = $Matches['case']
+                        $body =
+                            '{"version":"3.0.0","resources":[{"@id":"http://127.0.0.1:' +
+                            $port +
+                            '/' +
+                            $caseName +
+                            '/flat/","@type":"PackageBaseAddress/3.0.0"}]}'
+                        $status = '200 OK'
+                    } else {
+                        $body = ''
+                        $status = '404 Not Found'
+                    }
+                    $bodyBytes = [Text.Encoding]::UTF8.GetBytes($body)
+                    $header =
+                        "HTTP/1.1 $status`r`n" +
+                        "Content-Type: application/json`r`n" +
+                        "Content-Length: $($bodyBytes.Length)`r`n" +
+                        "Connection: close`r`n`r`n"
+                    $headerBytes = [Text.Encoding]::ASCII.GetBytes($header)
+                    $stream.Write($headerBytes, 0, $headerBytes.Length)
+                    if ($bodyBytes.Length -gt 0) {
+                        $stream.Write($bodyBytes, 0, $bodyBytes.Length)
+                    }
+                    $stream.Flush()
+                    "REQUEST:${path}:$status"
+                } finally {
+                    $client.Dispose()
+                }
+            }
+        } finally {
+            $listener.Stop()
+        }
+    }
+    $nuGetPluginServerReadyWatch = [Diagnostics.Stopwatch]::StartNew()
+    $nuGetPluginServerPort = $null
+    while ($nuGetPluginServerReadyWatch.ElapsedMilliseconds -lt 5000) {
+        foreach ($line in @(Receive-Job -Job $nuGetPluginServerJob -Keep)) {
+            if ([string]$line -match '\AREADY:(?<port>\d+)\z') {
+                $nuGetPluginServerPort = [int]$Matches['port']
+                break
+            }
+        }
+        if ($null -ne $nuGetPluginServerPort) {
+            break
+        }
+        if ($nuGetPluginServerJob.State -in @('Completed', 'Failed', 'Stopped')) {
+            break
+        }
+        Start-Sleep -Milliseconds 50
+    }
+    $nuGetPluginServerReadyWatch.Stop()
+    if ($null -eq $nuGetPluginServerPort) {
+        throw 'loopback NuGet fixture server did not become ready within 5000 ms'
+    }
+
+    $nuGetRestoreProject = Join-Path $nuGetRestoreProjectRoot 'RestoreTarget.csproj'
+    $nuGetBaselineRoot = Join-Path $nuGetPluginFixtureRoot 'baseline-process'
+    $nuGetBaselineMarker = Join-Path $nuGetPluginFixtureRoot 'baseline-marker.txt'
+    $nuGetBaseline = & $invokeNuGetPluginProcess `
+        -Arguments @(
+            'restore'
+            $nuGetRestoreProject
+            '--source'
+            "http://127.0.0.1:$nuGetPluginServerPort/baseline/v3/index.json"
+            '--packages'
+            (Join-Path $nuGetBaselineRoot 'packages')
+            '--no-cache'
+            '--force'
+            '--disable-parallel'
+            '--verbosity'
+            'normal'
+            '-p:NuGetAudit=false') `
+        -CaseRoot $nuGetBaselineRoot `
+        -PluginPathValue $nuGetPoisonPluginPath `
+        -MarkerPath $nuGetBaselineMarker
+    $nuGetBaselineServerLines = @(Receive-Job -Job $nuGetPluginServerJob -Keep)
+
+    $nuGetGuardedRoot = Join-Path $nuGetPluginFixtureRoot 'guarded-process'
+    $nuGetGuardedMarker = Join-Path $nuGetPluginFixtureRoot 'guarded-marker.txt'
+    $nuGetGuarded = & $invokeNuGetPluginProcess `
+        -Arguments @(
+            'restore'
+            $nuGetRestoreProject
+            '--source'
+            "http://127.0.0.1:$nuGetPluginServerPort/guarded/v3/index.json"
+            '--packages'
+            (Join-Path $nuGetGuardedRoot 'packages')
+            '--no-cache'
+            '--force'
+            '--disable-parallel'
+            '--verbosity'
+            'normal'
+            '-p:NuGetAudit=false') `
+        -CaseRoot $nuGetGuardedRoot `
+        -PluginPathValue ';' `
+        -MarkerPath $nuGetGuardedMarker
+    $nuGetGuardedServerLines = @(Receive-Job -Job $nuGetPluginServerJob -Keep)
+
+    $signatureDiagnostic = 'did not have a valid embedded signature'
+    $baselineSelectedPoison =
+        $nuGetBaseline.Output.Contains($nuGetPoisonPluginPath, [StringComparison]::OrdinalIgnoreCase) -and
+        $nuGetBaseline.Output.Contains($signatureDiagnostic, [StringComparison]::OrdinalIgnoreCase)
+    $baselineReachedSource = @($nuGetBaselineServerLines | Where-Object {
+            [string]$_ -like 'REQUEST:/baseline/flat/*'
+        }).Count -gt 0
+    $guardedSelectedPoison =
+        $nuGetGuarded.Output.Contains($nuGetPoisonPluginPath, [StringComparison]::OrdinalIgnoreCase) -or
+        $nuGetGuarded.Output.Contains($signatureDiagnostic, [StringComparison]::OrdinalIgnoreCase)
+    $guardedReachedSource = @($nuGetGuardedServerLines | Where-Object {
+            [string]$_ -like 'REQUEST:/guarded/flat/*'
+        }).Count -gt 0
+    if ($nuGetBaseline.ExitCode -eq 0 -or
+        $nuGetBaseline.ElapsedMilliseconds -gt $nuGetPluginTimeoutMilliseconds -or
+        -not $baselineSelectedPoison -or
+        $baselineReachedSource -or
+        (Test-Path -LiteralPath $nuGetBaselineMarker) -or
+        $nuGetGuarded.ExitCode -eq 0 -or
+        $nuGetGuarded.ElapsedMilliseconds -gt $nuGetPluginTimeoutMilliseconds -or
+        $guardedSelectedPoison -or
+        -not $guardedReachedSource -or
+        (Test-Path -LiteralPath $nuGetGuardedMarker)) {
+        $failures.Add(
+            'NuGet 6.8.2 explicit-plugin isolation regression failed: ' +
+            "baselineExit=$($nuGetBaseline.ExitCode), " +
+            "baselineMs=$($nuGetBaseline.ElapsedMilliseconds), " +
+            "baselineSelected=$baselineSelectedPoison, " +
+            "baselineSource=$baselineReachedSource, " +
+            "baselineMarker=$(Test-Path -LiteralPath $nuGetBaselineMarker), " +
+            "guardedExit=$($nuGetGuarded.ExitCode), " +
+            "guardedMs=$($nuGetGuarded.ElapsedMilliseconds), " +
+            "guardedSelected=$guardedSelectedPoison, " +
+            "guardedSource=$guardedReachedSource, " +
+            "guardedMarker=$(Test-Path -LiteralPath $nuGetGuardedMarker).")
+    }
+} catch {
+    $failures.Add("NuGet plugin isolation negative test failed: $($_.Exception.Message)")
+} finally {
+    foreach ($process in @($nuGetPluginProcesses)) {
+        try {
+            if (-not $process.HasExited) {
+                $process.Kill($true)
+                $process.WaitForExit()
+            }
+        } finally {
+            $process.Dispose()
+        }
+    }
+    $nuGetPluginProcesses.Clear()
+    if ($null -ne $nuGetPluginServerJob) {
+        Stop-Job -Job $nuGetPluginServerJob -ErrorAction SilentlyContinue
+        Remove-Job -Job $nuGetPluginServerJob -Force -ErrorAction SilentlyContinue
+    }
+    $fixtureRootFullPath = [IO.Path]::GetFullPath($nuGetPluginFixtureRoot)
+    $temporaryRootFullPath =
+        [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+    if ($fixtureRootFullPath.StartsWith(
+            $temporaryRootFullPath,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        try {
+            Remove-Item `
+                -LiteralPath $fixtureRootFullPath `
+                -Recurse `
+                -Force `
+                -ErrorAction Stop
+            if (Test-Path -LiteralPath $fixtureRootFullPath) {
+                throw 'fixture root still exists after cleanup'
+            }
+        } catch {
+            $failures.Add("NuGet fixture cleanup failed: $($_.Exception.Message)")
+        }
+    } else {
+        $failures.Add("Refusing to clean an unexpected NuGet fixture root: $fixtureRootFullPath")
+    }
+}
+
+$releasePathIsolationScript = Join-Path $RepositoryRoot 'tests\ReleasePathIsolation.ps1'
+if ($null -eq ('EverVigil.ReleasePathAliasFixture' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+namespace EverVigil
+{
+    public static class ReleasePathAliasFixture
+    {
+        private const uint RawTargetPath = 0x00000001;
+        private const uint RemoveDefinition = 0x00000002;
+        private const uint ExactMatchOnRemove = 0x00000004;
+        private const uint NoBroadcastSystem = 0x00000008;
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool DefineDosDeviceW(
+            uint flags,
+            string deviceName,
+            string targetPath);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint QueryDosDeviceW(
+            string deviceName,
+            [Out] char[] targetPath,
+            int maximumLength);
+
+        public static string GetSingleMapping(string deviceName)
+        {
+            int capacity = 512;
+            while (capacity <= 32768)
+            {
+                char[] targets = new char[capacity];
+                uint length = QueryDosDeviceW(deviceName, targets, targets.Length);
+                if (length != 0)
+                {
+                    string[] mappings = new string(targets, 0, checked((int)length)).Split(
+                        new[] { '\0' },
+                        StringSplitOptions.RemoveEmptyEntries);
+                    if (mappings.Length != 1)
+                    {
+                        throw new InvalidOperationException("The native fixture drive has multiple mappings.");
+                    }
+                    return mappings[0];
+                }
+                int error = Marshal.GetLastWin32Error();
+                if (error != 122)
+                {
+                    throw new Win32Exception(error, "The native fixture drive mapping could not be read.");
+                }
+                capacity *= 2;
+            }
+            throw new InvalidOperationException("The native fixture drive mapping is too long.");
+        }
+
+        public static void Create(string deviceName, string targetPath)
+        {
+            if (!DefineDosDeviceW(
+                    RawTargetPath | NoBroadcastSystem,
+                    deviceName,
+                    targetPath))
+            {
+                throw new Win32Exception(
+                    Marshal.GetLastWin32Error(),
+                    "The local raw drive alias could not be created.");
+            }
+        }
+
+        public static void Remove(string deviceName, string targetPath)
+        {
+            if (!DefineDosDeviceW(
+                    RawTargetPath | RemoveDefinition | ExactMatchOnRemove | NoBroadcastSystem,
+                    deviceName,
+                    targetPath))
+            {
+                throw new Win32Exception(
+                    Marshal.GetLastWin32Error(),
+                    "The local raw drive alias could not be removed.");
+            }
+        }
+    }
+}
+'@
+}
+$releasePathFixtureRoot = Join-Path `
+    ([IO.Path]::GetTempPath()) `
+    ("evervigil-release-path-" + [Guid]::NewGuid().ToString('N'))
+$releasePathWorkspaceTarget = Join-Path `
+    (Join-Path $RepositoryRoot 'artifacts') `
+    ("release-path-target-" + [Guid]::NewGuid().ToString('N'))
+$releasePathDrive = $null
+$releasePathRawAliasTarget = $null
+$releasePathSubstActive = $false
+$releasePathRawAliasActive = $false
+$releasePathDirectoryLocks = @()
+$releasePathSentinelLocks = @()
+$releasePathSourceTreeLocks = $null
+try {
+    . $releasePathIsolationScript
+    [IO.Directory]::CreateDirectory($releasePathFixtureRoot) | Out-Null
+    [IO.Directory]::CreateDirectory($releasePathWorkspaceTarget) | Out-Null
+    $workspaceTargetMarker = Join-Path $releasePathWorkspaceTarget 'unchanged.txt'
+    [IO.File]::WriteAllText(
+        $workspaceTargetMarker,
+        'UNCHANGED',
+        [Text.UTF8Encoding]::new($false))
+    $workspaceTargetHash = (Get-FileHash `
+            -LiteralPath $workspaceTargetMarker `
+            -Algorithm SHA256).Hash
+    $relativeRejected = $false
+    try {
+        Get-EverVigilNormalizedDirectoryPath `
+            -Path 'relative\release-state' `
+            -Description 'Relative fixture' | Out-Null
+    } catch {
+        $relativeRejected = $_.Exception.Message -like '*fully-qualified*'
+    }
+    $insideWorkspaceRejected = $false
+    try {
+        Assert-EverVigilDirectoryOutside `
+            -Path $releasePathWorkspaceTarget `
+            -ForbiddenRoot $RepositoryRoot `
+            -Description 'Workspace fixture' | Out-Null
+    } catch {
+        $insideWorkspaceRejected = $_.Exception.Message -like '*source checkout*'
+    }
+
+    $junctionPath = Join-Path $releasePathFixtureRoot 'workspace-junction'
+    New-Item `
+        -ItemType Junction `
+        -Path $junctionPath `
+        -Target $releasePathWorkspaceTarget `
+        -ErrorAction Stop | Out-Null
+    $junctionRejected = $false
+    try {
+        Assert-EverVigilNonReparseDirectoryAncestry `
+            -Path $junctionPath `
+            -Description 'Junction fixture' | Out-Null
+    } catch {
+        $junctionRejected = $_.Exception.Message -like '*reparse*'
+    }
+
+    foreach ($candidateLetter in [char[]]'ZYXWVUTSRQPONMLKJIHGFED') {
+        $candidateDrive = "$candidateLetter`:"
+        if (-not (Test-Path -LiteralPath "$candidateDrive\")) {
+            $releasePathDrive = $candidateDrive
+            break
+        }
+    }
+    if ($null -eq $releasePathDrive) {
+        throw 'No free drive letter is available for the release-path alias fixture.'
+    }
+    & (Join-Path $env:SystemRoot 'System32\subst.exe') `
+        $releasePathDrive `
+        ([IO.Path]::GetPathRoot($releasePathFixtureRoot))
+    if ($LASTEXITCODE -ne 0) {
+        throw "subst failed with exit code $LASTEXITCODE."
+    }
+    $releasePathSubstActive = $true
+    $driveAliasRejected = $false
+    try {
+        Assert-EverVigilDirectoryOutside `
+            -Path "$releasePathDrive\" `
+            -ForbiddenRoot $RepositoryRoot `
+            -Description 'Drive-alias fixture' | Out-Null
+    } catch {
+        $driveAliasRejected = $_.Exception.Message -like '*drive alias*'
+    }
+    & (Join-Path $env:SystemRoot 'System32\subst.exe') $releasePathDrive /D
+    if ($LASTEXITCODE -ne 0) {
+        throw "subst cleanup failed with exit code $LASTEXITCODE."
+    }
+    $releasePathSubstActive = $false
+    $nativeFixtureDrive = [IO.Path]::GetPathRoot($releasePathFixtureRoot).Substring(0, 2)
+    $releasePathRawAliasTarget =
+        [EverVigil.ReleasePathAliasFixture]::GetSingleMapping($nativeFixtureDrive)
+    [EverVigil.ReleasePathAliasFixture]::Create(
+        $releasePathDrive,
+        $releasePathRawAliasTarget)
+    $releasePathRawAliasActive = $true
+    $rawDriveAliasRejected = $false
+    try {
+        Assert-EverVigilDirectoryOutside `
+            -Path "$releasePathDrive\" `
+            -ForbiddenRoot $RepositoryRoot `
+            -Description 'Raw drive-alias fixture' | Out-Null
+    } catch {
+        $rawDriveAliasRejected =
+            $_.Exception.Message -like '*not registered by the volume mount manager*'
+    } finally {
+        [EverVigil.ReleasePathAliasFixture]::Remove(
+            $releasePathDrive,
+            $releasePathRawAliasTarget)
+        $releasePathRawAliasActive = $false
+        $releasePathRawAliasTarget = $null
+    }
+    $runnerIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $trustedWriterSids = @(
+        'S-1-5-18',
+        'S-1-5-32-544',
+        $runnerIdentity.User.Value)
+    $trustedDescriptor = [Security.AccessControl.RawSecurityDescriptor]::new(
+        'O:BAG:BAD:(A;;FA;;;SY)(A;;FA;;;BA)')
+    Assert-EverVigilAccessControlDescriptor `
+        -Descriptor $trustedDescriptor `
+        -AllowedWriterSids $trustedWriterSids `
+        -DangerousAccessMask 0x000D0156 `
+        -Description 'Trusted raw ACL fixture' `
+        -Path '<trusted-descriptor>'
+    $genericAclRejected = $true
+    foreach ($genericRight in @('GA', 'GW')) {
+        $genericDescriptor = [Security.AccessControl.RawSecurityDescriptor]::new(
+            "O:BAG:BAD:(A;;$genericRight;;;BU)")
+        try {
+            Assert-EverVigilAccessControlDescriptor `
+                -Descriptor $genericDescriptor `
+                -AllowedWriterSids $trustedWriterSids `
+                -DangerousAccessMask 0x000D0156 `
+                -Description 'Generic raw ACL fixture' `
+                -Path "<generic-$genericRight>"
+            $genericAclRejected = $false
+        } catch {
+            if ($_.Exception.Message -notlike '*can be replaced or modified*') {
+                throw
+            }
+        }
+    }
+    $administratorsSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+    $nullDaclDescriptor = [Security.AccessControl.RawSecurityDescriptor]::new(
+        [Security.AccessControl.ControlFlags]::None,
+        $administratorsSid,
+        $administratorsSid,
+        $null,
+        $null)
+    $nullDaclRejected = $false
+    try {
+        Assert-EverVigilAccessControlDescriptor `
+            -Descriptor $nullDaclDescriptor `
+            -AllowedWriterSids $trustedWriterSids `
+            -DangerousAccessMask 0x000D0156 `
+            -Description 'Null raw ACL fixture' `
+            -Path '<null-dacl>'
+    } catch {
+        $nullDaclRejected = $_.Exception.Message -like '*null discretionary ACL*'
+    }
+
+    $sourceWorkspace = Join-Path $releasePathFixtureRoot 'source-workspace'
+    [IO.Directory]::CreateDirectory($sourceWorkspace) | Out-Null
+    $sourceWorkspaceSecurity = [Security.AccessControl.DirectorySecurity]::new()
+    $sourceWorkspaceSecurity.SetOwner($runnerIdentity.User)
+    $sourceWorkspaceSecurity.SetAccessRuleProtection($true, $false)
+    $sourceInheritance =
+        [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+        [Security.AccessControl.InheritanceFlags]::ObjectInherit
+    foreach ($sourceRuleSid in @(
+            $runnerIdentity.User,
+            [Security.Principal.SecurityIdentifier]::new('S-1-5-18'),
+            $administratorsSid)) {
+        $sourceWorkspaceSecurity.AddAccessRule(
+            [Security.AccessControl.FileSystemAccessRule]::new(
+                $sourceRuleSid,
+                [Security.AccessControl.FileSystemRights]::FullControl,
+                $sourceInheritance,
+                [Security.AccessControl.PropagationFlags]::None,
+                [Security.AccessControl.AccessControlType]::Allow))
+    }
+    Set-Acl `
+        -LiteralPath $sourceWorkspace `
+        -AclObject $sourceWorkspaceSecurity `
+        -ErrorAction Stop
+
+    $generatedOutputRoot = Join-Path $releasePathFixtureRoot 'generated-output-root'
+    [IO.Directory]::CreateDirectory($generatedOutputRoot) | Out-Null
+    Set-Acl `
+        -LiteralPath $generatedOutputRoot `
+        -AclObject $sourceWorkspaceSecurity `
+        -ErrorAction Stop
+    $generatedOutputMarker = Join-Path $generatedOutputRoot 'output.txt'
+    [IO.File]::WriteAllText(
+        $generatedOutputMarker,
+        'GENERATED',
+        [Text.UTF8Encoding]::new($false))
+    $generatedOutputIdentity = Get-EverVigilDirectoryIdentity `
+        -Path $generatedOutputRoot `
+        -Description 'Generated-output fixture'
+    $releasePathSentinelLocks = @(New-EverVigilDirectorySentinelLocks `
+        -Paths @($generatedOutputRoot) `
+        -Description 'Generated-output fixture')
+    Assert-EverVigilGeneratedOutputTreeState `
+        -RootPath $generatedOutputRoot `
+        -ExpectedRootIdentity $generatedOutputIdentity `
+        -RunnerSid $runnerIdentity.User.Value `
+        -Description 'Generated-output fixture' `
+        -HeldFileLocks $releasePathSentinelLocks | Out-Null
+    $generatedOutputSentinelAccepted = $true
+
+    $builtinUsersSid =
+        [Security.Principal.SecurityIdentifier]::new('S-1-5-32-545')
+    $generatedOutputUnsafeAclRejected = $true
+    foreach ($unsafeOutputKind in @('file', 'directory')) {
+        $unsafeOutputPath = Join-Path `
+            $generatedOutputRoot `
+            "unsafe-$unsafeOutputKind"
+        if ($unsafeOutputKind -ceq 'file') {
+            [IO.File]::WriteAllText(
+                $unsafeOutputPath,
+                'UNSAFE',
+                [Text.UTF8Encoding]::new($false))
+        } else {
+            [IO.Directory]::CreateDirectory($unsafeOutputPath) | Out-Null
+        }
+        try {
+            $unsafeOutputAcl = Get-Acl -LiteralPath $unsafeOutputPath -ErrorAction Stop
+            $unsafeOutputAcl.SetAccessRuleProtection($true, $true)
+            $unsafeOutputAcl.AddAccessRule(
+                [Security.AccessControl.FileSystemAccessRule]::new(
+                    $builtinUsersSid,
+                    [Security.AccessControl.FileSystemRights]::WriteData,
+                    [Security.AccessControl.AccessControlType]::Allow))
+            Set-Acl `
+                -LiteralPath $unsafeOutputPath `
+                -AclObject $unsafeOutputAcl `
+                -ErrorAction Stop
+            try {
+                Assert-EverVigilGeneratedOutputTreeState `
+                    -RootPath $generatedOutputRoot `
+                    -ExpectedRootIdentity $generatedOutputIdentity `
+                    -RunnerSid $runnerIdentity.User.Value `
+                    -Description 'Generated-output unsafe-ACL fixture' `
+                    -HeldFileLocks $releasePathSentinelLocks | Out-Null
+                $generatedOutputUnsafeAclRejected = $false
+            } catch {
+                if ($_.Exception.Message -notlike '*can be replaced or modified*') {
+                    throw
+                }
+            }
+        } finally {
+            if ($unsafeOutputKind -ceq 'file') {
+                [IO.File]::Delete($unsafeOutputPath)
+            } else {
+                [IO.Directory]::Delete($unsafeOutputPath)
+            }
+        }
+    }
+    Assert-EverVigilGeneratedOutputTreeState `
+        -RootPath $generatedOutputRoot `
+        -ExpectedRootIdentity $generatedOutputIdentity `
+        -RunnerSid $runnerIdentity.User.Value `
+        -Description 'Generated-output fixture' `
+        -HeldFileLocks $releasePathSentinelLocks | Out-Null
+
+    $generatedOutputWrongIdentity = [pscustomobject]@{
+        Volume = $generatedOutputIdentity.Volume
+        VolumeSerialNumber = $generatedOutputIdentity.VolumeSerialNumber
+        FileId = '0000000000000000'
+        RelativePath = $generatedOutputIdentity.RelativePath
+        CanonicalPath = $generatedOutputIdentity.CanonicalPath
+    }
+    $generatedOutputIdentityMismatchRejected = $false
+    try {
+        Assert-EverVigilGeneratedOutputTreeState `
+            -RootPath $generatedOutputRoot `
+            -ExpectedRootIdentity $generatedOutputWrongIdentity `
+            -RunnerSid $runnerIdentity.User.Value `
+            -Description 'Generated-output identity fixture' `
+            -HeldFileLocks $releasePathSentinelLocks | Out-Null
+    } catch {
+        $generatedOutputIdentityMismatchRejected =
+            $_.Exception.Message -like '*identity changed*'
+    }
+
+    $generatedOutputJunction = Join-Path $generatedOutputRoot 'linked-output'
+    New-Item `
+        -ItemType Junction `
+        -Path $generatedOutputJunction `
+        -Target $releasePathWorkspaceTarget `
+        -ErrorAction Stop | Out-Null
+    $generatedOutputReparseRejected = $false
+    try {
+        Assert-EverVigilGeneratedOutputTreeState `
+            -RootPath $generatedOutputRoot `
+            -ExpectedRootIdentity $generatedOutputIdentity `
+            -RunnerSid $runnerIdentity.User.Value `
+            -Description 'Generated-output reparse fixture' `
+            -HeldFileLocks $releasePathSentinelLocks | Out-Null
+    } catch {
+        $generatedOutputReparseRejected = $_.Exception.Message -like '*reparse entry*'
+    }
+    [IO.Directory]::Delete($generatedOutputJunction)
+    Close-EverVigilDirectorySentinelLocks -Locks $releasePathSentinelLocks
+    $releasePathSentinelLocks = @()
+
+    foreach ($sourceDirectory in @('src\nested', '.git', 'artifacts')) {
+        [IO.Directory]::CreateDirectory(
+            (Join-Path $sourceWorkspace $sourceDirectory)) | Out-Null
+    }
+    $lockedSourcePath = Join-Path $sourceWorkspace 'src\locked.cs'
+    $nestedSourcePath = Join-Path $sourceWorkspace 'src\nested\data.txt'
+    [IO.File]::WriteAllText(
+        $lockedSourcePath,
+        'internal sealed class LockedSource {}',
+        [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText(
+        $nestedSourcePath,
+        'NESTED',
+        [Text.UTF8Encoding]::new($false))
+    $releasePathSourceTreeLocks = New-EverVigilSourceTreeLocks `
+        -WorkspaceRoot $sourceWorkspace `
+        -RunnerSid $runnerIdentity.User.Value `
+        -ExcludedRootNames @('.git', 'artifacts')
+    $sourceLocksExact =
+        @($releasePathSourceTreeLocks.FileLocks).Count -eq 2 -and
+        @($releasePathSourceTreeLocks.DirectoryLocks).Count -eq 3
+    Assert-EverVigilSourceTreeLockState -LockSet $releasePathSourceTreeLocks
+    $sourceWriteRejected = $false
+    try {
+        [IO.File]::WriteAllText($lockedSourcePath, 'CHANGED')
+    } catch [IO.IOException] {
+        $sourceWriteRejected = $true
+    } catch [UnauthorizedAccessException] {
+        $sourceWriteRejected = $true
+    }
+    $sourceRenameRejected = $false
+    try {
+        [IO.File]::Move($lockedSourcePath, "$lockedSourcePath.moved")
+    } catch [IO.IOException] {
+        $sourceRenameRejected = $true
+    } catch [UnauthorizedAccessException] {
+        $sourceRenameRejected = $true
+    }
+    $excludedGitPath = Join-Path $sourceWorkspace '.git\mutable.txt'
+    $excludedArtifactPath = Join-Path $sourceWorkspace 'artifacts\mutable.txt'
+    [IO.File]::WriteAllText($excludedGitPath, 'GIT')
+    [IO.File]::WriteAllText($excludedArtifactPath, 'ARTIFACT')
+    $sourceExcludedWritable =
+        (Get-Content -LiteralPath $excludedGitPath -Raw) -ceq 'GIT' -and
+        (Get-Content -LiteralPath $excludedArtifactPath -Raw) -ceq 'ARTIFACT'
+    $injectedSourcePath = Join-Path $sourceWorkspace 'src\injected.cs'
+    [IO.File]::WriteAllText($injectedSourcePath, 'internal sealed class InjectedSource {}')
+    $sourceInjectionRejected = $false
+    try {
+        Assert-EverVigilSourceTreeLockState -LockSet $releasePathSourceTreeLocks
+    } catch {
+        $sourceInjectionRejected =
+            $_.Exception.Message -like '*non-generated source tree changed*'
+    }
+    [IO.File]::Delete($injectedSourcePath)
+    Assert-EverVigilSourceTreeLockState -LockSet $releasePathSourceTreeLocks
+    $sourceStateRecovered = $true
+
+    $generatedSourceDirectory = Join-Path $sourceWorkspace 'src\obj'
+    [IO.Directory]::CreateDirectory($generatedSourceDirectory) | Out-Null
+    $generatedSourcePath = Join-Path $generatedSourceDirectory 'generated.props'
+    [IO.File]::WriteAllText($generatedSourcePath, '<Project />')
+    Assert-EverVigilSourceTreeLockState -LockSet $releasePathSourceTreeLocks
+    $postLockGeneratedOutputAccepted = $true
+    $generatedSourceAcl = Get-Acl -LiteralPath $generatedSourcePath -ErrorAction Stop
+    $generatedSourceAcl.SetAccessRuleProtection($true, $true)
+    $generatedSourceAcl.AddAccessRule(
+        [Security.AccessControl.FileSystemAccessRule]::new(
+            $builtinUsersSid,
+            [Security.AccessControl.FileSystemRights]::WriteData,
+            [Security.AccessControl.AccessControlType]::Allow))
+    Set-Acl `
+        -LiteralPath $generatedSourcePath `
+        -AclObject $generatedSourceAcl `
+        -ErrorAction Stop
+    $postLockGeneratedAclRejected = $false
+    try {
+        Assert-EverVigilSourceTreeLockState -LockSet $releasePathSourceTreeLocks
+    } catch {
+        $postLockGeneratedAclRejected =
+            $_.Exception.Message -like '*can be replaced or modified*'
+    }
+    [IO.File]::Delete($generatedSourcePath)
+    [IO.File]::WriteAllText($generatedSourcePath, '<Project />')
+    Assert-EverVigilSourceTreeLockState -LockSet $releasePathSourceTreeLocks
+
+    $preexistingGeneratedWorkspace = Join-Path `
+        $releasePathFixtureRoot `
+        'source-preexisting-generated-workspace'
+    [IO.Directory]::CreateDirectory($preexistingGeneratedWorkspace) | Out-Null
+    Set-Acl `
+        -LiteralPath $preexistingGeneratedWorkspace `
+        -AclObject $sourceWorkspaceSecurity `
+        -ErrorAction Stop
+    [IO.Directory]::CreateDirectory(
+        (Join-Path $preexistingGeneratedWorkspace 'src\obj')) | Out-Null
+    [IO.File]::WriteAllText(
+        (Join-Path $preexistingGeneratedWorkspace 'src\obj\stale.props'),
+        '<Project />')
+    $preexistingGeneratedOutputRejected = $false
+    try {
+        $unexpectedGeneratedLocks = New-EverVigilSourceTreeLocks `
+            -WorkspaceRoot $preexistingGeneratedWorkspace `
+            -RunnerSid $runnerIdentity.User.Value
+        Close-EverVigilSourceTreeLocks -LockSet $unexpectedGeneratedLocks
+    } catch {
+        $preexistingGeneratedOutputRejected =
+            $_.Exception.Message -like '*fresh reviewed source checkout contains generated output*'
+    }
+
+    $sourceReparseWorkspace = Join-Path $releasePathFixtureRoot 'source-reparse-workspace'
+    [IO.Directory]::CreateDirectory($sourceReparseWorkspace) | Out-Null
+    Set-Acl `
+        -LiteralPath $sourceReparseWorkspace `
+        -AclObject $sourceWorkspaceSecurity `
+        -ErrorAction Stop
+    [IO.Directory]::CreateDirectory(
+        (Join-Path $sourceReparseWorkspace 'src')) | Out-Null
+    New-Item `
+        -ItemType Junction `
+        -Path (Join-Path $sourceReparseWorkspace 'src\linked') `
+        -Target $releasePathWorkspaceTarget `
+        -ErrorAction Stop | Out-Null
+    $sourceReparseRejected = $false
+    try {
+        $unexpectedSourceLocks = New-EverVigilSourceTreeLocks `
+            -WorkspaceRoot $sourceReparseWorkspace `
+            -RunnerSid $runnerIdentity.User.Value
+        Close-EverVigilSourceTreeLocks -LockSet $unexpectedSourceLocks
+    } catch {
+        $sourceReparseRejected = $_.Exception.Message -like '*reparse entry*'
+    }
+
+    Close-EverVigilSourceTreeLocks -LockSet $releasePathSourceTreeLocks
+    $releasePathSourceTreeLocks = $null
+    [IO.File]::WriteAllText($lockedSourcePath, 'CHANGED')
+    [IO.File]::Move($lockedSourcePath, "$lockedSourcePath.moved")
+    [IO.File]::Move("$lockedSourcePath.moved", $lockedSourcePath)
+    $sourceLocksReleased =
+        (Get-Content -LiteralPath $lockedSourcePath -Raw) -ceq 'CHANGED'
+    $releasePathDrive = $null
+
+    $freshRoot = Join-Path $releasePathFixtureRoot 'fresh-root'
+    New-EverVigilFreshIsolatedRoot `
+        -Root $releasePathFixtureRoot `
+        -Path $freshRoot `
+        -Description 'Fresh-root fixture' | Out-Null
+    $existingRootRejected = $false
+    try {
+        New-EverVigilFreshIsolatedRoot `
+            -Root $releasePathFixtureRoot `
+            -Path $freshRoot `
+            -Description 'Existing-root fixture' | Out-Null
+    } catch {
+        $existingRootRejected = $true
+    }
+    $nestedRoot = New-EverVigilIsolatedDirectory `
+        -Root $freshRoot `
+        -Path (Join-Path $freshRoot 'profile\AppData\Local') `
+        -Description 'Nested fixture'
+    $releasePathDirectoryLocks = @(Lock-EverVigilDirectoryAncestries `
+        -Paths @($releasePathFixtureRoot, $freshRoot, $nestedRoot) `
+        -Description 'Release-path fixture')
+    $directoryLocksLive =
+        @($releasePathDirectoryLocks).Count -ne 0 -and
+        @($releasePathDirectoryLocks | Where-Object { -not $_.IsAlive }).Count -eq 0
+    $directoryRenameRejected = $false
+    try {
+        [IO.Directory]::Move($freshRoot, "$freshRoot.moved")
+    } catch [IO.IOException] {
+        $directoryRenameRejected = $true
+    } catch [UnauthorizedAccessException] {
+        $directoryRenameRejected = $true
+    }
+    Close-EverVigilDirectoryLocks -Locks $releasePathDirectoryLocks
+    $releasePathDirectoryLocks = @()
+
+    $releasePathSentinelLocks = @(New-EverVigilDirectorySentinelLocks `
+        -Paths @($freshRoot, $nestedRoot) `
+        -Description 'Release-path fixture')
+    $sentinelPaths = @($releasePathSentinelLocks | ForEach-Object Name)
+    $sentinelsExact =
+        @($releasePathSentinelLocks).Count -eq 2 -and
+        @($releasePathSentinelLocks | Where-Object {
+            -not $_.CanRead -or -not $_.CanWrite -or $_.Length -ne 32
+        }).Count -eq 0 -and
+        @($sentinelPaths | Where-Object {
+            $item = Get-Item -LiteralPath $_ -Force -ErrorAction Stop
+            $item.PSIsContainer -or
+                ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                $item.Length -ne 32
+        }).Count -eq 0
+    $sentinelDeleteRejected = $false
+    try {
+        [IO.File]::Delete($sentinelPaths[0])
+    } catch [IO.IOException] {
+        $sentinelDeleteRejected = $true
+    } catch [UnauthorizedAccessException] {
+        $sentinelDeleteRejected = $true
+    }
+    $sentinelRenameRejected = $false
+    try {
+        [IO.Directory]::Move($freshRoot, "$freshRoot.moved")
+    } catch [IO.IOException] {
+        $sentinelRenameRejected = $true
+    } catch [UnauthorizedAccessException] {
+        $sentinelRenameRejected = $true
+    }
+    Close-EverVigilDirectorySentinelLocks -Locks $releasePathSentinelLocks
+    $releasePathSentinelLocks = @()
+    $sentinelsRemoved = @($sentinelPaths | Where-Object {
+        Test-Path -LiteralPath $_
+    }).Count -eq 0
+    [IO.Directory]::Move($freshRoot, "$freshRoot.moved")
+    [IO.Directory]::Move("$freshRoot.moved", $freshRoot)
+    $locksReleased = Test-Path -LiteralPath $freshRoot -PathType Container
+
+    if (-not $relativeRejected -or
+        -not $insideWorkspaceRejected -or
+        -not $junctionRejected -or
+        -not $driveAliasRejected -or
+        -not $rawDriveAliasRejected -or
+        -not $genericAclRejected -or
+        -not $nullDaclRejected -or
+        -not $generatedOutputSentinelAccepted -or
+        -not $generatedOutputUnsafeAclRejected -or
+        -not $generatedOutputIdentityMismatchRejected -or
+        -not $generatedOutputReparseRejected -or
+        -not $sourceLocksExact -or
+        -not $sourceWriteRejected -or
+        -not $sourceRenameRejected -or
+        -not $sourceExcludedWritable -or
+        -not $sourceInjectionRejected -or
+        -not $sourceStateRecovered -or
+        -not $postLockGeneratedOutputAccepted -or
+        -not $postLockGeneratedAclRejected -or
+        -not $preexistingGeneratedOutputRejected -or
+        -not $sourceReparseRejected -or
+        -not $sourceLocksReleased -or
+        -not $existingRootRejected -or
+        -not $directoryLocksLive -or
+        -not $directoryRenameRejected -or
+        -not $sentinelsExact -or
+        -not $sentinelDeleteRejected -or
+        -not $sentinelRenameRejected -or
+        -not $sentinelsRemoved -or
+        -not $locksReleased -or
+        (Get-FileHash -LiteralPath $workspaceTargetMarker -Algorithm SHA256).Hash -cne
+            $workspaceTargetHash) {
+        $failures.Add(
+            'Release path isolation did not reject a relative, workspace, reparse, alias, ' +
+            'generic/null ACL, source-tree mutation, pre-existing-root, independent lock, ' +
+            'or cleanup negative fixture.')
+    }
+} catch {
+    $failures.Add("Release path isolation fixture failed: $($_.Exception.Message)")
+} finally {
+    try {
+        Close-EverVigilSourceTreeLocks -LockSet $releasePathSourceTreeLocks
+    } catch {
+        $failures.Add("Source-tree fixture cleanup failed: $($_.Exception.Message)")
+    }
+    try {
+        Close-EverVigilDirectorySentinelLocks -Locks $releasePathSentinelLocks
+    } catch {
+        $failures.Add("Sentinel fixture cleanup failed: $($_.Exception.Message)")
+    }
+    try {
+        Close-EverVigilDirectoryLocks -Locks $releasePathDirectoryLocks
+    } catch {
+        $failures.Add("Directory-lock fixture cleanup failed: $($_.Exception.Message)")
+    }
+    if ($releasePathRawAliasActive -and
+        $null -ne $releasePathRawAliasTarget -and $null -ne $releasePathDrive) {
+        try {
+            [EverVigil.ReleasePathAliasFixture]::Remove(
+                $releasePathDrive,
+                $releasePathRawAliasTarget)
+            $releasePathRawAliasActive = $false
+        } catch {
+            $failures.Add("Raw drive-alias cleanup failed: $($_.Exception.Message)")
+        }
+    }
+    if ($releasePathSubstActive -and $null -ne $releasePathDrive) {
+        try {
+            & (Join-Path $env:SystemRoot 'System32\subst.exe') $releasePathDrive /D | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "subst cleanup failed with exit code $LASTEXITCODE."
+            }
+            $releasePathSubstActive = $false
+        } catch {
+            $failures.Add("Subst fixture cleanup failed: $($_.Exception.Message)")
+        }
+    }
+    if ($releasePathFixtureRoot.StartsWith(
+            ([IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'),
+            [StringComparison]::OrdinalIgnoreCase)) {
+        Remove-Item `
+            -LiteralPath $releasePathFixtureRoot `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+    }
+    if ($releasePathWorkspaceTarget.StartsWith(
+            ([IO.Path]::GetFullPath((Join-Path $RepositoryRoot 'artifacts')).TrimEnd('\') + '\'),
+            [StringComparison]::OrdinalIgnoreCase)) {
+        Remove-Item `
+            -LiteralPath $releasePathWorkspaceTarget `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+    }
+}
+
 $releaseHostLockContent = Get-Content `
     -LiteralPath (Join-Path $RepositoryRoot '.github\release-host-lock.json') `
     -Raw
@@ -1256,16 +2808,34 @@ $releaseHostTestContent = Get-Content `
     -Raw
 foreach ($releaseHostGuard in @(
         'evervigil-win11-pro-amd64-2026-08-18'
+        '"schemaVersion": 3'
+        '$root.GetProperty(''schemaVersion'').GetInt32() -ne 3'
+        'schemaVersion = 3'
+        '"hostPath": "C:\\Program Files\\EverVigil Release Host\\Invoke-ReleaseShell.cmd"'
+        '"sha256": "30a75e30a3b3ba29b5b2b809c3805929351c95f78de7ddb82bfc37ffbb789a23"'
+        'The reviewed release shell hash does not match.'
         '"buildNumber": "26200"'
         '"executablePath": "C:\\Program Files\\Tailscale\\tailscale.exe"'
         '"compilerPath": "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe"'
         '"sdkVersion": "8.0.130"'
+        '"nugetProtocolPath": "C:\\Program Files\\dotnet\\sdk\\8.0.130\\NuGet.Protocol.dll"'
+        '"nugetProtocolVersion": "6.8.2.3"'
+        '"nugetProtocolSha256": "2aeb20c4edd7a0f1efd54d499c9cf8009bf9a54520a660a0da0657c579d75c89"'
+        'The reviewed NuGet protocol assembly hash does not match.'
+        'nugetProtocolSignerSubject'
         '"hostPath": "C:\\Program Files\\PowerShell\\7\\pwsh.exe"'
         '"compilerPath": "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64\\rc.exe"'
         'officialMsiSha256'
         'Get-AuthenticodeSignature'
         'RequireSingleLink'
-        'A non-administrative identity'
+        'Assert-EverVigilAccessControlDescriptor'
+        'Assert-ReleaseHostNullDaclGuard'
+        'Lock-ReleaseHostCriticalSourceFile'
+        'A release-host critical source file has a null discretionary ACL'
+        'Release-host evidence must be written only to the reviewed artifacts root.'
+        '[IO.FileMode]::CreateNew'
+        '[IO.FileOptions]::WriteThrough'
+        '$evidenceStream.Flush($true)'
         'S-1-16-8192'
         'RUNNER_ENVIRONMENT'
         'EVERVIGIL_RELEASE_EPHEMERAL'
@@ -1277,7 +2847,13 @@ foreach ($releaseHostGuard in @(
         '''MSBUILD'''
         '''NUGET_'''
         '''RESTORE'''
-        'RUNNER_TEMP must be an existing non-reparse directory'
+        '$RepositoryRoot = [IO.Path]::GetFullPath($RepositoryRoot).TrimEnd(''\'')'
+        '$releasePathIsolationPath = Join-Path $RepositoryRoot ''tests\ReleasePathIsolation.ps1'''
+        '$null -eq (Get-Command Assert-EverVigilReleaseStateDirectorySecurity -ErrorAction SilentlyContinue)'
+        'The release-host working directory must exactly match GITHUB_WORKSPACE.'
+        'Assert-EverVigilReleaseStateDirectorySecurity'
+        'Lock-EverVigilDirectoryAncestries'
+        'New-EverVigilDirectorySentinelLocks'
         'EVERVIGIL_RELEASE_SNAPSHOT_ID'
         'refs/heads/main')) {
     if (-not ($releaseHostLockContent + $releaseHostTestContent).Contains(

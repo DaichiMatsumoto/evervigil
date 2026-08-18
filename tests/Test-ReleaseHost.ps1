@@ -1,12 +1,139 @@
 [CmdletBinding()]
 param(
-    [string]$LockPath = (Join-Path (Split-Path -Parent $PSScriptRoot) '.github\release-host-lock.json'),
-    [string]$EvidencePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\release-host-evidence.json'),
+    [string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$LockPath = (Join-Path $RepositoryRoot '.github\release-host-lock.json'),
+    [string]$EvidencePath = (Join-Path $RepositoryRoot 'artifacts\release-host-evidence.json'),
     [string]$SourceSha = $env:GITHUB_SHA
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$releaseHostCriticalFileLocks = [Collections.Generic.List[IO.FileStream]]::new()
+
+function Lock-ReleaseHostCriticalSourceFile {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$WorkspaceRoot,
+        [Parameter(Mandatory)][string]$RunnerSid
+    )
+
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $reviewedWorkspace = [IO.Path]::GetFullPath($WorkspaceRoot).TrimEnd('\')
+    if (-not $fullPath.StartsWith(
+            "$reviewedWorkspace\",
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw "A release-host critical source file escaped the checkout: $fullPath"
+    }
+    $stream = [IO.FileStream]::new(
+        $fullPath,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::Read)
+    try {
+        $item = Get-Item -LiteralPath $fullPath -Force -ErrorAction Stop
+        if ($item.PSIsContainer -or
+            ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "A release-host critical source file is not a regular file: $fullPath"
+        }
+        $current = Split-Path -Parent $fullPath
+        while ($true) {
+            $ancestor = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+            if (-not $ancestor.PSIsContainer -or
+                ($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "A release-host critical source ancestry is not a regular directory: $current"
+            }
+            if ($current -ceq $reviewedWorkspace) {
+                break
+            }
+            if (-not $current.StartsWith(
+                    "$reviewedWorkspace\",
+                    [StringComparison]::OrdinalIgnoreCase)) {
+                throw "A release-host critical source ancestry escaped the checkout: $current"
+            }
+            $current = Split-Path -Parent $current
+        }
+
+        $allowedWriters = @(
+            'S-1-5-18',
+            'S-1-5-32-544',
+            'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464',
+            $RunnerSid)
+        $acl = Get-Acl -LiteralPath $fullPath -ErrorAction Stop
+        $rawDescriptor = [Security.AccessControl.RawSecurityDescriptor]::new(
+            $acl.GetSecurityDescriptorBinaryForm(),
+            0)
+        if ($null -eq $rawDescriptor.DiscretionaryAcl) {
+            throw "A release-host critical source file has a null discretionary ACL: $fullPath"
+        }
+        try {
+            $ownerSid = if ($acl.Owner -is [Security.Principal.SecurityIdentifier]) {
+                $acl.Owner.Value
+            } elseif ($acl.Owner -is [Security.Principal.IdentityReference]) {
+                $acl.Owner.Translate([Security.Principal.SecurityIdentifier]).Value
+            } else {
+                ([Security.Principal.NTAccount]::new([string]$acl.Owner)).Translate(
+                    [Security.Principal.SecurityIdentifier]).Value
+            }
+        } catch {
+            throw "A release-host critical source owner could not be resolved: $fullPath"
+        }
+        if ($allowedWriters -notcontains $ownerSid) {
+            throw "A release-host critical source file has an untrusted owner '$ownerSid': $fullPath"
+        }
+        $dangerousMask = 0x500D0156
+        foreach ($ace in $rawDescriptor.DiscretionaryAcl) {
+            if ($ace -isnot [Security.AccessControl.QualifiedAce]) {
+                throw "A release-host critical source file has an unsupported ACE: $fullPath"
+            }
+            if ($ace.AceQualifier -eq
+                    [Security.AccessControl.AceQualifier]::AccessDenied) {
+                continue
+            }
+            if ($ace.AceQualifier -ne
+                    [Security.AccessControl.AceQualifier]::AccessAllowed -or
+                $ace.IsCallback -or $ace.OpaqueLength -ne 0) {
+                throw "A release-host critical source file has an unsupported conditional ACE: $fullPath"
+            }
+            if (([int]$ace.AccessMask -band $dangerousMask) -eq 0) {
+                continue
+            }
+            if ($allowedWriters -notcontains $ace.SecurityIdentifier.Value) {
+                throw "A release-host critical source file is writable by an untrusted identity: $fullPath"
+            }
+        }
+        $releaseHostCriticalFileLocks.Add($stream)
+    } catch {
+        $stream.Dispose()
+        throw
+    }
+}
+
+$RepositoryRoot = [IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\')
+$bootstrapWorkspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\')
+if ($RepositoryRoot -cne $bootstrapWorkspace) {
+    throw 'The release-host repository root must exactly match GITHUB_WORKSPACE.'
+}
+$bootstrapRunnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$releasePathIsolationPath = Join-Path $RepositoryRoot 'tests\ReleasePathIsolation.ps1'
+foreach ($criticalSourcePath in @(
+        (Join-Path $RepositoryRoot 'tests\Test-ReleaseHost.ps1'),
+        $releasePathIsolationPath,
+        ([IO.Path]::GetFullPath($LockPath)))) {
+    Lock-ReleaseHostCriticalSourceFile `
+        -Path $criticalSourcePath `
+        -WorkspaceRoot $bootstrapWorkspace `
+        -RunnerSid $bootstrapRunnerSid
+}
+
+if ($null -eq ('EverVigil.ReleaseDirectoryLock' -as [type]) -or
+    $null -eq (Get-Command Assert-EverVigilReleaseStateDirectorySecurity -ErrorAction SilentlyContinue)) {
+    . $releasePathIsolationPath
+}
+
+$releaseHostDirectoryLocks = @()
+$releaseHostSentinelLocks = @()
+$sourceCheckoutLock = $null
 
 function Assert-ExactJsonProperties {
     param(
@@ -75,6 +202,32 @@ function Get-SidValue {
     }
 }
 
+function Assert-ReleaseHostNullDaclGuard {
+    $administratorsSid = [Security.Principal.SecurityIdentifier]::new(
+        'S-1-5-32-544')
+    $nullDaclDescriptor = [Security.AccessControl.RawSecurityDescriptor]::new(
+        [Security.AccessControl.ControlFlags]::None,
+        $administratorsSid,
+        $administratorsSid,
+        $null,
+        $null)
+    try {
+        Assert-EverVigilAccessControlDescriptor `
+            -Descriptor $nullDaclDescriptor `
+            -AllowedWriterSids @('S-1-5-32-544') `
+            -DangerousAccessMask 0 `
+            -Description 'A release-host dependency' `
+            -Path '<null-DACL self-test>'
+    } catch {
+        if ($_.Exception.Message -cne
+                'A release-host dependency has a null discretionary ACL: <null-DACL self-test>') {
+            throw
+        }
+        return
+    }
+    throw 'The release-host null-DACL guard accepted an unrestricted descriptor.'
+}
+
 function Assert-ProtectedPath {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -126,19 +279,18 @@ function Assert-ProtectedPath {
             throw "A release-host dependency ancestry contains a reparse point: $current"
         }
         $acl = Get-Acl -LiteralPath $current -ErrorAction Stop
+        $rawDescriptor = [Security.AccessControl.RawSecurityDescriptor]::new(
+            $acl.GetSecurityDescriptorBinaryForm(),
+            0)
+        Assert-EverVigilAccessControlDescriptor `
+            -Descriptor $rawDescriptor `
+            -AllowedWriterSids $allowedWriters `
+            -DangerousAccessMask ([int]$dangerousRights) `
+            -Description 'A release-host dependency' `
+            -Path $current
         $ownerSid = Get-SidValue -Identity $acl.Owner
         if ($allowedWriters -notcontains $ownerSid) {
             throw "A release-host dependency has an untrusted owner '$ownerSid': $current"
-        }
-        foreach ($rule in @($acl.Access)) {
-            if ($rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -or
-                ($rule.FileSystemRights -band $dangerousRights) -eq 0) {
-                continue
-            }
-            $ruleSid = Get-SidValue -Identity $rule.IdentityReference
-            if ($allowedWriters -notcontains $ruleSid) {
-                throw "A non-administrative identity '$ruleSid' can modify a release-host dependency: $current"
-            }
         }
         if ([string]::Equals($current, $protectedRoot, [StringComparison]::OrdinalIgnoreCase)) {
             break
@@ -238,6 +390,8 @@ namespace EverVigil
 }
 '@
 
+Assert-ReleaseHostNullDaclGuard
+
 if (-not (Test-Path -LiteralPath $LockPath -PathType Leaf)) {
     throw "The reviewed release-host lock file is missing: $LockPath"
 }
@@ -251,12 +405,13 @@ $document = [System.Text.Json.JsonDocument]::Parse($lockMemory, $jsonOptions)
 try {
     $root = $document.RootElement
     Assert-ExactJsonProperties $root @(
-        'schemaVersion', 'snapshotId', 'operatingSystem', 'tailscale', 'dotnet',
+        'schemaVersion', 'snapshotId', 'releaseShell', 'operatingSystem', 'tailscale', 'dotnet',
         'powerShell', 'windowsResourceCompiler', 'innoSetup') 'Release host lock'
-    if ($root.GetProperty('schemaVersion').GetInt32() -ne 1) {
+    if ($root.GetProperty('schemaVersion').GetInt32() -ne 3) {
         throw 'The release-host lock schema version is unsupported.'
     }
     $snapshotId = Get-RequiredJsonString $root 'snapshotId'
+    $releaseShellLock = $root.GetProperty('releaseShell')
     $osLock = $root.GetProperty('operatingSystem')
     $tailscaleLock = $root.GetProperty('tailscale')
     $dotnetLock = $root.GetProperty('dotnet')
@@ -265,11 +420,14 @@ try {
     $innoLock = $root.GetProperty('innoSetup')
     Assert-ExactJsonProperties $osLock @(
         'editionId', 'displayVersion', 'buildNumber', 'updateBuildRevision', 'architecture') 'Operating-system lock'
+    Assert-ExactJsonProperties $releaseShellLock @(
+        'hostPath', 'sha256') 'Release shell lock'
     Assert-ExactJsonProperties $tailscaleLock @(
         'executablePath', 'version', 'commandVersion', 'sha256', 'publisherOrganization',
         'officialMsiUrl', 'officialMsiSha256') 'Tailscale lock'
     Assert-ExactJsonProperties $dotnetLock @(
         'hostPath', 'hostVersion', 'hostSha256', 'sdkVersion', 'msbuildPath', 'msbuildSha256',
+        'nugetProtocolPath', 'nugetProtocolVersion', 'nugetProtocolSha256',
         'publisherOrganization') '.NET lock'
     Assert-ExactJsonProperties $powerShellLock @(
         'hostPath', 'version', 'sha256', 'publisherOrganization') 'PowerShell lock'
@@ -340,12 +498,67 @@ try {
         throw 'The release shell retained a prohibited .NET, MSBuild, or NuGet environment override.'
     }
 
-    $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
-    $runnerTempItem = Get-Item -LiteralPath $runnerTemp -Force -ErrorAction Stop
-    if (-not $runnerTempItem.PSIsContainer -or
-        ($runnerTempItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw 'RUNNER_TEMP must be an existing non-reparse directory on the ephemeral host.'
+    $workspaceRoot = Assert-EverVigilNonReparseDirectoryAncestry `
+        -Path $env:GITHUB_WORKSPACE `
+        -Description 'Reviewed source checkout'
+    $workingDirectory = Get-EverVigilNormalizedDirectoryPath `
+        -Path (Get-Location).ProviderPath `
+        -Description 'Release-host working directory'
+    if ($workingDirectory -cne $workspaceRoot) {
+        throw 'The release-host working directory must exactly match GITHUB_WORKSPACE.'
     }
+    $runnerTemp = Assert-EverVigilDirectoryOutside `
+        -Path $env:RUNNER_TEMP `
+        -ForbiddenRoot $workspaceRoot `
+        -Description 'RUNNER_TEMP'
+
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    Assert-EverVigilReleaseStateDirectorySecurity `
+        -Path $workspaceRoot `
+        -RunnerSid $identity.User.Value `
+        -Description 'Reviewed source checkout' | Out-Null
+    Assert-EverVigilReleaseStateDirectorySecurity `
+        -Path $runnerTemp `
+        -RunnerSid $identity.User.Value `
+        -Description 'RUNNER_TEMP' | Out-Null
+    $releaseHostDirectoryLocks = @(Lock-EverVigilDirectoryAncestries `
+        -Paths @($workspaceRoot, $runnerTemp) `
+        -Description 'Release-host directory ancestry')
+    $releaseHostSentinelLocks = @(New-EverVigilDirectorySentinelLocks `
+        -Paths @($runnerTemp) `
+        -Description 'RUNNER_TEMP')
+    $sourceCheckoutLock = [IO.FileStream]::new(
+        [IO.Path]::GetFullPath($LockPath),
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::Read)
+    $evidenceDirectory = Split-Path -Parent ([IO.Path]::GetFullPath($EvidencePath))
+    $expectedEvidenceDirectory = Join-Path $RepositoryRoot 'artifacts'
+    if ($evidenceDirectory -cne $expectedEvidenceDirectory) {
+        throw 'Release-host evidence must be written only to the reviewed artifacts root.'
+    }
+    $evidenceDirectory = New-EverVigilFreshIsolatedRoot `
+        -Root $workspaceRoot `
+        -Path $evidenceDirectory `
+        -Description 'Release artifacts root'
+    Assert-EverVigilReleaseStateDirectorySecurity `
+        -Path $evidenceDirectory `
+        -RunnerSid $identity.User.Value `
+        -Description 'Release artifacts root' | Out-Null
+    $releaseHostDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+        -Paths @($evidenceDirectory) `
+        -Description 'Release artifacts root')
+    $releaseHostSentinelLocks += @(New-EverVigilDirectorySentinelLocks `
+        -Paths @($evidenceDirectory) `
+        -Description 'Release artifacts root')
+    Assert-EverVigilDirectoryOutside `
+        -Path $runnerTemp `
+        -ForbiddenRoot $workspaceRoot `
+        -Description 'RUNNER_TEMP' | Out-Null
+    Assert-EverVigilReleaseStateDirectorySecurity `
+        -Path $runnerTemp `
+        -RunnerSid $identity.User.Value `
+        -Description 'RUNNER_TEMP' | Out-Null
 
     foreach ($secretName in @(
             'GH_TOKEN', 'GITHUB_TOKEN', 'TS_AUTHKEY', 'TAILSCALE_AUTHKEY', 'OPENAI_API_KEY',
@@ -356,7 +569,6 @@ try {
         }
     }
 
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     if (@($identity.Groups.Value) -contains 'S-1-5-32-544') {
         throw 'The release runner account must be a dedicated standard user, not an Administrators member.'
     }
@@ -386,6 +598,13 @@ try {
     $tailscalePath = Assert-ProtectedPath `
         -Path (Get-RequiredJsonString $tailscaleLock 'executablePath') `
         -RequireSingleLink
+    $releaseShellPath = Assert-ProtectedPath `
+        -Path (Get-RequiredJsonString $releaseShellLock 'hostPath') `
+        -RequireSingleLink
+    if ((Get-FileSha256 $releaseShellPath) -cne
+        (Get-NormalizedSha256 $releaseShellLock 'sha256')) {
+        throw 'The reviewed release shell hash does not match.'
+    }
     $tailscaleSha = Get-FileSha256 $tailscalePath
     if ($tailscaleSha -cne (Get-NormalizedSha256 $tailscaleLock 'sha256')) {
         throw 'The installed Tailscale executable hash does not match the reviewed lock.'
@@ -422,6 +641,21 @@ try {
     if ((Get-FileSha256 $msbuildPath) -cne (Get-NormalizedSha256 $dotnetLock 'msbuildSha256')) {
         throw 'The reviewed .NET SDK MSBuild assembly hash does not match.'
     }
+    $nuGetProtocolPath = Assert-ProtectedPath `
+        -Path (Get-RequiredJsonString $dotnetLock 'nugetProtocolPath') `
+        -RequireSingleLink
+    if ((Get-FileSha256 $nuGetProtocolPath) -cne
+        (Get-NormalizedSha256 $dotnetLock 'nugetProtocolSha256')) {
+        throw 'The reviewed NuGet protocol assembly hash does not match.'
+    }
+    $nuGetProtocolItem = Get-Item -LiteralPath $nuGetProtocolPath -Force
+    if ($nuGetProtocolItem.VersionInfo.FileVersion -cne
+        (Get-RequiredJsonString $dotnetLock 'nugetProtocolVersion')) {
+        throw 'The reviewed NuGet protocol assembly version does not match.'
+    }
+    $nuGetProtocolPublisher = Assert-SignedFile `
+        $nuGetProtocolPath `
+        (Get-RequiredJsonString $dotnetLock 'publisherOrganization')
 
     $powerShellPath = Assert-ProtectedPath `
         -Path (Get-RequiredJsonString $powerShellLock 'hostPath') `
@@ -482,10 +716,9 @@ try {
         throw 'The Inno Setup compiler version does not match the reviewed lock.'
     }
 
-    $repositoryRoot = Split-Path -Parent $PSScriptRoot
-    $bundledVendorFiles = @(Get-ChildItem -LiteralPath $repositoryRoot -Recurse -File -Force |
+    $bundledVendorFiles = @(Get-ChildItem -LiteralPath $RepositoryRoot -Recurse -File -Force |
         Where-Object {
-            $_.FullName -notlike "$repositoryRoot\.git\*" -and
+            $_.FullName -notlike "$RepositoryRoot\.git\*" -and
             ($_.Name -ieq 'tailscale.exe' -or $_.Extension -ieq '.msi')
         })
     if ($bundledVendorFiles.Count -ne 0) {
@@ -493,9 +726,13 @@ try {
     }
 
     $evidence = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 3
         sourceSha = $SourceSha
         snapshotId = $snapshotId
+        releaseShell = [ordered]@{
+            path = $releaseShellPath
+            sha256 = Get-FileSha256 $releaseShellPath
+        }
         runnerName = [string]$env:RUNNER_NAME
         runnerEnvironment = [string]$env:RUNNER_ENVIRONMENT
         ephemeral = $true
@@ -527,6 +764,9 @@ try {
             sdkVersion = $sdkVersion
             hostSha256 = Get-FileSha256 $dotnetPath
             msbuildSha256 = Get-FileSha256 $msbuildPath
+            nugetProtocolVersion = $nuGetProtocolItem.VersionInfo.FileVersion
+            nugetProtocolSha256 = Get-FileSha256 $nuGetProtocolPath
+            nugetProtocolSignerSubject = $nuGetProtocolPublisher
             signerSubject = $dotnetPublisher
         }
         powerShell = [ordered]@{
@@ -548,13 +788,30 @@ try {
             signerSubject = $innoPublisher
         }
     }
-    $evidenceDirectory = Split-Path -Parent ([IO.Path]::GetFullPath($EvidencePath))
-    [IO.Directory]::CreateDirectory($evidenceDirectory) | Out-Null
-    [IO.File]::WriteAllText(
+    $evidenceBytes = [Text.UTF8Encoding]::new($false, $true).GetBytes(
+        (($evidence | ConvertTo-Json -Depth 8) + "`n"))
+    $evidenceStream = [IO.FileStream]::new(
         [IO.Path]::GetFullPath($EvidencePath),
-        (($evidence | ConvertTo-Json -Depth 8) + "`n"),
-        [Text.UTF8Encoding]::new($false))
+        [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write,
+        [IO.FileShare]::Read,
+        4096,
+        [IO.FileOptions]::WriteThrough)
+    try {
+        $evidenceStream.Write($evidenceBytes, 0, $evidenceBytes.Length)
+        $evidenceStream.Flush($true)
+    } finally {
+        $evidenceStream.Dispose()
+    }
     Write-Host "Release host evidence written to $EvidencePath"
 } finally {
+    if ($null -ne $sourceCheckoutLock) {
+        $sourceCheckoutLock.Dispose()
+    }
+    Close-EverVigilDirectorySentinelLocks -Locks $releaseHostSentinelLocks
+    Close-EverVigilDirectoryLocks -Locks $releaseHostDirectoryLocks
+    for ($index = $releaseHostCriticalFileLocks.Count - 1; $index -ge 0; $index--) {
+        $releaseHostCriticalFileLocks[$index].Dispose()
+    }
     $document.Dispose()
 }

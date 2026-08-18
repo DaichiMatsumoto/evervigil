@@ -1,6 +1,10 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "snapshotId": "evervigil-win11-pro-amd64-2026-08-18",
+  "releaseShell": {
+    "hostPath": "C:\\Program Files\\EverVigil Release Host\\Invoke-ReleaseShell.cmd",
+    "sha256": "30a75e30a3b3ba29b5b2b809c3805929351c95f78de7ddb82bfc37ffbb789a23"
+  },
   "operatingSystem": {
     "editionId": "Professional",
     "displayVersion": "25H2",
@@ -24,6 +28,9 @@
     "sdkVersion": "8.0.130",
     "msbuildPath": "C:\\Program Files\\dotnet\\sdk\\8.0.130\\MSBuild.dll",
     "msbuildSha256": "a7af21c438c713e0be9142579f0779181d597af05b41be7d3bdc83e1981ba25f",
+    "nugetProtocolPath": "C:\\Program Files\\dotnet\\sdk\\8.0.130\\NuGet.Protocol.dll",
+    "nugetProtocolVersion": "6.8.2.3",
+    "nugetProtocolSha256": "2aeb20c4edd7a0f1efd54d499c9cf8009bf9a54520a660a0da0657c579d75c89",
     "publisherOrganization": "Microsoft Corporation"
   },
   "powerShell": {

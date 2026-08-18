@@ -25,15 +25,21 @@ jobs:
     runs-on:
       group: evervigil-release
       labels: [self-hosted, Windows, X64, ephemeral, windows-11-pro, tailscale-pinned]
+    # Release-host trust boundary: this one-job ephemeral snapshot treats only
+    # the runner SID, SYSTEM, Administrators, and TrustedInstaller as TCB.
+    # Concurrent code under any of those principals is a compromised release
+    # host and is outside the in-workflow TOCTOU threat model.
     timeout-minutes: 90
     permissions:
       contents: read
     defaults:
       run:
-        shell: 'C:\Windows\System32\cmd.exe /D /S /C ""%GITHUB_WORKSPACE%\tests\Invoke-ReleaseShell.cmd" "{0}""'
+        shell: 'C:\Windows\System32\cmd.exe /D /S /C ""C:\Program Files\EverVigil Release Host\Invoke-ReleaseShell.cmd" "{0}""'
     outputs:
       version: ${{ steps.release.outputs.version }}
       artifact-name: ${{ steps.release.outputs.artifact-name }}
+      candidate-manifest-sha256: ${{ steps.release.outputs.candidate-manifest-sha256 }}
+      installer-sha256: ${{ steps.release.outputs.installer-sha256 }}
     steps:
       - name: Checkout reviewed main commit without credentials
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -41,66 +47,482 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Verify dedicated Windows 11 Pro release host
-        run: >-
-          .\tests\Test-ReleaseHost.ps1
-          -LockPath .\.github\release-host-lock.json
-          -EvidencePath .\artifacts\release-host-evidence.json
-          -SourceSha $env:GITHUB_SHA
-
       - name: Validate, build, and assemble immutable candidate bundle
         id: release
         run: |
           $ErrorActionPreference = 'Stop'
-          if ($env:GITHUB_REF -cne 'refs/heads/main' -or
+          $releaseCriticalSourceLocks = [Collections.Generic.List[IO.FileStream]]::new()
+          $releaseCriticalSourceContents = [ordered]@{}
+          $releaseArtifactFileLocks = [Collections.Generic.List[IO.FileStream]]::new()
+          $releaseSourceTreeLocks = $null
+          $releaseDirectoryLocks = @()
+          $releaseSentinelLocks = @()
+          $sourceCheckoutLock = $null
+          $releaseArtifactRoot = $null
+          $releaseArtifactRootIdentity = $null
+          $bundleRootIdentity = $null
+          $dependencyRoot = $null
+          $dependencyRootIdentity = $null
+          $dependencyRootCreated = $false
+          $releaseFailure = $null
+          try {
+            $releaseCriticalSourceHashes = [ordered]@{
+              '.\.github\release-host-lock.json' = '7e19d79efd66e4d3def287bd6795b2d0e41f0ddc2bd8583d33b906b6a619acff'
+              '.\.github\release-source-manifest.json' = 'ee284cee5b67b30d68fbfec8ce31201b8e7406614efe2a9bb13531a091e3dcd4'
+              '.\tests\ReleasePathIsolation.ps1' = '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35'
+              '.\tests\Test-ReleaseHost.ps1' = '6e4a33a4dd2ca82277317deaa5aa43b5a296f00716de8c10aded789b4386dc7c'
+            }
+            $strictUtf8 = [Text.UTF8Encoding]::new($false, $true)
+            foreach ($criticalSourceEntry in $releaseCriticalSourceHashes.GetEnumerator()) {
+              $criticalSourcePath = [IO.Path]::GetFullPath([string]$criticalSourceEntry.Key)
+              $criticalSourceItem = Get-Item -LiteralPath $criticalSourcePath -Force -ErrorAction Stop
+              if ($criticalSourceItem.PSIsContainer -or
+                ($criticalSourceItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                $criticalSourceItem.Length -le 0 -or $criticalSourceItem.Length -gt 2MB) {
+                throw "A release bootstrap source is not a bounded regular file: $criticalSourcePath"
+              }
+              $criticalSourceLock = [IO.FileStream]::new(
+                $criticalSourcePath,
+                [IO.FileMode]::Open,
+                [IO.FileAccess]::Read,
+                [IO.FileShare]::Read)
+              try {
+                $criticalSourceBytes = [byte[]]::new([int]$criticalSourceLock.Length)
+                $criticalSourceOffset = 0
+                while ($criticalSourceOffset -lt $criticalSourceBytes.Length) {
+                  $criticalSourceRead = $criticalSourceLock.Read(
+                    $criticalSourceBytes,
+                    $criticalSourceOffset,
+                    $criticalSourceBytes.Length - $criticalSourceOffset)
+                  if ($criticalSourceRead -le 0) {
+                    throw "A release bootstrap source ended before its reviewed length: $criticalSourcePath"
+                  }
+                  $criticalSourceOffset += $criticalSourceRead
+                }
+                $criticalSourceHash = [Convert]::ToHexString(
+                  [Security.Cryptography.SHA256]::HashData($criticalSourceBytes)).ToLowerInvariant()
+                if ($criticalSourceHash -cne [string]$criticalSourceEntry.Value) {
+                  throw "A release bootstrap source hash does not match the server-reviewed workflow: $criticalSourcePath"
+                }
+                $releaseCriticalSourceContents.Add(
+                  [string]$criticalSourceEntry.Key,
+                  $strictUtf8.GetString($criticalSourceBytes))
+                $criticalSourceLock.Position = 0
+                $releaseCriticalSourceLocks.Add($criticalSourceLock)
+              } catch {
+                $criticalSourceLock.Dispose()
+                throw
+              }
+            }
+            . ([ScriptBlock]::Create(
+              [string]$releaseCriticalSourceContents['.\tests\ReleasePathIsolation.ps1']))
+            & ([ScriptBlock]::Create(
+              [string]$releaseCriticalSourceContents['.\tests\Test-ReleaseHost.ps1'])) `
+              -RepositoryRoot ([IO.Path]::GetFullPath('.')) `
+              -LockPath .\.github\release-host-lock.json `
+              -EvidencePath .\artifacts\release-host-evidence.json `
+              -SourceSha $env:GITHUB_SHA
+            if ($env:GITHUB_REF -cne 'refs/heads/main' -or
             $env:GITHUB_SHA -cnotmatch '\A[0-9a-f]{40}\z') {
-            throw 'The private candidate source must be one exact commit on refs/heads/main.'
-          }
-          $lock = Get-Content .\.github\release-host-lock.json -Raw | ConvertFrom-Json
-          $dotnetPath = [string]$lock.dotnet.hostPath
-          $powerShellPath = [string]$lock.powerShell.hostPath
-          $resourceCompilerPath = [string]$lock.windowsResourceCompiler.compilerPath
-          $innoCompilerPath = [string]$lock.innoSetup.compilerPath
-          if (-not [string]::Equals(
+              throw 'The private candidate source must be one exact commit on refs/heads/main.'
+            }
+            $lock = [string]$releaseCriticalSourceContents['.\.github\release-host-lock.json'] |
+              ConvertFrom-Json
+            $dotnetPath = [string]$lock.dotnet.hostPath
+            $powerShellPath = [string]$lock.powerShell.hostPath
+            $resourceCompilerPath = [string]$lock.windowsResourceCompiler.compilerPath
+            $innoCompilerPath = [string]$lock.innoSetup.compilerPath
+            if (-not [string]::Equals(
               [IO.Path]::GetFullPath([Environment]::ProcessPath),
               [IO.Path]::GetFullPath($powerShellPath),
               [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'The release build was not launched by the reviewed PowerShell executable.'
+              throw 'The release build was not launched by the reviewed PowerShell executable.'
+            }
+            $env:PATH = "$(Split-Path -Parent $dotnetPath);$(Split-Path -Parent $powerShellPath);$env:SystemRoot\System32;$env:SystemRoot"
+          $workspaceRoot = Assert-EverVigilNonReparseDirectoryAncestry `
+            -Path $env:GITHUB_WORKSPACE `
+            -Description 'Reviewed source checkout'
+          $workingDirectory = Get-EverVigilNormalizedDirectoryPath `
+            -Path (Get-Location).ProviderPath `
+            -Description 'Release-build working directory'
+          if ($workingDirectory -cne $workspaceRoot) {
+            throw 'The release-build working directory must exactly match GITHUB_WORKSPACE.'
           }
-          $env:PATH = "$(Split-Path -Parent $dotnetPath);$(Split-Path -Parent $powerShellPath);$env:SystemRoot\System32;$env:SystemRoot"
-          $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
+          $runnerTemp = Assert-EverVigilDirectoryOutside `
+            -Path $env:RUNNER_TEMP `
+            -ForbiddenRoot $workspaceRoot `
+            -Description 'RUNNER_TEMP'
+          $runnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $workspaceRoot `
+            -RunnerSid $runnerSid `
+            -Description 'Reviewed source checkout' | Out-Null
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $runnerTemp `
+            -RunnerSid $runnerSid `
+            -Description 'RUNNER_TEMP' | Out-Null
+          $releaseDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($workspaceRoot, $runnerTemp) `
+            -Description 'Release-build directory ancestry')
+          $releaseSentinelLocks += @(New-EverVigilDirectorySentinelLocks `
+            -Paths @($runnerTemp) `
+            -Description 'RUNNER_TEMP')
+          $sourceCheckoutLock = [IO.FileStream]::new(
+            (Join-Path $workspaceRoot 'tests\ReleasePathIsolation.ps1'),
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read)
+          $releaseArtifactRoot = Assert-EverVigilDirectoryWithin `
+            -Path (Join-Path $workspaceRoot 'artifacts') `
+            -RequiredRoot $workspaceRoot `
+            -Description 'Release artifacts root'
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $releaseArtifactRoot `
+            -RunnerSid $runnerSid `
+            -Description 'Release artifacts root' | Out-Null
+          $releaseArtifactRootIdentity = Get-EverVigilDirectoryIdentity `
+            -Path $releaseArtifactRoot `
+            -Description 'Release artifacts root'
+          $releaseDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($releaseArtifactRoot) `
+            -Description 'Release artifacts root')
+          $releaseSentinelLocks += @(New-EverVigilDirectorySentinelLocks `
+            -Paths @($releaseArtifactRoot) `
+            -Description 'Release artifacts root')
+          $releaseHostEvidencePath = Join-Path `
+            $releaseArtifactRoot `
+            'release-host-evidence.json'
+          $releaseHostEvidenceItem = Get-Item `
+            -LiteralPath $releaseHostEvidencePath `
+            -Force `
+            -ErrorAction Stop
+          if ($releaseHostEvidenceItem.PSIsContainer -or
+            ($releaseHostEvidenceItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            $releaseHostEvidenceItem.Length -le 0 -or $releaseHostEvidenceItem.Length -gt 1MB) {
+            throw 'The release-host evidence is not a bounded regular file.'
+          }
+          $releaseHostEvidenceLock = [IO.FileStream]::new(
+            $releaseHostEvidencePath,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read)
+          try {
+            $releaseHostEvidenceFinalPath =
+              [EverVigil.ReleaseDirectoryLock]::GetFinalPath(
+                $releaseHostEvidenceLock.SafeFileHandle)
+            $expectedReleaseHostEvidenceFinalPath =
+              $releaseArtifactRootIdentity.CanonicalPath.TrimEnd('\') +
+              '\release-host-evidence.json'
+            if (-not $releaseHostEvidenceFinalPath.Equals(
+                $expectedReleaseHostEvidenceFinalPath,
+                [StringComparison]::OrdinalIgnoreCase)) {
+              throw 'The release-host evidence changed physical identity before it was locked.'
+            }
+            $releaseArtifactFileLocks.Add($releaseHostEvidenceLock)
+          } catch {
+            $releaseHostEvidenceLock.Dispose()
+            throw
+          }
+          $releaseSourceTreeLocks = New-EverVigilSourceTreeLocks `
+            -WorkspaceRoot $workspaceRoot `
+            -RunnerSid $runnerSid `
+            -ExcludedRootNames @('.git', 'artifacts')
+          $releaseSourceManifest = [string]$releaseCriticalSourceContents[
+            '.\.github\release-source-manifest.json'] | ConvertFrom-Json
+          $sourceManifestProperties = @(
+            $releaseSourceManifest.PSObject.Properties.Name | Sort-Object)
+          if ([string]::Join("`n", $sourceManifestProperties) -cne
+              "files`nschemaVersion" -or
+            [int]$releaseSourceManifest.schemaVersion -ne 1 -or
+            @($releaseSourceManifest.files).Count -eq 0) {
+            throw 'The release source manifest has an invalid top-level schema.'
+          }
+          $sourceManifestEntries =
+            [Collections.Generic.Dictionary[string, object]]::new(
+              [StringComparer]::OrdinalIgnoreCase)
+          $previousSourceManifestPath = $null
+          foreach ($sourceManifestEntry in @($releaseSourceManifest.files)) {
+            $entryProperties = @(
+              $sourceManifestEntry.PSObject.Properties.Name | Sort-Object)
+            $manifestPath = [string]$sourceManifestEntry.path
+            if ([string]::Join("`n", $entryProperties) -cne "length`npath`nsha256" -or
+              [string]::IsNullOrWhiteSpace($manifestPath) -or
+              $manifestPath.Contains('\') -or
+              [IO.Path]::IsPathFullyQualified($manifestPath) -or
+              @($manifestPath.Split('/') | Where-Object {
+                  [string]::IsNullOrWhiteSpace($_) -or $_ -ceq '.' -or $_ -ceq '..'
+                }).Count -ne 0 -or
+              $manifestPath -ieq '.github/release-source-manifest.json' -or
+              $manifestPath -ieq '.github/workflows/release.yml' -or
+              [string]$sourceManifestEntry.sha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+              [string]$sourceManifestEntry.length -cnotmatch '\A(?:0|[1-9]\d*)\z' -or
+              [long]$sourceManifestEntry.length -lt 0) {
+              throw "The release source manifest contains an invalid entry: $manifestPath"
+            }
+            $manifestFullPath = [IO.Path]::GetFullPath(
+              (Join-Path $workspaceRoot $manifestPath))
+            if ([IO.Path]::GetRelativePath(
+                $workspaceRoot,
+                $manifestFullPath).Replace('\', '/') -cne $manifestPath -or
+              ($null -ne $previousSourceManifestPath -and
+                [string]::CompareOrdinal(
+                  $previousSourceManifestPath,
+                  $manifestPath) -ge 0) -or
+              -not $sourceManifestEntries.TryAdd(
+                $manifestPath,
+                $sourceManifestEntry)) {
+              throw "The release source manifest is not canonical and uniquely ordered: $manifestPath"
+            }
+            $previousSourceManifestPath = $manifestPath
+          }
+          $heldSourceFiles =
+            [Collections.Generic.Dictionary[string, IO.FileStream]]::new(
+              [StringComparer]::OrdinalIgnoreCase)
+          foreach ($sourceFileLock in @($releaseSourceTreeLocks.FileLocks)) {
+            $lockedRelativePath = [IO.Path]::GetRelativePath(
+              $workspaceRoot,
+              [IO.Path]::GetFullPath($sourceFileLock.Name)).Replace('\', '/')
+            if ($lockedRelativePath -ieq '.github/release-source-manifest.json' -or
+              $lockedRelativePath -ieq '.github/workflows/release.yml') {
+              continue
+            }
+            if (-not $heldSourceFiles.TryAdd(
+                $lockedRelativePath,
+                $sourceFileLock)) {
+              throw "The reviewed source lock set contains a duplicate file: $lockedRelativePath"
+            }
+          }
+          if ($heldSourceFiles.Count -ne $sourceManifestEntries.Count) {
+            throw 'The reviewed source lock set does not exactly match the release source manifest.'
+          }
+          foreach ($sourceManifestPair in $sourceManifestEntries.GetEnumerator()) {
+            $heldSourceStream = $null
+            if (-not $heldSourceFiles.TryGetValue(
+                [string]$sourceManifestPair.Key,
+                [ref]$heldSourceStream) -or
+              $null -eq $heldSourceStream -or
+              $heldSourceStream.Length -ne [long]$sourceManifestPair.Value.length) {
+              throw "A reviewed source length does not match the release source manifest: $($sourceManifestPair.Key)"
+            }
+            $heldSourceStream.Position = 0
+            $heldSourceHash = [Convert]::ToHexString(
+              [Security.Cryptography.SHA256]::HashData(
+                $heldSourceStream)).ToLowerInvariant()
+            $heldSourceStream.Position = 0
+            if ($heldSourceHash -cne [string]$sourceManifestPair.Value.sha256) {
+              throw "A reviewed source hash does not match the release source manifest: $($sourceManifestPair.Key)"
+            }
+          }
           $dependencyRoot = Join-Path `
             $runnerTemp `
             ("evervigil-dependencies-" + [Guid]::NewGuid().ToString('N'))
-          if (Test-Path -LiteralPath $dependencyRoot) {
-            throw 'The release dependency root was not freshly allocated.'
-          }
-          [IO.Directory]::CreateDirectory($dependencyRoot) | Out-Null
-          $dependencyRootItem = Get-Item -LiteralPath $dependencyRoot -Force
-          if (($dependencyRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-            -not $dependencyRoot.StartsWith("$runnerTemp\", [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'The release dependency root is not a direct, non-reparse RUNNER_TEMP descendant.'
-          }
-          $isolatedPaths = @{
+          $dependencyRoot = New-EverVigilFreshIsolatedRoot `
+            -Root $runnerTemp `
+            -Path $dependencyRoot `
+            -Description 'Release dependency root'
+          $dependencyRootCreated = $true
+          $dependencyRootIdentity = Get-EverVigilDirectoryIdentity `
+            -Path $dependencyRoot `
+            -Description 'Release dependency root'
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $dependencyRoot `
+            -RunnerSid $runnerSid `
+            -Description 'Release dependency root' | Out-Null
+          $releaseDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($dependencyRoot) `
+            -Description 'Release dependency root')
+          $releaseSentinelLocks += @(New-EverVigilDirectorySentinelLocks `
+            -Paths @($dependencyRoot) `
+            -Description 'Release dependency root')
+          $isolatedUserProfile = Join-Path $dependencyRoot 'user-profile'
+          $isolatedPaths = [ordered]@{
             DOTNET_CLI_HOME = Join-Path $dependencyRoot 'dotnet-cli-home'
             NUGET_PACKAGES = Join-Path $dependencyRoot 'packages'
             NUGET_HTTP_CACHE_PATH = Join-Path $dependencyRoot 'http-cache'
             NUGET_PLUGINS_CACHE_PATH = Join-Path $dependencyRoot 'plugins-cache'
             MSBuildUserExtensionsPath = Join-Path $dependencyRoot 'msbuild-user-extensions'
-            APPDATA = Join-Path $dependencyRoot 'app-data'
-            LOCALAPPDATA = Join-Path $dependencyRoot 'local-app-data'
-            USERPROFILE = Join-Path $dependencyRoot 'user-profile'
+            APPDATA = Join-Path $isolatedUserProfile 'AppData\Roaming'
+            LOCALAPPDATA = Join-Path $isolatedUserProfile 'AppData\Local'
+            USERPROFILE = $isolatedUserProfile
           }
+          $reviewedIsolatedPaths = [ordered]@{}
           foreach ($entry in $isolatedPaths.GetEnumerator()) {
-            [IO.Directory]::CreateDirectory([string]$entry.Value) | Out-Null
-            $item = Get-Item -LiteralPath ([string]$entry.Value) -Force
-            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-              throw "The isolated release directory is a reparse point: $($entry.Key)"
-            }
+            $isolatedPath = New-EverVigilIsolatedDirectory `
+              -Root $dependencyRoot `
+              -Path ([string]$entry.Value) `
+              -Description "Isolated release directory $($entry.Key)"
+            $reviewedIsolatedPaths.Add([string]$entry.Key, $isolatedPath)
+            Assert-EverVigilReleaseStateDirectorySecurity `
+              -Path $isolatedPath `
+              -RunnerSid $runnerSid `
+              -Description "Isolated release directory $($entry.Key)" | Out-Null
             [Environment]::SetEnvironmentVariable(
               [string]$entry.Key,
-              [string]$entry.Value,
+              $isolatedPath,
               [EnvironmentVariableTarget]::Process)
+          }
+          $isolatedPaths = $reviewedIsolatedPaths
+          $releaseDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($isolatedPaths.Values) `
+            -Description 'Isolated release directories')
+          $releaseSentinelLocks += @(New-EverVigilDirectorySentinelLocks `
+            -Paths @($isolatedPaths.Values) `
+            -Description 'Isolated release directories')
+          # NuGet 6.8.2 treats a non-empty path list containing only its path
+          # separator as an explicit zero-plugin list.  Set every supported
+          # selector so neither framework can fall back to user-profile plugins.
+          foreach ($pluginPathVariable in @(
+              'NUGET_PLUGIN_PATHS',
+              'NUGET_NETCORE_PLUGIN_PATHS',
+              'NUGET_NETFX_PLUGIN_PATHS')) {
+            [Environment]::SetEnvironmentVariable(
+              $pluginPathVariable,
+              ';',
+              [EnvironmentVariableTarget]::Process)
+            if ([Environment]::GetEnvironmentVariable(
+                $pluginPathVariable,
+                [EnvironmentVariableTarget]::Process) -cne ';') {
+              throw "The release NuGet plugin path was not disabled: $pluginPathVariable"
+            }
+          }
+          function Assert-EverVigilReleaseIsolationState {
+            if ($null -eq $releaseSourceTreeLocks) {
+              throw 'The reviewed source-tree locks are not held.'
+            }
+            Assert-EverVigilSourceTreeLockState -LockSet $releaseSourceTreeLocks
+            $currentWorkingDirectory = Get-EverVigilNormalizedDirectoryPath `
+              -Path (Get-Location).ProviderPath `
+              -Description 'Release-build working directory'
+            if ($currentWorkingDirectory -cne $workspaceRoot) {
+              throw 'The release-build working directory changed after isolation.'
+            }
+            Assert-EverVigilDirectoryOutside `
+              -Path $runnerTemp `
+              -ForbiddenRoot $workspaceRoot `
+              -Description 'RUNNER_TEMP' | Out-Null
+            Assert-EverVigilReleaseStateDirectorySecurity `
+              -Path $workspaceRoot `
+              -RunnerSid $runnerSid `
+              -Description 'Reviewed source checkout' | Out-Null
+            Assert-EverVigilReleaseStateDirectorySecurity `
+              -Path $runnerTemp `
+              -RunnerSid $runnerSid `
+              -Description 'RUNNER_TEMP' | Out-Null
+            $reviewedArtifactRoot = Assert-EverVigilDirectoryWithin `
+              -Path $releaseArtifactRoot `
+              -RequiredRoot $workspaceRoot `
+              -Description 'Release artifacts root'
+            Assert-EverVigilReleaseStateDirectorySecurity `
+              -Path $reviewedArtifactRoot `
+              -RunnerSid $runnerSid `
+              -Description 'Release artifacts root' | Out-Null
+            $currentArtifactRootIdentity = Get-EverVigilDirectoryIdentity `
+              -Path $reviewedArtifactRoot `
+              -Description 'Release artifacts root'
+            if ($null -eq $releaseArtifactRootIdentity -or
+              $currentArtifactRootIdentity.Volume -cne $releaseArtifactRootIdentity.Volume -or
+              $currentArtifactRootIdentity.FileId -cne $releaseArtifactRootIdentity.FileId -or
+              $currentArtifactRootIdentity.RelativePath -cne
+                $releaseArtifactRootIdentity.RelativePath) {
+              throw 'The release artifacts root identity changed after host validation.'
+            }
+            Assert-EverVigilGeneratedOutputTreeState `
+              -RootPath $reviewedArtifactRoot `
+              -ExpectedRootIdentity $releaseArtifactRootIdentity `
+              -RunnerSid $runnerSid `
+              -Description 'Release artifacts tree' `
+              -HeldFileLocks @($releaseSentinelLocks) | Out-Null
+            Assert-EverVigilDirectoryWithin `
+              -Path $dependencyRoot `
+              -RequiredRoot $runnerTemp `
+              -Description 'Release dependency root' | Out-Null
+            Assert-EverVigilReleaseStateDirectorySecurity `
+              -Path $dependencyRoot `
+              -RunnerSid $runnerSid `
+              -Description 'Release dependency root' | Out-Null
+            foreach ($entry in $isolatedPaths.GetEnumerator()) {
+              $reviewedPath = Assert-EverVigilDirectoryWithin `
+                -Path ([string]$entry.Value) `
+                -RequiredRoot $dependencyRoot `
+                -Description "Isolated release directory $($entry.Key)"
+              if ([Environment]::GetEnvironmentVariable(
+                    [string]$entry.Key,
+                    [EnvironmentVariableTarget]::Process) -cne $reviewedPath) {
+                throw "The isolated release environment changed: $($entry.Key)"
+              }
+              Assert-EverVigilReleaseStateDirectorySecurity `
+                -Path $reviewedPath `
+                -RunnerSid $runnerSid `
+                -Description "Isolated release directory $($entry.Key)" | Out-Null
+            }
+            foreach ($pluginPathVariable in @(
+                'NUGET_PLUGIN_PATHS',
+                'NUGET_NETCORE_PLUGIN_PATHS',
+                'NUGET_NETFX_PLUGIN_PATHS')) {
+              if ([Environment]::GetEnvironmentVariable(
+                    $pluginPathVariable,
+                    [EnvironmentVariableTarget]::Process) -cne ';') {
+                throw "The release NuGet plugin path changed: $pluginPathVariable"
+              }
+            }
+            if (@($releaseDirectoryLocks).Count -eq 0 -or
+              @($releaseDirectoryLocks | Where-Object { -not $_.IsAlive }).Count -ne 0 -or
+              @($releaseSentinelLocks).Count -eq 0 -or
+              $null -eq $sourceCheckoutLock -or
+              -not $sourceCheckoutLock.CanRead -or
+              $releaseCriticalSourceLocks.Count -ne 4 -or
+              @($releaseCriticalSourceLocks | Where-Object {
+                  -not $_.CanRead -or $_.SafeFileHandle.IsClosed -or
+                    $_.SafeFileHandle.IsInvalid
+                }).Count -ne 0 -or
+              $releaseArtifactFileLocks.Count -eq 0 -or
+              @($releaseArtifactFileLocks | Where-Object {
+                  -not $_.CanRead -or $_.SafeFileHandle.IsClosed -or
+                    $_.SafeFileHandle.IsInvalid
+                }).Count -ne 0) {
+              throw 'The release directory locks are not held.'
+            }
+            foreach ($sentinelLock in $releaseSentinelLocks) {
+              $sentinelItem = Get-Item -LiteralPath $sentinelLock.Name -Force -ErrorAction Stop
+              if (-not $sentinelLock.CanRead -or -not $sentinelLock.CanWrite -or
+                $sentinelLock.Length -ne 32 -or $sentinelItem.PSIsContainer -or
+                ($sentinelItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                $sentinelItem.Length -ne 32) {
+                throw 'A release directory sentinel lock is not live and exact.'
+              }
+            }
+          }
+          function Assert-NoEverVigilSourceNuGetMigrationState {
+            $sourceMigrationMarkers = [Collections.Generic.List[string]]::new()
+            foreach ($sourceEntry in @(Get-ChildItem -LiteralPath $workspaceRoot -Force)) {
+              if ($sourceEntry.Name -ceq '.git') {
+                continue
+              }
+              if (($sourceEntry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "The reviewed source checkout contains a reparse entry: $($sourceEntry.FullName)"
+              }
+              $entries = if ($sourceEntry.PSIsContainer) {
+                @($sourceEntry) + @(
+                  Get-ChildItem -LiteralPath $sourceEntry.FullName -Recurse -Force)
+              } else {
+                @($sourceEntry)
+              }
+              foreach ($item in $entries) {
+                if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                  throw "The reviewed source checkout contains a reparse entry: $($item.FullName)"
+                }
+                if (-not $item.PSIsContainer -and
+                  $item.Name -ceq '1' -and
+                  $item.FullName.EndsWith(
+                    '\NuGet\Migrations\1',
+                    [StringComparison]::OrdinalIgnoreCase)) {
+                  $sourceMigrationMarkers.Add($item.FullName)
+                }
+              }
+            }
+            if ($sourceMigrationMarkers.Count -ne 0) {
+              throw 'NuGet migration state escaped into the reviewed source checkout.'
+            }
           }
           $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
           $env:DOTNET_NOLOGO = '1'
@@ -144,11 +566,13 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           $artifactName = "EverVigil-private-rc-$env:GITHUB_SHA"
           "artifact-name=$artifactName" >> $env:GITHUB_OUTPUT
+          Assert-EverVigilReleaseIsolationState
           if ((& $dotnetPath --version).Trim() -cne '8.0.130') {
             throw 'The active .NET SDK changed after release-host validation.'
           }
           .\tests\Test-Repository.ps1
           .\tests\Test-SystemMaintenance.ps1
+          Assert-EverVigilReleaseIsolationState
           & $dotnetPath restore .\EverVigil.sln `
             --configfile .\NuGet.config `
             --packages $env:NUGET_PACKAGES `
@@ -159,6 +583,16 @@ jobs:
             -p:RestoreBuildInParallel=false `
             @buildProperties
           if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed with exit code $LASTEXITCODE." }
+          Assert-EverVigilReleaseIsolationState
+          $nuGetMigrationMarker = Join-Path $env:LOCALAPPDATA 'NuGet\Migrations\1'
+          $nuGetMigrationMarkerItem = Get-Item -LiteralPath $nuGetMigrationMarker -Force
+          if ($nuGetMigrationMarkerItem.PSIsContainer -or
+            ($nuGetMigrationMarkerItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            $nuGetMigrationMarkerItem.Length -ne 0) {
+            throw 'NuGet migration state was not isolated as a regular empty marker.'
+          }
+          Assert-NoEverVigilSourceNuGetMigrationState
+          Assert-EverVigilReleaseIsolationState
           & $dotnetPath restore .\src\EverVigil.Broker\EverVigil.Broker.csproj `
             --configfile .\NuGet.config `
             --packages $env:NUGET_PACKAGES `
@@ -173,18 +607,25 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "NativeAOT broker locked restore failed with exit code $LASTEXITCODE."
           }
+          Assert-EverVigilReleaseIsolationState
+          Assert-NoEverVigilSourceNuGetMigrationState
           & $dotnetPath build .\EverVigil.sln -c Release --no-restore @buildProperties
           if ($LASTEXITCODE -ne 0) { throw "dotnet build failed with exit code $LASTEXITCODE." }
           .\tests\Test-InnoCompiler.ps1
           .\tests\Test-InstallTransaction.ps1
           .\tests\Test-ReleaseResourceAudit.ps1
+          Assert-EverVigilReleaseIsolationState
           & $dotnetPath format .\EverVigil.sln --verify-no-changes --no-restore --verbosity minimal
           if ($LASTEXITCODE -ne 0) { throw "dotnet format failed with exit code $LASTEXITCODE." }
+          Assert-EverVigilReleaseIsolationState
           & $dotnetPath run --project .\tests\EverVigil.Tests\EverVigil.Tests.csproj -c Release --no-build
           if ($LASTEXITCODE -ne 0) { throw "application test run failed with exit code $LASTEXITCODE." }
+          Assert-EverVigilReleaseIsolationState
           & $dotnetPath run --project .\tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.csproj -c Release --no-build -- --fail-on-skip
           if ($LASTEXITCODE -ne 0) { throw "broker test run failed with exit code $LASTEXITCODE." }
+          Assert-EverVigilReleaseIsolationState
           .\scripts\Test-NuGetVulnerabilities.ps1 -SolutionPath .\EverVigil.sln
+          Assert-EverVigilReleaseIsolationState
           .\scripts\Build-Release.ps1 `
             -Version $version `
             -InnoCompilerPath $innoCompilerPath `
@@ -192,6 +633,8 @@ jobs:
             -ResourceCompilerPath $resourceCompilerPath `
             -BrokerTestSkipPolicy RequireNone `
             -RequireTrustedToolchain
+          Assert-EverVigilReleaseIsolationState
+          Assert-NoEverVigilSourceNuGetMigrationState
 
           $installerName = "EverVigil-$version-Setup.exe"
           $installerPath = Join-Path .\artifacts\release $installerName
@@ -242,9 +685,20 @@ jobs:
             throw 'Composed GitHub Release notes are missing required notice/hash evidence or remain contradictory.'
           }
 
-          $bundleRoot = Join-Path .\artifacts private-rc-bundle
-          if (Test-Path $bundleRoot) { Remove-Item $bundleRoot -Recurse -Force }
-          New-Item $bundleRoot -ItemType Directory | Out-Null
+          $bundleRoot = New-EverVigilFreshIsolatedRoot `
+            -Root $releaseArtifactRoot `
+            -Path (Join-Path $releaseArtifactRoot 'private-rc-bundle') `
+            -Description 'Private candidate bundle root'
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $bundleRoot `
+            -RunnerSid $runnerSid `
+            -Description 'Private candidate bundle root' | Out-Null
+          $bundleRootIdentity = Get-EverVigilDirectoryIdentity `
+            -Path $bundleRoot `
+            -Description 'Private candidate bundle root'
+          $releaseDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($bundleRoot) `
+            -Description 'Private candidate bundle root')
           Copy-Item .\artifacts\release\* $bundleRoot -Recurse -Force
           Copy-Item .\artifacts\release-host-evidence.json $bundleRoot\release-host-evidence.json
           [IO.File]::WriteAllText(
@@ -270,10 +724,145 @@ jobs:
             installerSha256 = $checksum
             files = $manifestEntries
           }
-          [IO.File]::WriteAllText(
-            (Join-Path $bundleRoot 'candidate-manifest.json'),
-            (($manifest | ConvertTo-Json -Depth 6) + "`n"),
-            [Text.UTF8Encoding]::new($false))
+          $candidateManifestPath = Join-Path $bundleRoot 'candidate-manifest.json'
+          $candidateManifestBytes = [Text.UTF8Encoding]::new($false, $true).GetBytes(
+            (($manifest | ConvertTo-Json -Depth 6) + "`n"))
+          $candidateManifestStream = [IO.FileStream]::new(
+            $candidateManifestPath,
+            [IO.FileMode]::CreateNew,
+            [IO.FileAccess]::Write,
+            [IO.FileShare]::Read,
+            4096,
+            [IO.FileOptions]::WriteThrough)
+          try {
+            $candidateManifestStream.Write(
+              $candidateManifestBytes,
+              0,
+              $candidateManifestBytes.Length)
+            $candidateManifestStream.Flush($true)
+          } finally {
+            $candidateManifestStream.Dispose()
+          }
+          Assert-EverVigilGeneratedOutputTreeState `
+            -RootPath $releaseArtifactRoot `
+            -ExpectedRootIdentity $releaseArtifactRootIdentity `
+            -RunnerSid $runnerSid `
+            -Description 'Release artifacts tree' `
+            -HeldFileLocks @($releaseSentinelLocks) | Out-Null
+          foreach ($bundleFile in @(Get-ChildItem `
+              -LiteralPath $bundleRoot `
+              -File `
+              -Recurse `
+              -Force `
+              -ErrorAction Stop)) {
+            $bundleFileLock = [IO.FileStream]::new(
+              $bundleFile.FullName,
+              [IO.FileMode]::Open,
+              [IO.FileAccess]::Read,
+              [IO.FileShare]::Read)
+            try {
+              $bundleFileFinalPath =
+                [EverVigil.ReleaseDirectoryLock]::GetFinalPath(
+                  $bundleFileLock.SafeFileHandle)
+              $expectedBundleFileFinalPath =
+                $bundleRootIdentity.CanonicalPath.TrimEnd('\') + '\' +
+                [IO.Path]::GetRelativePath($bundleRoot, $bundleFile.FullName)
+              if (-not $bundleFileFinalPath.Equals(
+                  $expectedBundleFileFinalPath,
+                  [StringComparison]::OrdinalIgnoreCase)) {
+                throw "A private candidate bundle file changed physical identity: $($bundleFile.FullName)"
+              }
+              $releaseArtifactFileLocks.Add($bundleFileLock)
+            } catch {
+              $bundleFileLock.Dispose()
+              throw
+            }
+          }
+          $candidateManifestSha256 =
+            (Get-FileHash -LiteralPath $candidateManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $bundledInstallerPath = Join-Path $bundleRoot $installerName
+          if ((Get-FileHash -LiteralPath $bundledInstallerPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+            $checksum) {
+            throw 'The locked private candidate bundle installer does not match its reviewed SHA-256.'
+          }
+          Assert-EverVigilReleaseIsolationState
+          "candidate-manifest-sha256=$candidateManifestSha256" >> $env:GITHUB_OUTPUT
+          "installer-sha256=$checksum" >> $env:GITHUB_OUTPUT
+          } catch {
+            $releaseFailure = $_
+          } finally {
+            $cleanupFailures = [Collections.Generic.List[string]]::new()
+            $removeDependencyRoot = $false
+            if ($dependencyRootCreated) {
+              try {
+                $currentDependencyIdentity = Get-EverVigilDirectoryIdentity `
+                  -Path $dependencyRoot `
+                  -Description 'Release dependency root cleanup'
+                if ($null -eq $dependencyRootIdentity -or
+                  $currentDependencyIdentity.Volume -cne $dependencyRootIdentity.Volume -or
+                  $currentDependencyIdentity.FileId -cne $dependencyRootIdentity.FileId -or
+                  $currentDependencyIdentity.RelativePath -cne $dependencyRootIdentity.RelativePath) {
+                  throw 'The release dependency root identity changed before cleanup.'
+                }
+                $removeDependencyRoot = $true
+              } catch {
+                $cleanupFailures.Add($_.Exception.Message)
+              }
+            }
+            try {
+              Close-EverVigilSourceTreeLocks -LockSet $releaseSourceTreeLocks
+            } catch {
+              $cleanupFailures.Add($_.Exception.Message)
+            }
+            if ($null -ne $sourceCheckoutLock) {
+              try { $sourceCheckoutLock.Dispose() } catch { $cleanupFailures.Add($_.Exception.Message) }
+            }
+            for ($index = $releaseCriticalSourceLocks.Count - 1; $index -ge 0; $index--) {
+              try {
+                $releaseCriticalSourceLocks[$index].Dispose()
+              } catch {
+                $cleanupFailures.Add($_.Exception.Message)
+              }
+            }
+            for ($index = $releaseArtifactFileLocks.Count - 1; $index -ge 0; $index--) {
+              try {
+                $releaseArtifactFileLocks[$index].Dispose()
+              } catch {
+                $cleanupFailures.Add($_.Exception.Message)
+              }
+            }
+            try {
+              Close-EverVigilDirectorySentinelLocks -Locks $releaseSentinelLocks
+            } catch {
+              $cleanupFailures.Add($_.Exception.Message)
+            }
+            try {
+              Close-EverVigilDirectoryLocks -Locks $releaseDirectoryLocks
+            } catch {
+              $cleanupFailures.Add($_.Exception.Message)
+            }
+            if ($removeDependencyRoot) {
+              try {
+                Remove-Item -LiteralPath $dependencyRoot -Recurse -Force -ErrorAction Stop
+                if (Test-Path -LiteralPath $dependencyRoot) {
+                  throw 'The release dependency root remained after cleanup.'
+                }
+              } catch {
+                $cleanupFailures.Add($_.Exception.Message)
+              }
+            }
+            if ($cleanupFailures.Count -ne 0) {
+              $primaryFailure = if ($null -eq $releaseFailure) {
+                'The release build body completed.'
+              } else {
+                $releaseFailure.Exception.Message
+              }
+              throw "$primaryFailure Release isolation cleanup also failed: $($cleanupFailures -join ' | ')"
+            }
+          }
+          if ($null -ne $releaseFailure) {
+            throw $releaseFailure
+          }
 
       - name: Upload immutable candidate evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -297,9 +886,11 @@ jobs:
     environment: production-installer-audit-amd
     permissions:
       contents: read
+    outputs:
+      report-sha256: ${{ steps.audit.outputs.report-sha256 }}
     defaults:
       run:
-        shell: 'C:\Windows\System32\cmd.exe /D /S /C ""%GITHUB_WORKSPACE%\tests\Invoke-ReleaseShell.cmd" "{0}""'
+        shell: 'C:\Windows\System32\cmd.exe /D /S /C ""C:\Program Files\EverVigil Release Host\Invoke-ReleaseShell.cmd" "{0}""'
     steps:
       - name: Checkout exact audit contract without credentials
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -319,6 +910,10 @@ jobs:
           PRODUCTION_AUDIT_HARNESS_SHA256: ${{ vars.EVERVIGIL_PRODUCTION_AUDIT_HARNESS_SHA256 }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $auditCandidateFileLocks = [Collections.Generic.List[IO.FileStream]]::new()
+          $auditReportFileLocks = [Collections.Generic.List[IO.FileStream]]::new()
+          $auditDirectoryLocks = @()
+          $auditSentinelLocks = @()
           $expectedJob = 'production-installer-audit-amd'
           if ($env:GITHUB_JOB -cne $expectedJob -or
             $env:GITHUB_SHA -cnotmatch '\A[0-9a-f]{40}\z' -or
@@ -340,8 +935,110 @@ jobs:
             @($event.inputs.PSObject.Properties.Name).Count -ne 2) {
             throw 'The workflow-dispatch event does not contain the exact typed release inputs.'
           }
-          $version = .\scripts\Test-ReleaseVersion.ps1 -Version ([string]$event.inputs.version)
-          $candidateRoot = [IO.Path]::GetFullPath('.\artifacts\production-candidate')
+          $version = [string]$event.inputs.version
+          if ($version -cnotmatch '\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z') {
+            throw 'The AMD production audit version is invalid.'
+          }
+          $isolationScriptPath =
+            [IO.Path]::GetFullPath('.\tests\ReleasePathIsolation.ps1')
+          $isolationScriptLock = [IO.FileStream]::new(
+            $isolationScriptPath,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read)
+          $isolationScriptBytes = [byte[]]::new([int]$isolationScriptLock.Length)
+          $isolationScriptOffset = 0
+          while ($isolationScriptOffset -lt $isolationScriptBytes.Length) {
+            $isolationScriptRead = $isolationScriptLock.Read(
+              $isolationScriptBytes,
+              $isolationScriptOffset,
+              $isolationScriptBytes.Length - $isolationScriptOffset)
+            if ($isolationScriptRead -le 0) {
+              throw 'The AMD audit isolation helper ended before its reviewed length.'
+            }
+            $isolationScriptOffset += $isolationScriptRead
+          }
+          $isolationScriptSha256 = [Convert]::ToHexString(
+            [Security.Cryptography.SHA256]::HashData(
+              $isolationScriptBytes)).ToLowerInvariant()
+          if ($isolationScriptSha256 -cne
+            '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35') {
+            throw 'The AMD audit isolation helper does not match the server-reviewed workflow.'
+          }
+          . ([ScriptBlock]::Create(
+            [Text.UTF8Encoding]::new($false, $true).GetString($isolationScriptBytes)))
+          $workspaceRoot = Assert-EverVigilNonReparseDirectoryAncestry `
+            -Path $env:GITHUB_WORKSPACE `
+            -Description 'AMD audit source checkout'
+          $runnerTemp = Assert-EverVigilDirectoryOutside `
+            -Path $env:RUNNER_TEMP `
+            -ForbiddenRoot $workspaceRoot `
+            -Description 'AMD audit RUNNER_TEMP'
+          $runnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $workspaceRoot `
+            -RunnerSid $runnerSid `
+            -Description 'AMD audit source checkout' | Out-Null
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $runnerTemp `
+            -RunnerSid $runnerSid `
+            -Description 'AMD audit RUNNER_TEMP' | Out-Null
+          $auditDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($workspaceRoot, $runnerTemp) `
+            -Description 'AMD audit ancestry')
+          $auditSentinelLocks += @(New-EverVigilDirectorySentinelLocks `
+            -Paths @($runnerTemp) `
+            -Description 'AMD audit RUNNER_TEMP')
+          $candidateRoot = Assert-EverVigilDirectoryWithin `
+            -Path ([IO.Path]::GetFullPath('.\artifacts\production-candidate')) `
+            -RequiredRoot $workspaceRoot `
+            -Description 'AMD production candidate root'
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $candidateRoot `
+            -RunnerSid $runnerSid `
+            -Description 'AMD production candidate root' | Out-Null
+          $candidateRootIdentity = Get-EverVigilDirectoryIdentity `
+            -Path $candidateRoot `
+            -Description 'AMD production candidate root'
+          $auditDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($candidateRoot) `
+            -Description 'AMD production candidate root')
+          Assert-EverVigilGeneratedOutputTreeState `
+            -RootPath $candidateRoot `
+            -ExpectedRootIdentity $candidateRootIdentity `
+            -RunnerSid $runnerSid `
+            -Description 'AMD production candidate tree' | Out-Null
+          $candidateFileLocksByRelativePath = @{}
+          foreach ($candidateFile in @(Get-ChildItem `
+              -LiteralPath $candidateRoot `
+              -File `
+              -Recurse `
+              -Force `
+              -ErrorAction Stop)) {
+            $candidateFileLock = [IO.FileStream]::new(
+              $candidateFile.FullName,
+              [IO.FileMode]::Open,
+              [IO.FileAccess]::Read,
+              [IO.FileShare]::Read)
+            $relativeCandidatePath = [IO.Path]::GetRelativePath(
+              $candidateRoot,
+              $candidateFile.FullName).Replace('\', '/')
+            $expectedCandidateFinalPath =
+              $candidateRootIdentity.CanonicalPath.TrimEnd('\') + '\' +
+              $relativeCandidatePath.Replace('/', '\')
+            if (-not [EverVigil.ReleaseDirectoryLock]::GetFinalPath(
+                $candidateFileLock.SafeFileHandle).Equals(
+                  $expectedCandidateFinalPath,
+                  [StringComparison]::OrdinalIgnoreCase) -or
+              $candidateFileLocksByRelativePath.ContainsKey($relativeCandidatePath)) {
+              $candidateFileLock.Dispose()
+              throw "An AMD candidate file changed identity or is duplicated: $relativeCandidatePath"
+            }
+            $candidateFileLocksByRelativePath.Add(
+              $relativeCandidatePath,
+              $candidateFileLock)
+            $auditCandidateFileLocks.Add($candidateFileLock)
+          }
           $manifestPath = Join-Path $candidateRoot 'candidate-manifest.json'
           $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
           if ([string]$manifest.sourceSha -cne $env:GITHUB_SHA -or
@@ -351,6 +1048,72 @@ jobs:
           }
           $manifestSha256 =
             (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expectedManifestSha256 =
+            '${{ needs.validate-private-candidate.outputs.candidate-manifest-sha256 }}'
+          $expectedInstallerSha256 =
+            '${{ needs.validate-private-candidate.outputs.installer-sha256 }}'
+          if ($expectedManifestSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            $manifestSha256 -cne $expectedManifestSha256 -or
+            $expectedInstallerSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            [string]$manifest.installerSha256 -cne $expectedInstallerSha256) {
+            throw 'The AMD audit candidate bytes do not match the validation job outputs.'
+          }
+          $candidateManifestProperties = @(
+            $manifest.PSObject.Properties.Name | Sort-Object -CaseSensitive)
+          $expectedCandidateManifestProperties = @(
+            'files', 'installerName', 'installerSha256', 'schemaVersion', 'sourceSha', 'version')
+          if (($candidateManifestProperties -join "`n") -cne
+              (($expectedCandidateManifestProperties | Sort-Object -CaseSensitive) -join "`n") -or
+            [int]$manifest.schemaVersion -ne 1) {
+            throw 'The AMD audit candidate manifest schema is invalid.'
+          }
+          $expectedCandidateFiles = @{}
+          foreach ($candidateEntry in @($manifest.files)) {
+            $candidateEntryProperties = @(
+              $candidateEntry.PSObject.Properties.Name | Sort-Object -CaseSensitive)
+            $candidateEntryPath = [string]$candidateEntry.path
+            if (($candidateEntryProperties -join "`n") -cne "length`npath`nsha256" -or
+              $candidateEntryPath -notmatch '\A(?![/\\])(?!.*\.\.)(?!.*[\\])[A-Za-z0-9._/-]+\z' -or
+              $candidateEntryPath -ceq 'candidate-manifest.json' -or
+              [long]$candidateEntry.length -lt 0 -or
+              [string]$candidateEntry.sha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+              $expectedCandidateFiles.ContainsKey($candidateEntryPath)) {
+              throw 'The AMD audit candidate manifest contains an invalid file entry.'
+            }
+            $expectedCandidateFiles.Add($candidateEntryPath, $candidateEntry)
+          }
+          if ($candidateFileLocksByRelativePath.Count -ne $expectedCandidateFiles.Count + 1 -or
+            -not $candidateFileLocksByRelativePath.ContainsKey('candidate-manifest.json')) {
+            throw 'The AMD audit candidate lock set does not exactly match its manifest.'
+          }
+          foreach ($candidateEntry in $expectedCandidateFiles.GetEnumerator()) {
+            if (-not $candidateFileLocksByRelativePath.ContainsKey([string]$candidateEntry.Key)) {
+              throw "The AMD audit candidate is missing a locked manifest file: $($candidateEntry.Key)"
+            }
+            $candidateEntryLock = $candidateFileLocksByRelativePath[[string]$candidateEntry.Key]
+            $candidateEntryLock.Position = 0
+            $candidateEntrySha256 = [Convert]::ToHexString(
+              [Security.Cryptography.SHA256]::HashData(
+                $candidateEntryLock)).ToLowerInvariant()
+            $candidateEntryLock.Position = 0
+            if ($candidateEntryLock.Length -ne [long]$candidateEntry.Value.length -or
+              $candidateEntrySha256 -cne [string]$candidateEntry.Value.sha256) {
+              throw "The locked AMD candidate file does not match its manifest: $($candidateEntry.Key)"
+            }
+          }
+          $installerRelativePath = [string]$manifest.installerName
+          if (-not $candidateFileLocksByRelativePath.ContainsKey($installerRelativePath)) {
+            throw 'The AMD audit candidate installer is not held by the reviewed candidate lock set.'
+          }
+          $installerLock = $candidateFileLocksByRelativePath[$installerRelativePath]
+          $installerLock.Position = 0
+          $lockedInstallerSha256 = [Convert]::ToHexString(
+            [Security.Cryptography.SHA256]::HashData(
+              $installerLock)).ToLowerInvariant()
+          $installerLock.Position = 0
+          if ($lockedInstallerSha256 -cne $expectedInstallerSha256) {
+            throw 'The locked AMD candidate installer does not match the validation job output.'
+          }
 
           function Get-AuditAclSid {
             param([object]$Identity)
@@ -471,19 +1234,22 @@ jobs:
           }
           $harnessPath = Assert-ProtectedAuditHarnessPath $harnessPath
 
-          $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
-          $reportRoot = Join-Path `
-            $runnerTemp `
-            ('evervigil-production-audit-amd-' + [Guid]::NewGuid().ToString('N'))
-          if (Test-Path -LiteralPath $reportRoot) {
-            throw 'The AMD production audit report root was not freshly allocated.'
-          }
-          [IO.Directory]::CreateDirectory($reportRoot) | Out-Null
-          $reportRootItem = Get-Item -LiteralPath $reportRoot -Force
-          if (($reportRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-            -not $reportRoot.StartsWith("$runnerTemp\", [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'The AMD production audit report root is not a safe RUNNER_TEMP child.'
-          }
+          $reportRoot = New-EverVigilFreshIsolatedRoot `
+            -Root $runnerTemp `
+            -Path (Join-Path `
+              $runnerTemp `
+              ('evervigil-production-audit-amd-' + [Guid]::NewGuid().ToString('N'))) `
+            -Description 'AMD production audit report root'
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $reportRoot `
+            -RunnerSid $runnerSid `
+            -Description 'AMD production audit report root' | Out-Null
+          $reportRootIdentity = Get-EverVigilDirectoryIdentity `
+            -Path $reportRoot `
+            -Description 'AMD production audit report root'
+          $auditDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($reportRoot) `
+            -Description 'AMD production audit report root')
 
           $harnessLock = [IO.File]::Open(
             $harnessPath,
@@ -554,7 +1320,54 @@ jobs:
             -ExpectedWorkflowRunId $env:GITHUB_RUN_ID `
             -ExpectedWorkflowRunAttempt $env:GITHUB_RUN_ATTEMPT `
             -ExpectedAuditJob $expectedJob
+          Assert-EverVigilGeneratedOutputTreeState `
+            -RootPath $reportRoot `
+            -ExpectedRootIdentity $reportRootIdentity `
+            -RunnerSid $runnerSid `
+            -Description 'AMD production audit evidence tree' | Out-Null
+          foreach ($reportFile in @(Get-ChildItem `
+              -LiteralPath $reportRoot `
+              -File `
+              -Recurse `
+              -Force `
+              -ErrorAction Stop)) {
+            $reportFileLock = [IO.FileStream]::new(
+              $reportFile.FullName,
+              [IO.FileMode]::Open,
+              [IO.FileAccess]::Read,
+              [IO.FileShare]::Read)
+            $expectedReportFinalPath =
+              $reportRootIdentity.CanonicalPath.TrimEnd('\') + '\' +
+              [IO.Path]::GetRelativePath($reportRoot, $reportFile.FullName)
+            if (-not [EverVigil.ReleaseDirectoryLock]::GetFinalPath(
+                $reportFileLock.SafeFileHandle).Equals(
+                  $expectedReportFinalPath,
+                  [StringComparison]::OrdinalIgnoreCase)) {
+              $reportFileLock.Dispose()
+              throw "An AMD production audit evidence file changed identity: $($reportFile.FullName)"
+            }
+            $auditReportFileLocks.Add($reportFileLock)
+          }
+          $reportPath = Join-Path $reportRoot 'production-installer-audit-report.json'
+          $reportLock = @($auditReportFileLocks | Where-Object {
+              [string]::Equals(
+                [IO.Path]::GetFullPath($_.Name),
+                [IO.Path]::GetFullPath($reportPath),
+                [StringComparison]::OrdinalIgnoreCase)
+            })
+          if ($reportLock.Count -ne 1) {
+            throw 'The AMD production audit report is not held by the exact evidence lock set.'
+          }
+          $reportLock[0].Position = 0
+          $reportSha256 = [Convert]::ToHexString(
+            [Security.Cryptography.SHA256]::HashData(
+              $reportLock[0])).ToLowerInvariant()
+          $reportLock[0].Position = 0
+          if ($reportSha256 -cnotmatch '\A[0-9a-f]{64}\z') {
+            throw 'The verified AMD production audit report SHA-256 is invalid.'
+          }
           "report-root=$reportRoot" >> $env:GITHUB_OUTPUT
+          "report-sha256=$reportSha256" >> $env:GITHUB_OUTPUT
 
       - name: Upload verified AMD production audit evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -578,9 +1391,11 @@ jobs:
     environment: production-installer-audit-intel
     permissions:
       contents: read
+    outputs:
+      report-sha256: ${{ steps.audit.outputs.report-sha256 }}
     defaults:
       run:
-        shell: 'C:\Windows\System32\cmd.exe /D /S /C ""%GITHUB_WORKSPACE%\tests\Invoke-ReleaseShell.cmd" "{0}""'
+        shell: 'C:\Windows\System32\cmd.exe /D /S /C ""C:\Program Files\EverVigil Release Host\Invoke-ReleaseShell.cmd" "{0}""'
     steps:
       - name: Checkout exact audit contract without credentials
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -600,6 +1415,10 @@ jobs:
           PRODUCTION_AUDIT_HARNESS_SHA256: ${{ vars.EVERVIGIL_PRODUCTION_AUDIT_HARNESS_SHA256 }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $auditCandidateFileLocks = [Collections.Generic.List[IO.FileStream]]::new()
+          $auditReportFileLocks = [Collections.Generic.List[IO.FileStream]]::new()
+          $auditDirectoryLocks = @()
+          $auditSentinelLocks = @()
           $expectedJob = 'production-installer-audit-intel'
           if ($env:GITHUB_JOB -cne $expectedJob -or
             $env:GITHUB_SHA -cnotmatch '\A[0-9a-f]{40}\z' -or
@@ -621,8 +1440,110 @@ jobs:
             @($event.inputs.PSObject.Properties.Name).Count -ne 2) {
             throw 'The workflow-dispatch event does not contain the exact typed release inputs.'
           }
-          $version = .\scripts\Test-ReleaseVersion.ps1 -Version ([string]$event.inputs.version)
-          $candidateRoot = [IO.Path]::GetFullPath('.\artifacts\production-candidate')
+          $version = [string]$event.inputs.version
+          if ($version -cnotmatch '\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z') {
+            throw 'The Intel production audit version is invalid.'
+          }
+          $isolationScriptPath =
+            [IO.Path]::GetFullPath('.\tests\ReleasePathIsolation.ps1')
+          $isolationScriptLock = [IO.FileStream]::new(
+            $isolationScriptPath,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read)
+          $isolationScriptBytes = [byte[]]::new([int]$isolationScriptLock.Length)
+          $isolationScriptOffset = 0
+          while ($isolationScriptOffset -lt $isolationScriptBytes.Length) {
+            $isolationScriptRead = $isolationScriptLock.Read(
+              $isolationScriptBytes,
+              $isolationScriptOffset,
+              $isolationScriptBytes.Length - $isolationScriptOffset)
+            if ($isolationScriptRead -le 0) {
+              throw 'The Intel audit isolation helper ended before its reviewed length.'
+            }
+            $isolationScriptOffset += $isolationScriptRead
+          }
+          $isolationScriptSha256 = [Convert]::ToHexString(
+            [Security.Cryptography.SHA256]::HashData(
+              $isolationScriptBytes)).ToLowerInvariant()
+          if ($isolationScriptSha256 -cne
+            '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35') {
+            throw 'The Intel audit isolation helper does not match the server-reviewed workflow.'
+          }
+          . ([ScriptBlock]::Create(
+            [Text.UTF8Encoding]::new($false, $true).GetString($isolationScriptBytes)))
+          $workspaceRoot = Assert-EverVigilNonReparseDirectoryAncestry `
+            -Path $env:GITHUB_WORKSPACE `
+            -Description 'Intel audit source checkout'
+          $runnerTemp = Assert-EverVigilDirectoryOutside `
+            -Path $env:RUNNER_TEMP `
+            -ForbiddenRoot $workspaceRoot `
+            -Description 'Intel audit RUNNER_TEMP'
+          $runnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $workspaceRoot `
+            -RunnerSid $runnerSid `
+            -Description 'Intel audit source checkout' | Out-Null
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $runnerTemp `
+            -RunnerSid $runnerSid `
+            -Description 'Intel audit RUNNER_TEMP' | Out-Null
+          $auditDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($workspaceRoot, $runnerTemp) `
+            -Description 'Intel audit ancestry')
+          $auditSentinelLocks += @(New-EverVigilDirectorySentinelLocks `
+            -Paths @($runnerTemp) `
+            -Description 'Intel audit RUNNER_TEMP')
+          $candidateRoot = Assert-EverVigilDirectoryWithin `
+            -Path ([IO.Path]::GetFullPath('.\artifacts\production-candidate')) `
+            -RequiredRoot $workspaceRoot `
+            -Description 'Intel production candidate root'
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $candidateRoot `
+            -RunnerSid $runnerSid `
+            -Description 'Intel production candidate root' | Out-Null
+          $candidateRootIdentity = Get-EverVigilDirectoryIdentity `
+            -Path $candidateRoot `
+            -Description 'Intel production candidate root'
+          $auditDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($candidateRoot) `
+            -Description 'Intel production candidate root')
+          Assert-EverVigilGeneratedOutputTreeState `
+            -RootPath $candidateRoot `
+            -ExpectedRootIdentity $candidateRootIdentity `
+            -RunnerSid $runnerSid `
+            -Description 'Intel production candidate tree' | Out-Null
+          $candidateFileLocksByRelativePath = @{}
+          foreach ($candidateFile in @(Get-ChildItem `
+              -LiteralPath $candidateRoot `
+              -File `
+              -Recurse `
+              -Force `
+              -ErrorAction Stop)) {
+            $candidateFileLock = [IO.FileStream]::new(
+              $candidateFile.FullName,
+              [IO.FileMode]::Open,
+              [IO.FileAccess]::Read,
+              [IO.FileShare]::Read)
+            $relativeCandidatePath = [IO.Path]::GetRelativePath(
+              $candidateRoot,
+              $candidateFile.FullName).Replace('\', '/')
+            $expectedCandidateFinalPath =
+              $candidateRootIdentity.CanonicalPath.TrimEnd('\') + '\' +
+              $relativeCandidatePath.Replace('/', '\')
+            if (-not [EverVigil.ReleaseDirectoryLock]::GetFinalPath(
+                $candidateFileLock.SafeFileHandle).Equals(
+                  $expectedCandidateFinalPath,
+                  [StringComparison]::OrdinalIgnoreCase) -or
+              $candidateFileLocksByRelativePath.ContainsKey($relativeCandidatePath)) {
+              $candidateFileLock.Dispose()
+              throw "An Intel candidate file changed identity or is duplicated: $relativeCandidatePath"
+            }
+            $candidateFileLocksByRelativePath.Add(
+              $relativeCandidatePath,
+              $candidateFileLock)
+            $auditCandidateFileLocks.Add($candidateFileLock)
+          }
           $manifestPath = Join-Path $candidateRoot 'candidate-manifest.json'
           $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
           if ([string]$manifest.sourceSha -cne $env:GITHUB_SHA -or
@@ -632,6 +1553,72 @@ jobs:
           }
           $manifestSha256 =
             (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expectedManifestSha256 =
+            '${{ needs.validate-private-candidate.outputs.candidate-manifest-sha256 }}'
+          $expectedInstallerSha256 =
+            '${{ needs.validate-private-candidate.outputs.installer-sha256 }}'
+          if ($expectedManifestSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            $manifestSha256 -cne $expectedManifestSha256 -or
+            $expectedInstallerSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            [string]$manifest.installerSha256 -cne $expectedInstallerSha256) {
+            throw 'The Intel audit candidate bytes do not match the validation job outputs.'
+          }
+          $candidateManifestProperties = @(
+            $manifest.PSObject.Properties.Name | Sort-Object -CaseSensitive)
+          $expectedCandidateManifestProperties = @(
+            'files', 'installerName', 'installerSha256', 'schemaVersion', 'sourceSha', 'version')
+          if (($candidateManifestProperties -join "`n") -cne
+              (($expectedCandidateManifestProperties | Sort-Object -CaseSensitive) -join "`n") -or
+            [int]$manifest.schemaVersion -ne 1) {
+            throw 'The Intel audit candidate manifest schema is invalid.'
+          }
+          $expectedCandidateFiles = @{}
+          foreach ($candidateEntry in @($manifest.files)) {
+            $candidateEntryProperties = @(
+              $candidateEntry.PSObject.Properties.Name | Sort-Object -CaseSensitive)
+            $candidateEntryPath = [string]$candidateEntry.path
+            if (($candidateEntryProperties -join "`n") -cne "length`npath`nsha256" -or
+              $candidateEntryPath -notmatch '\A(?![/\\])(?!.*\.\.)(?!.*[\\])[A-Za-z0-9._/-]+\z' -or
+              $candidateEntryPath -ceq 'candidate-manifest.json' -or
+              [long]$candidateEntry.length -lt 0 -or
+              [string]$candidateEntry.sha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+              $expectedCandidateFiles.ContainsKey($candidateEntryPath)) {
+              throw 'The Intel audit candidate manifest contains an invalid file entry.'
+            }
+            $expectedCandidateFiles.Add($candidateEntryPath, $candidateEntry)
+          }
+          if ($candidateFileLocksByRelativePath.Count -ne $expectedCandidateFiles.Count + 1 -or
+            -not $candidateFileLocksByRelativePath.ContainsKey('candidate-manifest.json')) {
+            throw 'The Intel audit candidate lock set does not exactly match its manifest.'
+          }
+          foreach ($candidateEntry in $expectedCandidateFiles.GetEnumerator()) {
+            if (-not $candidateFileLocksByRelativePath.ContainsKey([string]$candidateEntry.Key)) {
+              throw "The Intel audit candidate is missing a locked manifest file: $($candidateEntry.Key)"
+            }
+            $candidateEntryLock = $candidateFileLocksByRelativePath[[string]$candidateEntry.Key]
+            $candidateEntryLock.Position = 0
+            $candidateEntrySha256 = [Convert]::ToHexString(
+              [Security.Cryptography.SHA256]::HashData(
+                $candidateEntryLock)).ToLowerInvariant()
+            $candidateEntryLock.Position = 0
+            if ($candidateEntryLock.Length -ne [long]$candidateEntry.Value.length -or
+              $candidateEntrySha256 -cne [string]$candidateEntry.Value.sha256) {
+              throw "The locked Intel candidate file does not match its manifest: $($candidateEntry.Key)"
+            }
+          }
+          $installerRelativePath = [string]$manifest.installerName
+          if (-not $candidateFileLocksByRelativePath.ContainsKey($installerRelativePath)) {
+            throw 'The Intel audit candidate installer is not held by the reviewed candidate lock set.'
+          }
+          $installerLock = $candidateFileLocksByRelativePath[$installerRelativePath]
+          $installerLock.Position = 0
+          $lockedInstallerSha256 = [Convert]::ToHexString(
+            [Security.Cryptography.SHA256]::HashData(
+              $installerLock)).ToLowerInvariant()
+          $installerLock.Position = 0
+          if ($lockedInstallerSha256 -cne $expectedInstallerSha256) {
+            throw 'The locked Intel candidate installer does not match the validation job output.'
+          }
 
           function Get-AuditAclSid {
             param([object]$Identity)
@@ -752,19 +1739,22 @@ jobs:
           }
           $harnessPath = Assert-ProtectedAuditHarnessPath $harnessPath
 
-          $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
-          $reportRoot = Join-Path `
-            $runnerTemp `
-            ('evervigil-production-audit-intel-' + [Guid]::NewGuid().ToString('N'))
-          if (Test-Path -LiteralPath $reportRoot) {
-            throw 'The Intel production audit report root was not freshly allocated.'
-          }
-          [IO.Directory]::CreateDirectory($reportRoot) | Out-Null
-          $reportRootItem = Get-Item -LiteralPath $reportRoot -Force
-          if (($reportRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-            -not $reportRoot.StartsWith("$runnerTemp\", [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'The Intel production audit report root is not a safe RUNNER_TEMP child.'
-          }
+          $reportRoot = New-EverVigilFreshIsolatedRoot `
+            -Root $runnerTemp `
+            -Path (Join-Path `
+              $runnerTemp `
+              ('evervigil-production-audit-intel-' + [Guid]::NewGuid().ToString('N'))) `
+            -Description 'Intel production audit report root'
+          Assert-EverVigilReleaseStateDirectorySecurity `
+            -Path $reportRoot `
+            -RunnerSid $runnerSid `
+            -Description 'Intel production audit report root' | Out-Null
+          $reportRootIdentity = Get-EverVigilDirectoryIdentity `
+            -Path $reportRoot `
+            -Description 'Intel production audit report root'
+          $auditDirectoryLocks += @(Lock-EverVigilDirectoryAncestries `
+            -Paths @($reportRoot) `
+            -Description 'Intel production audit report root')
 
           $harnessLock = [IO.File]::Open(
             $harnessPath,
@@ -835,7 +1825,54 @@ jobs:
             -ExpectedWorkflowRunId $env:GITHUB_RUN_ID `
             -ExpectedWorkflowRunAttempt $env:GITHUB_RUN_ATTEMPT `
             -ExpectedAuditJob $expectedJob
+          Assert-EverVigilGeneratedOutputTreeState `
+            -RootPath $reportRoot `
+            -ExpectedRootIdentity $reportRootIdentity `
+            -RunnerSid $runnerSid `
+            -Description 'Intel production audit evidence tree' | Out-Null
+          foreach ($reportFile in @(Get-ChildItem `
+              -LiteralPath $reportRoot `
+              -File `
+              -Recurse `
+              -Force `
+              -ErrorAction Stop)) {
+            $reportFileLock = [IO.FileStream]::new(
+              $reportFile.FullName,
+              [IO.FileMode]::Open,
+              [IO.FileAccess]::Read,
+              [IO.FileShare]::Read)
+            $expectedReportFinalPath =
+              $reportRootIdentity.CanonicalPath.TrimEnd('\') + '\' +
+              [IO.Path]::GetRelativePath($reportRoot, $reportFile.FullName)
+            if (-not [EverVigil.ReleaseDirectoryLock]::GetFinalPath(
+                $reportFileLock.SafeFileHandle).Equals(
+                  $expectedReportFinalPath,
+                  [StringComparison]::OrdinalIgnoreCase)) {
+              $reportFileLock.Dispose()
+              throw "An Intel production audit evidence file changed identity: $($reportFile.FullName)"
+            }
+            $auditReportFileLocks.Add($reportFileLock)
+          }
+          $reportPath = Join-Path $reportRoot 'production-installer-audit-report.json'
+          $reportLock = @($auditReportFileLocks | Where-Object {
+              [string]::Equals(
+                [IO.Path]::GetFullPath($_.Name),
+                [IO.Path]::GetFullPath($reportPath),
+                [StringComparison]::OrdinalIgnoreCase)
+            })
+          if ($reportLock.Count -ne 1) {
+            throw 'The Intel production audit report is not held by the exact evidence lock set.'
+          }
+          $reportLock[0].Position = 0
+          $reportSha256 = [Convert]::ToHexString(
+            [Security.Cryptography.SHA256]::HashData(
+              $reportLock[0])).ToLowerInvariant()
+          $reportLock[0].Position = 0
+          if ($reportSha256 -cnotmatch '\A[0-9a-f]{64}\z') {
+            throw 'The verified Intel production audit report SHA-256 is invalid.'
+          }
           "report-root=$reportRoot" >> $env:GITHUB_OUTPUT
+          "report-sha256=$reportSha256" >> $env:GITHUB_OUTPUT
 
       - name: Upload verified Intel production audit evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -903,12 +1940,29 @@ jobs:
           }
           $requestedVersion = [string]$event.inputs.version
           $expectedSourceSha = $env:GITHUB_SHA
+          $expectedCandidateManifestSha256 =
+            '${{ needs.validate-private-candidate.outputs.candidate-manifest-sha256 }}'
+          $expectedInstallerSha256 =
+            '${{ needs.validate-private-candidate.outputs.installer-sha256 }}'
+          $expectedAmdReportSha256 =
+            '${{ needs.production-installer-audit-amd.outputs.report-sha256 }}'
+          $expectedIntelReportSha256 =
+            '${{ needs.production-installer-audit-intel.outputs.report-sha256 }}'
           if ($requestedVersion -cnotmatch '\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z' -or
-            $expectedSourceSha -cnotmatch '\A[0-9a-f]{40}\z') {
+            $expectedSourceSha -cnotmatch '\A[0-9a-f]{40}\z' -or
+            $expectedCandidateManifestSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            $expectedInstallerSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            $expectedAmdReportSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            $expectedIntelReportSha256 -cnotmatch '\A[0-9a-f]{64}\z') {
             throw 'The publishing job event identity is invalid.'
           }
           $root = [IO.Path]::GetFullPath('.\candidate')
           $manifestPath = Join-Path $root 'candidate-manifest.json'
+          $downloadedCandidateManifestSha256 =
+            (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($downloadedCandidateManifestSha256 -cne $expectedCandidateManifestSha256) {
+            throw 'The downloaded candidate manifest does not match the validation job output.'
+          }
           $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
           $actualManifestProperties = @($manifest.PSObject.Properties.Name | Sort-Object -CaseSensitive)
           $expectedManifestProperties = @(
@@ -919,7 +1973,8 @@ jobs:
             [string]$manifest.sourceSha -cne $expectedSourceSha -or
             [string]$manifest.version -cne $requestedVersion -or
             [string]$manifest.installerName -cne "EverVigil-$requestedVersion-Setup.exe" -or
-            [string]$manifest.installerSha256 -cnotmatch '\A[0-9a-f]{64}\z') {
+            [string]$manifest.installerSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
+            [string]$manifest.installerSha256 -cne $expectedInstallerSha256) {
             throw 'The downloaded candidate manifest identity is invalid.'
           }
           $expectedFiles = @{}
@@ -1811,6 +2866,18 @@ jobs:
             }
           }
           $manifest = $strictManifest
+          $amdReportPath = Join-Path `
+            ([IO.Path]::GetFullPath('.\audits\amd')) `
+            'production-installer-audit-report.json'
+          $intelReportPath = Join-Path `
+            ([IO.Path]::GetFullPath('.\audits\intel')) `
+            'production-installer-audit-report.json'
+          if ((Get-FileHash -LiteralPath $amdReportPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+              $expectedAmdReportSha256 -or
+            (Get-FileHash -LiteralPath $intelReportPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+              $expectedIntelReportSha256) {
+            throw 'A downloaded production audit report does not match its audit job output.'
+          }
           $amdAudit = Assert-ProductionAudit `
             -AuditRoot '.\audits\amd' `
             -ExpectedVendor AMD `
