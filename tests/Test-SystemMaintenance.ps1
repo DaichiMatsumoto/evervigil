@@ -43,6 +43,246 @@ if (Test-EverVigilProtectedBrokerInstallation `
     throw 'A user-writable repository broker was accepted as the protected broker.'
 }
 
+$systemSid = [Security.Principal.SecurityIdentifier]::new(
+    [Security.Principal.WellKnownSidType]::LocalSystemSid,
+    $null)
+$administratorsSid = [Security.Principal.SecurityIdentifier]::new(
+    [Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid,
+    $null)
+$usersSid = [Security.Principal.SecurityIdentifier]::new(
+    [Security.Principal.WellKnownSidType]::BuiltinUsersSid,
+    $null)
+$worldSid = [Security.Principal.SecurityIdentifier]::new(
+    [Security.Principal.WellKnownSidType]::WorldSid,
+    $null)
+$expectedDangerousRights =
+    [Security.AccessControl.FileSystemRights]::WriteData -bor
+    [Security.AccessControl.FileSystemRights]::CreateFiles -bor
+    [Security.AccessControl.FileSystemRights]::AppendData -bor
+    [Security.AccessControl.FileSystemRights]::CreateDirectories -bor
+    [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+    [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+    [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+    [Security.AccessControl.FileSystemRights]::Delete -bor
+    [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+    [Security.AccessControl.FileSystemRights]::TakeOwnership
+$usersReadAndExecute =
+    [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
+    [Security.AccessControl.FileSystemRights]::Synchronize
+if ($script:EverVigilProtectedBrokerDangerousRights -ne
+        $expectedDangerousRights -or
+    ($usersReadAndExecute -band
+        $script:EverVigilProtectedBrokerDangerousRights) -ne 0) {
+    throw 'The protected-broker dangerous-rights mask rejects the required Users read/execute ACL.'
+}
+
+function New-TestProtectedBrokerSecurityDescriptor {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][bool]$Directory,
+        [Parameter(Mandatory)]
+        [Security.AccessControl.FileSystemRights]$UsersRights,
+        [switch]$OmitSystemFullControl,
+        [switch]$OmitAdministratorsFullControl,
+        [switch]$AddUsersDeny,
+        [switch]$AddUnknownPrincipal
+    )
+
+    $security = if ($Directory) {
+        [Security.AccessControl.DirectorySecurity]::new()
+    } else {
+        [Security.AccessControl.FileSecurity]::new()
+    }
+    $security.SetOwner($administratorsSid)
+    $security.SetAccessRuleProtection($true, $false)
+    $inheritance = if ($Directory) {
+        [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+        [Security.AccessControl.InheritanceFlags]::ObjectInherit
+    } else {
+        [Security.AccessControl.InheritanceFlags]::None
+    }
+    $propagation = [Security.AccessControl.PropagationFlags]::None
+    $allow = [Security.AccessControl.AccessControlType]::Allow
+    if (-not $OmitSystemFullControl) {
+        $security.AddAccessRule(
+            [Security.AccessControl.FileSystemAccessRule]::new(
+                $systemSid,
+                [Security.AccessControl.FileSystemRights]::FullControl,
+                $inheritance,
+                $propagation,
+                $allow))
+    }
+    if (-not $OmitAdministratorsFullControl) {
+        $security.AddAccessRule(
+            [Security.AccessControl.FileSystemAccessRule]::new(
+                $administratorsSid,
+                [Security.AccessControl.FileSystemRights]::FullControl,
+                $inheritance,
+                $propagation,
+                $allow))
+    }
+    $security.AddAccessRule(
+        [Security.AccessControl.FileSystemAccessRule]::new(
+            $usersSid,
+            $UsersRights,
+            $inheritance,
+            $propagation,
+            $allow))
+    if ($AddUsersDeny) {
+        $security.AddAccessRule(
+            [Security.AccessControl.FileSystemAccessRule]::new(
+                $usersSid,
+                [Security.AccessControl.FileSystemRights]::ReadAndExecute,
+                $inheritance,
+                $propagation,
+                [Security.AccessControl.AccessControlType]::Deny))
+    }
+    if ($AddUnknownPrincipal) {
+        $security.AddAccessRule(
+            [Security.AccessControl.FileSystemAccessRule]::new(
+                $worldSid,
+                [Security.AccessControl.FileSystemRights]::ReadAndExecute,
+                $inheritance,
+                $propagation,
+                $allow))
+    }
+    return $security
+}
+
+function New-TestInheritedProtectedBrokerSecurityDescriptor {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][bool]$Directory
+    )
+
+    $security = if ($Directory) {
+        [Security.AccessControl.DirectorySecurity]::new()
+    } else {
+        [Security.AccessControl.FileSecurity]::new()
+    }
+    $administrativeAceFlags = if ($Directory) { 'OICI' } else { '' }
+    $inheritedUsersAceFlags = if ($Directory) { 'OICIID' } else { 'ID' }
+    $sddl = ('O:BAG:BAD:P' +
+        "(A;$administrativeAceFlags;FA;;;SY)" +
+        "(A;$administrativeAceFlags;FA;;;BA)" +
+        "(A;$inheritedUsersAceFlags;0x1200a9;;;BU)")
+    $security.SetSecurityDescriptorSddlForm($sddl)
+    return $security
+}
+
+$dangerousRightCases = @(
+    [pscustomobject]@{
+        Name = 'WriteData/CreateFiles'
+        Right = [Security.AccessControl.FileSystemRights]::WriteData
+    }
+    [pscustomobject]@{
+        Name = 'AppendData/CreateDirectories'
+        Right = [Security.AccessControl.FileSystemRights]::AppendData
+    }
+    [pscustomobject]@{
+        Name = 'WriteExtendedAttributes'
+        Right = [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes
+    }
+    [pscustomobject]@{
+        Name = 'DeleteSubdirectoriesAndFiles'
+        Right = [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles
+    }
+    [pscustomobject]@{
+        Name = 'WriteAttributes'
+        Right = [Security.AccessControl.FileSystemRights]::WriteAttributes
+    }
+    [pscustomobject]@{
+        Name = 'Delete'
+        Right = [Security.AccessControl.FileSystemRights]::Delete
+    }
+    [pscustomobject]@{
+        Name = 'ChangePermissions'
+        Right = [Security.AccessControl.FileSystemRights]::ChangePermissions
+    }
+    [pscustomobject]@{
+        Name = 'TakeOwnership'
+        Right = [Security.AccessControl.FileSystemRights]::TakeOwnership
+    }
+)
+
+foreach ($directory in @($false, $true)) {
+    $descriptorKind = if ($directory) { 'directory' } else { 'file' }
+    $validSecurity = New-TestProtectedBrokerSecurityDescriptor `
+        -Directory $directory `
+        -UsersRights $usersReadAndExecute
+    if (-not (Test-EverVigilProtectedBrokerSecurityDescriptor `
+            -SecurityDescriptor $validSecurity)) {
+        throw "The production ACL validator rejected a valid $descriptorKind security descriptor."
+    }
+
+    $systemOwnedSecurity = New-TestProtectedBrokerSecurityDescriptor `
+        -Directory $directory `
+        -UsersRights $usersReadAndExecute
+    $systemOwnedSecurity.SetOwner($systemSid)
+    if (-not (Test-EverVigilProtectedBrokerSecurityDescriptor `
+            -SecurityDescriptor $systemOwnedSecurity)) {
+        throw "The production ACL validator rejected a SYSTEM-owned $descriptorKind security descriptor."
+    }
+
+    foreach ($dangerousRightCase in $dangerousRightCases) {
+        $dangerousSecurity = New-TestProtectedBrokerSecurityDescriptor `
+            -Directory $directory `
+            -UsersRights ($usersReadAndExecute -bor $dangerousRightCase.Right)
+        if (Test-EverVigilProtectedBrokerSecurityDescriptor `
+                -SecurityDescriptor $dangerousSecurity) {
+            throw "The production ACL validator accepted $($dangerousRightCase.Name) on a Users $descriptorKind ACE."
+        }
+    }
+
+    $missingSystemSecurity = New-TestProtectedBrokerSecurityDescriptor `
+        -Directory $directory `
+        -UsersRights $usersReadAndExecute `
+        -OmitSystemFullControl
+    $missingAdministratorsSecurity = New-TestProtectedBrokerSecurityDescriptor `
+        -Directory $directory `
+        -UsersRights $usersReadAndExecute `
+        -OmitAdministratorsFullControl
+    $denySecurity = New-TestProtectedBrokerSecurityDescriptor `
+        -Directory $directory `
+        -UsersRights $usersReadAndExecute `
+        -AddUsersDeny
+    $unknownPrincipalSecurity = New-TestProtectedBrokerSecurityDescriptor `
+        -Directory $directory `
+        -UsersRights $usersReadAndExecute `
+        -AddUnknownPrincipal
+    $unprotectedSecurity = New-TestProtectedBrokerSecurityDescriptor `
+        -Directory $directory `
+        -UsersRights $usersReadAndExecute
+    $unprotectedSecurity.SetAccessRuleProtection($false, $false)
+    $inheritedSecurity = New-TestInheritedProtectedBrokerSecurityDescriptor `
+        -Directory $directory
+    $unexpectedOwnerSecurity = New-TestProtectedBrokerSecurityDescriptor `
+        -Directory $directory `
+        -UsersRights $usersReadAndExecute
+    $unexpectedOwnerSecurity.SetOwner($usersSid)
+    foreach ($invalidSecurity in @(
+            $missingSystemSecurity
+            $missingAdministratorsSecurity
+            $denySecurity
+            $unknownPrincipalSecurity
+            $unprotectedSecurity
+            $inheritedSecurity
+            $unexpectedOwnerSecurity
+        )) {
+        if (Test-EverVigilProtectedBrokerSecurityDescriptor `
+                -SecurityDescriptor $invalidSecurity) {
+            throw "The production ACL validator accepted an invalid $descriptorKind security descriptor."
+        }
+    }
+}
+
+$installedProtectedBrokerPath = Get-EverVigilProtectedBrokerPath
+if ((Test-Path -LiteralPath $installedProtectedBrokerPath -PathType Leaf) -and
+    -not (Test-EverVigilProtectedBrokerInstallation `
+        -BrokerPath $installedProtectedBrokerPath)) {
+    throw 'The actual protected broker installed by Setup was rejected by the PowerShell ACL/receipt validator.'
+}
+
 $receiptSha256 = [string]::new([char]'a', 64)
 $validReceipt = @"
 {
@@ -533,6 +773,7 @@ foreach ($brokerGuard in @(
         "'EverVigil\Broker\2.0.0\EverVigil.Broker.exe'"
         "'broker\EverVigil.Broker.exe'"
         'Test-EverVigilProtectedBrokerInstallation'
+        'Test-EverVigilProtectedBrokerSecurityDescriptor'
         'Test-EverVigilProtectedBrokerAcl'
         'Test-EverVigilProtectedBrokerReceipt'
         'Test-EverVigilProtectedBrokerRetirementAcl'
@@ -552,7 +793,13 @@ foreach ($brokerGuard in @(
         '$security.AreAccessRulesProtected'
         '[Security.Principal.WellKnownSidType]::LocalSystemSid'
         '[Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid'
-        '[Security.AccessControl.FileSystemRights]::Write'
+        '[Security.AccessControl.FileSystemRights]::WriteData'
+        '[Security.AccessControl.FileSystemRights]::CreateFiles'
+        '[Security.AccessControl.FileSystemRights]::AppendData'
+        '[Security.AccessControl.FileSystemRights]::CreateDirectories'
+        '[Security.AccessControl.FileSystemRights]::WriteExtendedAttributes'
+        '[Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles'
+        '[Security.AccessControl.FileSystemRights]::WriteAttributes'
         '[Security.AccessControl.FileSystemRights]::Delete'
         '[Security.AccessControl.FileSystemRights]::ChangePermissions'
         '[Security.AccessControl.FileSystemRights]::TakeOwnership'

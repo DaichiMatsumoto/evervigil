@@ -1589,6 +1589,88 @@ function Assert-CompatibleInstallRoot {
         -AllowCurrentTempTree:$AllowCurrentTempTree
 }
 
+$script:EverVigilProtectedBrokerDangerousRights =
+    [Security.AccessControl.FileSystemRights]::WriteData -bor
+    [Security.AccessControl.FileSystemRights]::CreateFiles -bor
+    [Security.AccessControl.FileSystemRights]::AppendData -bor
+    [Security.AccessControl.FileSystemRights]::CreateDirectories -bor
+    [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+    [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+    [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+    [Security.AccessControl.FileSystemRights]::Delete -bor
+    [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+    [Security.AccessControl.FileSystemRights]::TakeOwnership
+
+function Test-EverVigilProtectedBrokerSecurityDescriptor {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [Security.AccessControl.FileSystemSecurity]$SecurityDescriptor
+    )
+
+    try {
+        if (-not $SecurityDescriptor.AreAccessRulesProtected) {
+            return $false
+        }
+        $systemSid = [Security.Principal.SecurityIdentifier]::new(
+            [Security.Principal.WellKnownSidType]::LocalSystemSid,
+            $null)
+        $administratorsSid = [Security.Principal.SecurityIdentifier]::new(
+            [Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid,
+            $null)
+        $usersSid = [Security.Principal.SecurityIdentifier]::new(
+            [Security.Principal.WellKnownSidType]::BuiltinUsersSid,
+            $null)
+        $owner = $SecurityDescriptor.GetOwner(
+            [Security.Principal.SecurityIdentifier])
+        if ($null -eq $owner -or
+            (-not $owner.Equals($systemSid) -and
+                -not $owner.Equals($administratorsSid))) {
+            return $false
+        }
+
+        $systemFullControl = $false
+        $administratorsFullControl = $false
+        $rules = $SecurityDescriptor.GetAccessRules(
+            $true,
+            $true,
+            [Security.Principal.SecurityIdentifier])
+        foreach ($rule in $rules) {
+            if ($rule.IsInherited -or
+                $rule.AccessControlType -ne
+                    [Security.AccessControl.AccessControlType]::Allow) {
+                return $false
+            }
+            $sid = [Security.Principal.SecurityIdentifier]$rule.IdentityReference
+            if ($sid.Equals($systemSid)) {
+                $systemFullControl = $systemFullControl -or
+                    (($rule.FileSystemRights -band
+                            [Security.AccessControl.FileSystemRights]::FullControl) -eq
+                        [Security.AccessControl.FileSystemRights]::FullControl)
+                continue
+            }
+            if ($sid.Equals($administratorsSid)) {
+                $administratorsFullControl = $administratorsFullControl -or
+                    (($rule.FileSystemRights -band
+                            [Security.AccessControl.FileSystemRights]::FullControl) -eq
+                        [Security.AccessControl.FileSystemRights]::FullControl)
+                continue
+            }
+            if ($sid.Equals($usersSid)) {
+                if (($rule.FileSystemRights -band
+                        $script:EverVigilProtectedBrokerDangerousRights) -ne 0) {
+                    return $false
+                }
+                continue
+            }
+            return $false
+        }
+        return $systemFullControl -and $administratorsFullControl
+    } catch {
+        return $false
+    }
+}
+
 function Test-EverVigilProtectedBrokerAcl {
     [CmdletBinding()]
     param(
@@ -1612,46 +1694,8 @@ function Test-EverVigilProtectedBrokerAcl {
                 [IO.FileInfo]::new($item.FullName),
                 [Security.AccessControl.AccessControlSections]'Owner, Access')
         }
-        if (-not $security.AreAccessRulesProtected) {
-            return $false
-        }
-        $systemSid = [Security.Principal.SecurityIdentifier]::new(
-            [Security.Principal.WellKnownSidType]::LocalSystemSid,
-            $null)
-        $administratorsSid = [Security.Principal.SecurityIdentifier]::new(
-            [Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid,
-            $null)
-        $trustedOwners = @($systemSid.Value, $administratorsSid.Value)
-        $owner = $security.GetOwner(
-            [Security.Principal.SecurityIdentifier]).Value
-        if ($owner -notin $trustedOwners) {
-            return $false
-        }
-        $writeMask = [Security.AccessControl.FileSystemRights]::Write -bor
-            [Security.AccessControl.FileSystemRights]::Modify -bor
-            [Security.AccessControl.FileSystemRights]::FullControl -bor
-            [Security.AccessControl.FileSystemRights]::Delete -bor
-            [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
-            [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
-            [Security.AccessControl.FileSystemRights]::TakeOwnership -bor
-            [Security.AccessControl.FileSystemRights]::CreateFiles -bor
-            [Security.AccessControl.FileSystemRights]::CreateDirectories -bor
-            [Security.AccessControl.FileSystemRights]::AppendData -bor
-            [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
-            [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes
-        $rules = $security.GetAccessRules(
-            $true,
-            $true,
-            [Security.Principal.SecurityIdentifier])
-        foreach ($rule in $rules) {
-            if ($rule.AccessControlType -eq
-                    [Security.AccessControl.AccessControlType]::Allow -and
-                $rule.IdentityReference.Value -notin $trustedOwners -and
-                ($rule.FileSystemRights -band $writeMask) -ne 0) {
-                return $false
-            }
-        }
-        return $true
+        return Test-EverVigilProtectedBrokerSecurityDescriptor `
+            -SecurityDescriptor $security
     } catch {
         return $false
     }
