@@ -28,9 +28,14 @@ $originalTemp = $env:TEMP
 $testLocalAppData = Join-Path $testRoot 'LocalAppData'
 $transactionId = '0123456789abcdef0123456789abcdef'
 $cleanupTransactionId = 'fedcba9876543210fedcba9876543210'
-$startupShortcutPath = Join-Path `
-    ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) `
-    'EverVigil.lnk'
+$startupFolder = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::Startup)
+if ([string]::IsNullOrWhiteSpace($startupFolder)) {
+    # Service-hosted CI runners may not expose the interactive Startup folder.
+    # Keep the restore check hermetic instead of passing an empty path to Join-Path.
+    $startupFolder = Join-Path $testRoot 'startup-fixture'
+}
+$startupShortcutPath = Join-Path $startupFolder 'EverVigil.lnk'
 $startupWasPresentBeforeTest = Test-Path -LiteralPath $startupShortcutPath -PathType Leaf
 $startupDigestBeforeTest = if ($startupWasPresentBeforeTest) {
     (Get-FileHash -LiteralPath $startupShortcutPath -Algorithm SHA256).Hash
