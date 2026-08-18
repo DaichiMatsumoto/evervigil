@@ -718,8 +718,8 @@
     },
     {
       "path": "tests/Test-ReleaseHost.ps1",
-      "length": 35872,
-      "sha256": "6e4a33a4dd2ca82277317deaa5aa43b5a296f00716de8c10aded789b4386dc7c"
+      "length": 36877,
+      "sha256": "819d18a7222ff6827e76757843acfed210ddf748a686308ed12df2b0e1e83d06"
     },
     {
       "path": "tests/Test-ReleaseResourceAudit.ps1",
@@ -728,8 +728,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 272450,
-      "sha256": "d8b2f9a7c3aa0327532a561e8d439b7b565b9038b8dc569509486ea42f21d3d4"
+      "length": 272930,
+      "sha256": "e4a70e624c3c6a8ef669ebd3b949dbc55988be69f82db9d05f5eee89ea9c1684"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",

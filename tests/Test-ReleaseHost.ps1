@@ -202,6 +202,20 @@ function Get-SidValue {
     }
 }
 
+function Test-DedicatedStandardUserGroupRows {
+    param(
+        [AllowEmptyCollection()]
+        [object[]]$GroupRows
+    )
+
+    $administratorTokenSids = @(
+        'S-1-5-32-544',
+        'S-1-5-114')
+    return @($GroupRows | Where-Object {
+        $administratorTokenSids -contains [string]$_.Sid
+    }).Count -eq 0
+}
+
 function Assert-ReleaseHostNullDaclGuard {
     $administratorsSid = [Security.Principal.SecurityIdentifier]::new(
         'S-1-5-32-544')
@@ -569,12 +583,27 @@ try {
         }
     }
 
-    if (@($identity.Groups.Value) -contains 'S-1-5-32-544') {
+    $whoamiPath = Join-Path $env:SystemRoot 'System32\whoami.exe'
+    $groupOutput = @(& $whoamiPath /groups /fo csv /nh)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The release runner token groups could not be enumerated.'
+    }
+    $groupRows = @($groupOutput |
+        ConvertFrom-Csv -Header Name,Type,Sid,Attributes)
+    foreach ($administratorFixtureSid in @('S-1-5-32-544', 'S-1-5-114')) {
+        $denyOnlyAdministratorFixture = [pscustomobject]@{
+            Name = 'Administrators membership fixture'
+            Type = 'Well-known group'
+            Sid = $administratorFixtureSid
+            Attributes = 'Group used for deny only'
+        }
+        if (Test-DedicatedStandardUserGroupRows @($denyOnlyAdministratorFixture)) {
+            throw 'The release-host standard-user guard accepted a deny-only Administrators token.'
+        }
+    }
+    if (-not (Test-DedicatedStandardUserGroupRows $groupRows)) {
         throw 'The release runner account must be a dedicated standard user, not an Administrators member.'
     }
-    $whoamiPath = Join-Path $env:SystemRoot 'System32\whoami.exe'
-    $groupRows = @(& $whoamiPath /groups /fo csv /nh |
-        ConvertFrom-Csv -Header Name,Type,Sid,Attributes)
     if (@($groupRows | Where-Object Sid -eq 'S-1-16-8192').Count -ne 1 -or
         @($groupRows | Where-Object Sid -eq 'S-1-16-12288').Count -ne 0) {
         throw 'The release validation process must run at Medium integrity only.'

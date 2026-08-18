@@ -2832,6 +2832,11 @@ foreach ($releaseHostGuard in @(
         'Assert-ReleaseHostNullDaclGuard'
         'Lock-ReleaseHostCriticalSourceFile'
         'A release-host critical source file has a null discretionary ACL'
+        'Test-DedicatedStandardUserGroupRows'
+        '''S-1-5-32-544'''
+        '''S-1-5-114'''
+        'The release-host standard-user guard accepted a deny-only Administrators token.'
+        'The release runner token groups could not be enumerated.'
         'Release-host evidence must be written only to the reviewed artifacts root.'
         '[IO.FileMode]::CreateNew'
         '[IO.FileOptions]::WriteThrough'
@@ -2861,6 +2866,12 @@ foreach ($releaseHostGuard in @(
             [StringComparison]::Ordinal)) {
         $failures.Add("Dedicated release-host contract is missing: $releaseHostGuard")
     }
+}
+if ($releaseHostTestContent.Contains(
+        '@($identity.Groups.Value)',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'The dedicated release-host guard still ignores deny-only administrator groups.')
 }
 
 $brokerTestRunnerContent = Get-Content `
