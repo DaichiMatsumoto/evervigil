@@ -2410,6 +2410,8 @@ foreach ($uninstallBrokerGuard in @(
         'New-UninstallPendingSystemJournal -Target $uninstallTarget'
         'The pending system journal remained after authenticated uninstall cleanup.'
         'Get-ValidatedEverVigilProtectedBrokerRetirementState'
+        '$InstallTransactionDataHelper'
+        'Get-EverVigilInstallTransactionTemporaryFiles'
         "'NeedsBrokerResume'"
         '-ExpectedTransactionId $pendingRecoveryTransactionId'
         "'RetirementRequired'"
@@ -2766,6 +2768,7 @@ foreach ($customInstallGuard in @(
         '[switch]$DeferCommit'
         '$TransactionPath'
         'Write-InstallTransactionState'
+        'Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $DataRoot'
         "deletionIntent = 'none'"
         '[IO.FileOptions]::WriteThrough'
         '$stream.Flush($true)'
@@ -2941,6 +2944,7 @@ if ($installRecoveryLaunchCount -ne 4) {
         "Every immediate rollback launch must use bounded recovery retries; found $installRecoveryLaunchCount of 4 calls.")
 }
 foreach ($transactionDataGuard in @(
+        'function Get-EverVigilInstallTransactionTemporaryFiles'
         'function Copy-EverVigilFileDurably'
         '[IO.FileOptions]::WriteThrough'
         '$destinationStream.Flush($true)'

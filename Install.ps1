@@ -236,17 +236,8 @@ $tokenEntropyContext = if ($usingLegacyDataRoot) {
 $TransactionPath = Join-Path `
     $DataRoot `
     $script:LegacyCompatibilityDataTransactionJournalFileName
-$transactionTemporaryPrefix =
-    "$($script:LegacyCompatibilityDataTransactionJournalFileName).new-"
-$installTransactionRecoveryCandidates = @(if (
-        Test-Path -LiteralPath $DataRoot -PathType Container) {
-        Get-ChildItem -LiteralPath $DataRoot -Force -ErrorAction Stop |
-            Where-Object {
-                $_.Name.StartsWith(
-                    $transactionTemporaryPrefix,
-                    [StringComparison]::Ordinal)
-            }
-    })
+$installTransactionRecoveryCandidates = @(
+    Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $DataRoot)
 if ((Test-Path -LiteralPath $TransactionPath) -or
     $installTransactionRecoveryCandidates.Count -gt 0) {
     & $InstallTransactionScript `
@@ -254,13 +245,8 @@ if ((Test-Path -LiteralPath $TransactionPath) -or
         -TransactionPath $TransactionPath
 }
 if ((Test-Path -LiteralPath $TransactionPath) -or
-    (Test-Path -LiteralPath $DataRoot -PathType Container) -and
-    @(Get-ChildItem -LiteralPath $DataRoot -Force -ErrorAction Stop |
-        Where-Object {
-            $_.Name.StartsWith(
-                $transactionTemporaryPrefix,
-                [StringComparison]::Ordinal)
-        }).Count -gt 0) {
+    @(Get-EverVigilInstallTransactionTemporaryFiles `
+            -DataRoot $DataRoot).Count -gt 0) {
     throw "An installer transaction could not be recovered before installation: $TransactionPath"
 }
 $SettingsPath = Join-Path $DataRoot $script:LegacyCompatibilityDataSettingsFileName
@@ -354,14 +340,8 @@ if (Test-Path -LiteralPath $TransactionPath) {
     $transactionMutex.Dispose()
     throw "A pending installer transaction must be recovered before installation: $TransactionPath"
 }
-$installTransactionTemporaries = @(Get-ChildItem `
-        -LiteralPath $DataRoot `
-        -Force `
-        -ErrorAction Stop | Where-Object {
-            $_.Name.StartsWith(
-                $transactionTemporaryPrefix,
-                [StringComparison]::Ordinal)
-        })
+$installTransactionTemporaries = @(
+    Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $DataRoot)
 if ($installTransactionTemporaries.Count -gt 0) {
     $transactionMutex.ReleaseMutex()
     $transactionMutex.Dispose()

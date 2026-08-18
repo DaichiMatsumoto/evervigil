@@ -163,6 +163,35 @@ try {
     . $resolverScript
     . $transactionDataScript
 
+    $freshDataRoot = Join-Path $testLocalAppData 'fresh-install-data-root'
+    $freshInstallTemporaries = @(
+        Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $freshDataRoot)
+    if ($freshInstallTemporaries.Count -ne 0 -or
+        (Test-Path -LiteralPath $freshDataRoot)) {
+        throw 'A clean install treated its not-yet-created data root as an error or created it during read-only preflight.'
+    }
+    New-Item -ItemType Directory -Path $freshDataRoot | Out-Null
+    [IO.File]::WriteAllText(
+        (Join-Path $freshDataRoot 'unrelated.txt'),
+        'unrelated',
+        [Text.UTF8Encoding]::new($false))
+    $recognizedInstallTemporary = Join-Path `
+        $freshDataRoot `
+        'install-transaction.json.new-0123456789abcdef0123456789abcdef'
+    [IO.File]::WriteAllText(
+        $recognizedInstallTemporary,
+        '{}',
+        [Text.UTF8Encoding]::new($false))
+    $freshInstallTemporaries = @(
+        Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $freshDataRoot)
+    if ($freshInstallTemporaries.Count -ne 1 -or
+        -not [string]::Equals(
+            $freshInstallTemporaries[0].FullName,
+            $recognizedInstallTemporary,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Install transaction preflight did not distinguish its atomic temporary from unrelated data.'
+    }
+
     $transactionPath = Join-Path $testLocalAppData 'EverVigil\install-transaction.json'
     $typeGuardRoot = Join-Path $testRoot 'legacy-cleanup-type-guard'
     $typeGuardState = New-TransactionState `

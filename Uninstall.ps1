@@ -104,27 +104,21 @@ $InstallTransactionPath = Join-Path `
 $InstallTransactionScript = Join-Path `
     $PSScriptRoot `
     'scripts\Complete-InstallTransaction.ps1'
+$InstallTransactionDataHelper = Join-Path `
+    $PSScriptRoot `
+    'scripts\InstallTransactionData.ps1'
 if (-not (Test-Path -LiteralPath $InstallTransactionScript -PathType Leaf)) {
     throw "The install transaction recovery helper is missing: $InstallTransactionScript"
 }
-$installTransactionTemporaryPrefix =
-    "$($script:LegacyCompatibilityDataTransactionJournalFileName).new-"
+. $InstallTransactionDataHelper
 $transactionRecoveryRoots = [Collections.Generic.List[string]]::new()
 foreach ($recognizedDataRoot in $RecognizedDataRoots) {
     $candidateTransactionPath = Join-Path `
         $recognizedDataRoot `
         $script:LegacyCompatibilityDataTransactionJournalFileName
-    $candidateTemporaries = @(if (
-            Test-Path -LiteralPath $recognizedDataRoot -PathType Container) {
-            Get-ChildItem `
-                -LiteralPath $recognizedDataRoot `
-                -Force `
-                -ErrorAction Stop | Where-Object {
-                    $_.Name.StartsWith(
-                        $installTransactionTemporaryPrefix,
-                        [StringComparison]::Ordinal)
-                }
-        })
+    $candidateTemporaries = @(
+        Get-EverVigilInstallTransactionTemporaryFiles `
+            -DataRoot $recognizedDataRoot)
     if ((Test-Path -LiteralPath $candidateTransactionPath) -or
         $candidateTemporaries.Count -gt 0) {
         $transactionRecoveryRoots.Add(
@@ -142,16 +136,11 @@ if ($transactionRecoveryRoots.Count -eq 1) {
         -Action Recover `
         -TransactionPath $recoveryTransactionPath
     $remainingTransactionArtifacts = @(
-        Get-ChildItem `
-            -LiteralPath $transactionRecoveryRoots[0] `
-            -Force `
-            -ErrorAction Stop | Where-Object {
-                $_.Name -ceq
-                    $script:LegacyCompatibilityDataTransactionJournalFileName -or
-                $_.Name.StartsWith(
-                    $installTransactionTemporaryPrefix,
-                    [StringComparison]::Ordinal)
-            })
+        if (Test-Path -LiteralPath $recoveryTransactionPath) {
+            Get-Item -LiteralPath $recoveryTransactionPath -Force -ErrorAction Stop
+        }
+        Get-EverVigilInstallTransactionTemporaryFiles `
+            -DataRoot $transactionRecoveryRoots[0])
     if ($remainingTransactionArtifacts.Count -gt 0) {
         throw "An install recovery transaction could not be resolved before uninstalling: $($remainingTransactionArtifacts[0].FullName)"
     }

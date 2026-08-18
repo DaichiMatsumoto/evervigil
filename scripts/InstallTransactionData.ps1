@@ -74,6 +74,30 @@ function Get-EverVigilApplicationDataDefinitions {
     return @($script:EverVigilApplicationDataDefinitions)
 }
 
+function Get-EverVigilInstallTransactionTemporaryFiles {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DataRoot)
+
+    $resolvedRoot = [IO.Path]::GetFullPath($DataRoot)
+    if (-not (Test-Path -LiteralPath $resolvedRoot)) {
+        return @()
+    }
+    if (-not (Test-Path -LiteralPath $resolvedRoot -PathType Container)) {
+        throw "The EverVigil data root is not a directory: $resolvedRoot"
+    }
+
+    $temporaryPrefix =
+        "$($script:LegacyCompatibilityDataTransactionJournalFileName).new-"
+    return @(Get-ChildItem `
+            -LiteralPath $resolvedRoot `
+            -Force `
+            -ErrorAction Stop | Where-Object {
+                $_.Name.StartsWith(
+                    $temporaryPrefix,
+                    [StringComparison]::Ordinal)
+            })
+}
+
 function Get-EverVigilProgramsFolderPath {
     return [Environment]::GetFolderPath(
         [Environment+SpecialFolder]::Programs)
