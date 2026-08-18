@@ -74,6 +74,48 @@ function Get-EverVigilApplicationDataDefinitions {
     return @($script:EverVigilApplicationDataDefinitions)
 }
 
+function Remove-EverVigilNewApplicationDataFiles {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DataRoot,
+        [Parameter(Mandatory)]$State
+    )
+
+    if (-not (Test-Path -LiteralPath $DataRoot)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $DataRoot -PathType Container)) {
+        throw "The EverVigil data root is not a directory: $DataRoot"
+    }
+
+    foreach ($definition in @(Get-EverVigilApplicationDataDefinitions)) {
+        $wasPresent = [bool](Get-EverVigilTransactionValue `
+                -State $State `
+                -Name $definition.PresenceProperty)
+        if ($wasPresent) {
+            continue
+        }
+
+        $path = Join-Path $DataRoot $definition.Name
+        if (-not (Test-Path -LiteralPath $path)) {
+            continue
+        }
+        $item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
+        if ($item.PSIsContainer -or
+            ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "A generated application-data artifact is not a regular file: $path"
+        }
+
+        # The rollback journal remains authoritative until every generated
+        # artifact is observably absent. A sharing violation or other delete
+        # failure must therefore stop recovery instead of retiring evidence.
+        Remove-Item -LiteralPath $path -Force -ErrorAction Stop
+        if (Test-Path -LiteralPath $path) {
+            throw "A generated application-data artifact remained after rollback: $path"
+        }
+    }
+}
+
 function Get-EverVigilInstallTransactionTemporaryFiles {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$DataRoot)

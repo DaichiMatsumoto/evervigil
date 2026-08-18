@@ -760,15 +760,92 @@ try {
         $transactionPath,
         (($rolledBackCleanupState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
+    $postRollbackMarkerPath = Join-Path `
+        $testLocalAppData `
+        'EverVigil\system-configuration-required'
+    [IO.File]::WriteAllText(
+        $postRollbackMarkerPath,
+        'created after rollback became durable',
+        [Text.UTF8Encoding]::new($false))
     & $transactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
-        (Test-Path -LiteralPath $rolledBackCleanupEvidenceRoot)) {
-        throw 'Rolled-back cleanup repeated recovery instead of retiring only its evidence.'
+        (Test-Path -LiteralPath $rolledBackCleanupEvidenceRoot) -or
+        -not (Test-Path -LiteralPath $postRollbackMarkerPath -PathType Leaf)) {
+        throw 'Rolled-back cleanup repeated rollback mutations instead of retiring only its evidence.'
     }
+    Remove-Item -LiteralPath $postRollbackMarkerPath -Force -ErrorAction Stop
 
     $dataRoot = Join-Path $testLocalAppData 'EverVigil'
+    $lockedStagingCleanupRoot = Join-Path `
+        $testRoot `
+        'locked-staging-data-cleanup-install'
+    $lockedStagingCleanupRecoveryRoot = Join-Path `
+        $dataRoot `
+        "install-transactions\$transactionId"
+    New-Item `
+        -ItemType Directory `
+        -Path $lockedStagingCleanupRecoveryRoot `
+        -Force | Out-Null
+    $lockedMarkerPath = Join-Path $dataRoot 'system-configuration-required'
+    [IO.File]::WriteAllText(
+        $lockedMarkerPath,
+        'deletion must fail while this file is locked',
+        [Text.UTF8Encoding]::new($false))
+    $lockedStagingCleanupState = New-TransactionState `
+        -InstallRoot $lockedStagingCleanupRoot `
+        -PreviousInstallRoot $lockedStagingCleanupRoot `
+        -BackupRoot "$lockedStagingCleanupRoot.backup-$transactionId" `
+        -PreviousBackupRoot "$lockedStagingCleanupRoot.relocated-$transactionId" `
+        -RecoveryRoot $lockedStagingCleanupRecoveryRoot `
+        -DestinationBackupPlanned $false `
+        -PreviousBackupPlanned $false `
+        -DestinationOwnedInstallPresent $false `
+        -InstallRootChanged $false `
+        -DataRootExisted $false `
+        -SystemConfigurationRequiredWasPresent $false `
+        -TransactionsRootWasPresent $false `
+        -Status staging
+    [IO.File]::WriteAllText(
+        $transactionPath,
+        (($lockedStagingCleanupState | ConvertTo-Json -Depth 6) + "`n"),
+        [Text.UTF8Encoding]::new($false))
+    $lockedMarkerStream = [IO.FileStream]::new(
+        $lockedMarkerPath,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::Read)
+    try {
+        $lockedCleanupFailure = $null
+        try {
+            & $transactionScript `
+                -Action Recover `
+                -TransactionPath $transactionPath
+        } catch {
+            $lockedCleanupFailure = $_.Exception
+        }
+        if ($null -eq $lockedCleanupFailure -or
+            -not (Test-Path -LiteralPath $transactionPath -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $lockedStagingCleanupRecoveryRoot -PathType Container) -or
+            -not (Test-Path -LiteralPath $lockedMarkerPath -PathType Leaf) -or
+            [string](Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json).status -cne
+                'staging') {
+            throw 'A locked application-data artifact did not preserve staging rollback authority.'
+        }
+    } finally {
+        $lockedMarkerStream.Dispose()
+    }
+    & $transactionScript `
+        -Action Recover `
+        -TransactionPath $transactionPath
+    if ((Test-Path -LiteralPath $transactionPath) -or
+        (Test-Path -LiteralPath $lockedStagingCleanupRecoveryRoot) -or
+        (Test-Path -LiteralPath $lockedMarkerPath) -or
+        (Test-Path -LiteralPath $dataRoot)) {
+        throw 'Staging rollback did not converge after the application-data lock was released.'
+    }
+
     $stagingCleanupRoot = Join-Path $testRoot 'staging-data-cleanup-install'
     $stagingCleanupRecoveryRoot = Join-Path `
         $dataRoot `

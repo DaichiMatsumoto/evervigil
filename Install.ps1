@@ -1457,35 +1457,18 @@ function Test-ExistingSupervisorHealth {
 }
 
 function Remove-NewApplicationData {
-    foreach ($fileState in @(
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataSettingsFileName
-                WasPresent = $settingsWasPresent
-            }
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataProtectedTokenFileName
-                WasPresent = $tokenWasPresent
-            }
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
-                WasPresent = $appliedSystemConfigurationWasPresent
-            }
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
-                WasPresent = $systemConfigurationRequiredWasPresent
-            }
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataDiagnosticLoggingMarkerFileName
-                WasPresent = $diagnosticLoggingWasPresent
-            }
-        )) {
-        if (-not $fileState.WasPresent) {
-            Remove-Item `
-                -LiteralPath (Join-Path $DataRoot $fileState.Name) `
-                -Force `
-                -ErrorAction SilentlyContinue
-        }
+    $applicationDataPreState = [ordered]@{
+        settingsWasPresent = $settingsWasPresent
+        tokenWasPresent = $tokenWasPresent
+        appliedSystemConfigurationWasPresent =
+            $appliedSystemConfigurationWasPresent
+        systemConfigurationRequiredWasPresent =
+            $systemConfigurationRequiredWasPresent
+        diagnosticLoggingWasPresent = $diagnosticLoggingWasPresent
     }
+    Remove-EverVigilNewApplicationDataFiles `
+        -DataRoot $DataRoot `
+        -State $applicationDataPreState
     $logRoot = Join-Path $DataRoot $script:LegacyCompatibilityDataLogDirectoryName
     if (-not $logsRootWasPresent -and
         (Test-Path -LiteralPath $logRoot -PathType Container)) {

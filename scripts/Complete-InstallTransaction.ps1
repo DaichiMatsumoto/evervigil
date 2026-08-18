@@ -1353,38 +1353,9 @@ function Remove-RollbackWorkTrees {
 function Remove-NewApplicationData {
     param([Parameter(Mandatory)]$State)
 
-    if (-not (Test-Path -LiteralPath $script:InstallTransactionDataRoot -PathType Container)) {
-        return
-    }
-    foreach ($fileState in @(
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataSettingsFileName
-                WasPresent = [bool]$State.settingsWasPresent
-            }
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataProtectedTokenFileName
-                WasPresent = [bool]$State.tokenWasPresent
-            }
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
-                WasPresent = [bool]$State.appliedSystemConfigurationWasPresent
-            }
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
-                WasPresent = [bool]$State.systemConfigurationRequiredWasPresent
-            }
-            [pscustomobject]@{
-                Name = $script:LegacyCompatibilityDataDiagnosticLoggingMarkerFileName
-                WasPresent = [bool]$State.diagnosticLoggingWasPresent
-            }
-        )) {
-        if (-not $fileState.WasPresent) {
-            Remove-Item `
-                -LiteralPath (Join-Path $script:InstallTransactionDataRoot $fileState.Name) `
-                -Force `
-                -ErrorAction SilentlyContinue
-        }
-    }
+    Remove-EverVigilNewApplicationDataFiles `
+        -DataRoot $script:InstallTransactionDataRoot `
+        -State $State
     $logRoot = Join-Path `
         $script:InstallTransactionDataRoot `
         $script:LegacyCompatibilityDataLogDirectoryName
@@ -2025,9 +1996,10 @@ function Rollback-EverVigilInstallTransaction {
         throw 'The install transaction crossed the protected system commit boundary and must resume commit.'
     }
     if ([string]$State.status -eq 'rolledBack') {
-        Invoke-InitialInstallProtectedBrokerCleanup -State $State
-        Restore-TransactionExternalArtifacts -State $State
-        Remove-NewApplicationData -State $State
+        # A durable rolledBack state is written only after protected, external,
+        # application-data, and runtime restoration all succeeded. Retrying
+        # those mutations could remove data created after rollback.
+        # Only remaining transaction evidence is resumable from this state.
         Complete-RolledBackInstallTransaction -Path $Path -State $State
         'Install transaction rollback cleanup completed.'
         return

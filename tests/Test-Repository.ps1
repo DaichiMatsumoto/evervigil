@@ -3223,6 +3223,7 @@ foreach ($transactionGuard in @(
         'Restore-EverVigilApplicationDataSnapshots'
         'Remove-EverVigilNewQuarantineFiles'
         '$script:LegacyCompatibilityDataInstallerPublishDirectoryPrefix'
+        'Only remaining transaction evidence is resumable from this state.'
     )) {
     if (-not $installTransactionContent.Contains($transactionGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Install transaction recovery guard is missing: $transactionGuard")
@@ -3282,6 +3283,7 @@ if ($installRecoveryLaunchCount -ne 4) {
 }
 foreach ($transactionDataGuard in @(
         'function Get-EverVigilInstallTransactionTemporaryFiles'
+        'function Remove-EverVigilNewApplicationDataFiles'
         'function Copy-EverVigilFileDurably'
         '[IO.FileOptions]::WriteThrough'
         '$destinationStream.Flush($true)'
@@ -3296,11 +3298,36 @@ foreach ($transactionDataGuard in @(
         '[IO.FileAttributes]::ReparsePoint'
         'Get-EverVigilFileSha256 -Path $target'
         '[IO.File]::Move($temporary, $target, $true)'
+        'A generated application-data artifact remained after rollback'
     )) {
     if (-not $installTransactionDataContent.Contains(
             $transactionDataGuard,
             [StringComparison]::Ordinal)) {
         $failures.Add("Install transaction data guard is missing: $transactionDataGuard")
+    }
+}
+$rolledBackRecoveryMatch = [regex]::Match(
+    $installTransactionContent,
+    "(?s)if \(\[string\]\`$State\.status -eq 'rolledBack'\) \{(?<body>.*?)\r?\n\s*\}")
+if (-not $rolledBackRecoveryMatch.Success -or
+    $rolledBackRecoveryMatch.Groups['body'].Value.Contains(
+        'Remove-NewApplicationData',
+        [StringComparison]::Ordinal) -or
+    $rolledBackRecoveryMatch.Groups['body'].Value.Contains(
+        'Restore-TransactionExternalArtifacts',
+        [StringComparison]::Ordinal) -or
+    $rolledBackRecoveryMatch.Groups['body'].Value.Contains(
+        'Invoke-InitialInstallProtectedBrokerCleanup',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'A durable rolled-back transaction must retire evidence without repeating rollback mutations.')
+}
+foreach ($rollbackCleanupCaller in @($installContent, $installTransactionContent)) {
+    if (-not $rollbackCleanupCaller.Contains(
+            'Remove-EverVigilNewApplicationDataFiles',
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            'Every install rollback entrypoint must use fail-closed application-data cleanup.')
     }
 }
 $transactionTokens = $null
