@@ -10,6 +10,7 @@ var failOnSkip = ParseFailOnSkipArgument(args);
 var tests = new (string Name, Action Run)[]
 {
     ("Fail-on-skip policy rejects skipped tests", FailOnSkipPolicyRejectsSkippedTests),
+    ("Broker launch stages have distinct exit codes", BrokerLaunchStagesHaveDistinctExitCodes),
     ("Serve exact root is owned", ServeExactRootIsOwned),
     ("Serve root removal preserves unrelated handlers", ServeRootRemovalPreservesUnrelatedHandlers),
     ("Serve parser rejects wrong TCP schema", ServeRejectsWrongTcpSchema),
@@ -132,6 +133,29 @@ static void FailOnSkipPolicyRejectsSkippedTests()
         "The release gate accepted a skipped broker test.");
     Assert(BrokerTestExitCode(1, 0, failOnSkip: false) != 0,
         "The normal validation policy accepted a failed broker test.");
+}
+
+static void BrokerLaunchStagesHaveDistinctExitCodes()
+{
+    var expected = new[]
+    {
+        BrokerExitCodes.Success,
+        BrokerExitCodes.InternalFailure,
+        BrokerExitCodes.InvalidLaunchArguments,
+        BrokerExitCodes.ProtectedInstallationFailure,
+        BrokerExitCodes.BrokerElevationFailure,
+        BrokerExitCodes.LoadedImageValidationFailure,
+        BrokerExitCodes.ClientAuthenticationFailure,
+        BrokerExitCodes.AuthenticatedPipeFailure
+    };
+    Assert(expected.Distinct().Count() == expected.Length,
+        "Broker launch stages reused an exit code.");
+    Assert(BrokerExitCodes.Success == 0,
+        "Broker success exit code changed unexpectedly.");
+    Assert(BrokerExitCodes.InvalidLaunchArguments == 3,
+        "The native pre-Main probe compatibility exit code changed unexpectedly.");
+    Assert(BrokerExitCodes.ProtectedInstallationFailure == 4,
+        "The protected installation failure exit code changed unexpectedly.");
 }
 
 static void ServeExactRootIsOwned()

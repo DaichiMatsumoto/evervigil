@@ -19,7 +19,7 @@ internal static class AuthenticatedPipeServer
         ArgumentNullException.ThrowIfNull(launch);
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(dispatch);
-        client.RequireOriginalProcessStillActive();
+        RequireAuthenticatedClientStillActive(client);
 
         var security = CreatePipeSecurity(client.UserSid);
         await using var pipe = NamedPipeServerStreamAcl.Create(
@@ -42,17 +42,23 @@ internal static class AuthenticatedPipeServer
         if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle.DangerousGetHandle(), out var pipeClientPid) ||
             pipeClientPid != client.ProcessId)
         {
-            throw new UnauthorizedAccessException(
-                "Named-pipe client PID does not match the retained launch client.");
+            throw new BrokerPipeAuthenticationException();
         }
-        client.RequireOriginalProcessStillActive();
+        RequireAuthenticatedClientStillActive(client);
 
         using var requestCancellation = new CancellationTokenSource(RequestTimeout);
         var request = await PrivilegedBrokerProtocol.ReadFrameAsync<PrivilegedBrokerRequest>(
             pipe,
             requestCancellation.Token).ConfigureAwait(false);
-        client.RequireOriginalProcessStillActive();
-        ValidateEnvelope(request, launch);
+        RequireAuthenticatedClientStillActive(client);
+        try
+        {
+            ValidateEnvelope(request, launch);
+        }
+        catch (InvalidDataException exception)
+        {
+            throw new BrokerPipeAuthenticationException(exception);
+        }
         var response = dispatch(request, client.UserSid.Value);
         ValidateResponse(response, request.TransactionId);
         await PrivilegedBrokerProtocol.WriteFrameAsync(
@@ -61,6 +67,19 @@ internal static class AuthenticatedPipeServer
             requestCancellation.Token).ConfigureAwait(false);
         pipe.WaitForPipeDrain();
         return response;
+    }
+
+    private static void RequireAuthenticatedClientStillActive(
+        AuthenticatedClientProcess client)
+    {
+        try
+        {
+            client.RequireOriginalProcessStillActive();
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new BrokerPipeAuthenticationException(exception);
+        }
     }
 
     private static PipeSecurity CreatePipeSecurity(SecurityIdentifier clientSid)
