@@ -769,6 +769,43 @@ try {
     }
 
     $dataRoot = Join-Path $testLocalAppData 'EverVigil'
+    $stagingCleanupRoot = Join-Path $testRoot 'staging-data-cleanup-install'
+    $stagingCleanupRecoveryRoot = Join-Path `
+        $dataRoot `
+        "install-transactions\$transactionId"
+    New-Item -ItemType Directory -Path $stagingCleanupRecoveryRoot -Force |
+        Out-Null
+    [IO.File]::WriteAllText(
+        (Join-Path $dataRoot 'system-configuration-required'),
+        'created before protected bootstrap failed',
+        [Text.UTF8Encoding]::new($false))
+    $stagingCleanupState = New-TransactionState `
+        -InstallRoot $stagingCleanupRoot `
+        -PreviousInstallRoot $stagingCleanupRoot `
+        -BackupRoot "$stagingCleanupRoot.backup-$transactionId" `
+        -PreviousBackupRoot "$stagingCleanupRoot.relocated-$transactionId" `
+        -RecoveryRoot $stagingCleanupRecoveryRoot `
+        -DestinationBackupPlanned $false `
+        -PreviousBackupPlanned $false `
+        -DestinationOwnedInstallPresent $false `
+        -InstallRootChanged $false `
+        -DataRootExisted $false `
+        -SystemConfigurationRequiredWasPresent $false `
+        -TransactionsRootWasPresent $false `
+        -Status staging
+    [IO.File]::WriteAllText(
+        $transactionPath,
+        (($stagingCleanupState | ConvertTo-Json -Depth 6) + "`n"),
+        [Text.UTF8Encoding]::new($false))
+    & $transactionScript `
+        -Action Recover `
+        -TransactionPath $transactionPath
+    if ((Test-Path -LiteralPath $transactionPath) -or
+        (Test-Path -LiteralPath $stagingCleanupRecoveryRoot) -or
+        (Test-Path -LiteralPath $dataRoot)) {
+        throw 'Staging rollback did not remove application data created after a clean prestate.'
+    }
+
     $logsRoot = Join-Path $dataRoot 'Logs'
     New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
     [IO.File]::WriteAllText(

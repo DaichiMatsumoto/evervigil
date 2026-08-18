@@ -2027,6 +2027,7 @@ function Rollback-EverVigilInstallTransaction {
     if ([string]$State.status -eq 'rolledBack') {
         Invoke-InitialInstallProtectedBrokerCleanup -State $State
         Restore-TransactionExternalArtifacts -State $State
+        Remove-NewApplicationData -State $State
         Complete-RolledBackInstallTransaction -Path $Path -State $State
         'Install transaction rollback cleanup completed.'
         return
@@ -2034,6 +2035,12 @@ function Rollback-EverVigilInstallTransaction {
     if ([string]$State.status -eq 'staging') {
         Invoke-InitialInstallProtectedBrokerCleanup -State $State
         Restore-TransactionExternalArtifacts -State $State
+        # Staging can already have created the configuration-required marker
+        # and other application-data artifacts before protected bootstrap
+        # fails. Restore the recorded pre-install data state before making the
+        # rollback status durable, so both this attempt and a response-loss
+        # retry converge to the same clean prestate.
+        Remove-NewApplicationData -State $State
         $State.status = 'rolledBack'
         Write-EverVigilInstallTransaction -Path $Path -State $State
         Complete-RolledBackInstallTransaction -Path $Path -State $State
