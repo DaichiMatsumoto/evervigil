@@ -52,7 +52,7 @@ var tests = new (string Name, Action Run)[]
     ("Retirement response loss converges", RetirementResponseLossConverges),
     ("Retirement rejects a different transaction", RetirementRejectsDifferentTransaction),
     ("Retirement repairs a missing installation receipt", RetirementRepairsMissingInstallationReceipt),
-    ("Retirement schedules only canonical reboot deletion", RetirementSchedulesOnlyCanonicalDeletion),
+    ("Retirement never schedules its reusable canonical path", RetirementNeverSchedulesReusableCanonicalPath),
     ("Retirement preserves another owner", RetirementPreservesAnotherOwner),
     ("Retirement rejects unknown State entry", RetirementRejectsUnknownStateEntry),
     ("Retirement rejects reparse State entry", RetirementRejectsReparseStateEntry),
@@ -879,7 +879,7 @@ static void RetirementCrashBoundariesConverge()
         "delete-authorized-version-root",
         "delete-authorized-broker-root",
         "delete-authorized-product-root",
-        "reboot-delete-canonical"
+        "retirement-ready-for-post-exit-deletion"
     };
     foreach (var boundary in boundaries)
     {
@@ -973,7 +973,7 @@ static void RetirementRepairsMissingInstallationReceipt()
     }
 }
 
-static void RetirementSchedulesOnlyCanonicalDeletion()
+static void RetirementNeverSchedulesReusableCanonicalPath()
 {
     var fixture = NewRetirementFixture();
     try
@@ -991,8 +991,13 @@ static void RetirementSchedulesOnlyCanonicalDeletion()
             .Where(value => value.StartsWith("reboot-delete-", StringComparison.Ordinal))
             .ToArray();
         Assert(
-            rebootBoundaries.SequenceEqual(["reboot-delete-canonical"], StringComparer.Ordinal),
-            "Retirement scheduled authority receipts or directories for reboot deletion.");
+            rebootBoundaries.Length == 0,
+            "Retirement scheduled a reusable protected path for reboot deletion.");
+        Assert(
+            boundaries.Contains(
+                "retirement-ready-for-post-exit-deletion",
+                StringComparer.Ordinal),
+            "Retirement did not reach its durable post-exit deletion handoff.");
         Assert(
             File.Exists(PrivilegedBrokerPaths.GetInstallationReceiptPath(
                 fixture.Root,

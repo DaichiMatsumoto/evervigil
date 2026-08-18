@@ -3904,6 +3904,16 @@ foreach ($brokerSecurityGuard in @(
         $failures.Add("Compiled privileged-broker guard is missing: $brokerSecurityGuard")
     }
 }
+foreach ($forbiddenReusablePathDeletion in @(
+        'MOVEFILE_DELAY_UNTIL_REBOOT'
+        'MoveFileEx(')) {
+    if ($brokerSourceContent.Contains(
+            $forbiddenReusablePathDeletion,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        $failures.Add(
+            "The protected broker must not schedule its reusable canonical path for reboot deletion: $forbiddenReusablePathDeletion")
+    }
+}
 foreach ($aotProjectGuard in @(
         '<IsAotCompatible>true</IsAotCompatible>'
         '<JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>'

@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
@@ -12,7 +11,6 @@ internal static class ProtectedBrokerRetirement
     private const int SchemaVersion = 1;
     private const string RetirementState = "RetirementPrepared";
     private const int MaximumReceiptBytes = 64 * 1024;
-    private const uint MoveFileDelayUntilReboot = 0x00000004;
 
     internal static bool ReceiptExists(string commonData, string version) =>
         File.Exists(PrivilegedBrokerPaths.GetRetirementReceiptPath(commonData, version));
@@ -339,11 +337,13 @@ internal static class ProtectedBrokerRetirement
                 "Delete-authorized canonical broker image does not match its receipt.");
         }
 
-        if (enforceProtectedAccess)
-        {
-            ScheduleDeleteAfterReboot(canonicalPath);
-        }
-        afterBoundary?.Invoke("reboot-delete-canonical");
+        // The durable retirement receipt and delete-only ACLs let the medium
+        // caller finish deletion after this broker process exits, and let a
+        // later recovery retry safely after response loss or power failure.
+        // Never enqueue this reusable canonical path for deletion at reboot:
+        // a same-version reinstall before reboot would place a new broker at
+        // the same path and Session Manager would delete the new image.
+        afterBoundary?.Invoke("retirement-ready-for-post-exit-deletion");
     }
 
     internal static bool HasOtherOwnerStateForTests(
@@ -704,22 +704,6 @@ internal static class ProtectedBrokerRetirement
         value.Length == 64 && value.All(character =>
             character is >= '0' and <= '9' or >= 'a' and <= 'f');
 
-    private static void ScheduleDeleteAfterReboot(string path)
-    {
-        if (!MoveFileEx(path, null, MoveFileDelayUntilReboot))
-        {
-            throw new IOException(
-                "Could not schedule protected retirement residue for reboot deletion.",
-                Marshal.GetExceptionForHR(Marshal.GetHRForLastWin32Error()));
-        }
-    }
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool MoveFileEx(
-        string existingFileName,
-        string? newFileName,
-        uint flags);
 }
 
 internal sealed record BrokerRetirementReceipt(
