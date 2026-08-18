@@ -15,6 +15,7 @@ var tests = new (string Name, Action Run)[]
     ("Broker launch stages have distinct exit codes", BrokerLaunchStagesHaveDistinctExitCodes),
     ("Broker integrity validation has sufficient token rights", BrokerIntegrityValidationHasSufficientTokenRights),
     ("Authenticated pipe factory creates a duplex server", AuthenticatedPipeFactoryCreatesDuplexServer),
+    ("Pipe creation failure precedes protected installation", PipeCreationFailurePreventsProtectedInstallation),
     ("Serve exact root is owned", ServeExactRootIsOwned),
     ("Serve root removal preserves unrelated handlers", ServeRootRemovalPreservesUnrelatedHandlers),
     ("Serve parser rejects wrong TCP schema", ServeRejectsWrongTcpSchema),
@@ -200,6 +201,54 @@ static void AuthenticatedPipeFactoryCreatesDuplexServer()
         "The authenticated pipe factory did not create a duplex server handle.");
     Assert(!pipe.SafePipeHandle.IsInvalid && !pipe.SafePipeHandle.IsClosed,
         "The authenticated pipe factory returned an invalid server handle.");
+}
+
+static void PipeCreationFailurePreventsProtectedInstallation()
+{
+    var root = NewTestRoot();
+    try
+    {
+        var simulatedProtectedRoot = Path.Combine(
+            root,
+            "ProgramData",
+            "EverVigil",
+            "Broker");
+        using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+        var currentUserSid = identity.User ??
+            throw new InvalidOperationException("The broker test user SID is unavailable.");
+        var security = new PipeSecurity();
+        security.SetOwner(currentUserSid);
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.AddAccessRule(new PipeAccessRule(
+            currentUserSid,
+            PipeAccessRights.FullControl,
+            AccessControlType.Allow));
+        var pipeName = $"EverVigil.Broker.{Guid.NewGuid():N}";
+
+        using var existingPipe = AuthenticatedPipeServer.CreateServerPipe(
+            pipeName,
+            security);
+        var protectedInstallationCalled = false;
+        var exitCode = EverVigil.Broker.Program.RunAfterAuthenticatedClientValidation(
+            () => AuthenticatedPipeServer.CreateServerPipe(pipeName, security),
+            _ =>
+            {
+                protectedInstallationCalled = true;
+                Directory.CreateDirectory(simulatedProtectedRoot);
+                return BrokerExitCodes.Success;
+            });
+
+        Assert(exitCode == BrokerExitCodes.AuthenticatedPipeFailure,
+            "A real named-pipe creation failure did not use the pipe-stage exit code.");
+        Assert(!protectedInstallationCalled,
+            "Protected installation ran after the authenticated pipe factory failed.");
+        Assert(!Directory.Exists(simulatedProtectedRoot),
+            "Pipe creation failure mutated the simulated ProgramData broker tree.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
 }
 
 static void ServeExactRootIsOwned()

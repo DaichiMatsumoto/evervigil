@@ -11,21 +11,33 @@ internal static class AuthenticatedPipeServer
     private static readonly TimeSpan ConnectionTimeout = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
 
+    internal static NamedPipeServerStream CreatePrecreatedPipe(
+        BrokerLaunchArguments launch,
+        AuthenticatedClientProcess client)
+    {
+        ArgumentNullException.ThrowIfNull(launch);
+        ArgumentNullException.ThrowIfNull(client);
+        RequireAuthenticatedClientStillActive(client);
+
+        var security = CreatePipeSecurity(client.UserSid);
+        return CreateServerPipe(launch.PipeName, security);
+    }
+
     internal static async Task<PrivilegedBrokerResponse> ServeOnceAsync(
+        NamedPipeServerStream pipe,
         BrokerLaunchArguments launch,
         AuthenticatedClientProcess client,
         Func<PrivilegedBrokerRequest, string, PrivilegedBrokerResponse> dispatch)
     {
+        ArgumentNullException.ThrowIfNull(pipe);
         ArgumentNullException.ThrowIfNull(launch);
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(dispatch);
         RequireAuthenticatedClientStillActive(client);
 
-        var security = CreatePipeSecurity(client.UserSid);
-        await using var pipe = CreateServerPipe(launch.PipeName, security);
-
-        using (var connectionCancellation = new CancellationTokenSource(ConnectionTimeout))
+        if (!pipe.IsConnected)
         {
+            using var connectionCancellation = new CancellationTokenSource(ConnectionTimeout);
             await pipe.WaitForConnectionAsync(connectionCancellation.Token).ConfigureAwait(false);
         }
 

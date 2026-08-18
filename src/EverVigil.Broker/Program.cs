@@ -1,3 +1,4 @@
+using System.IO.Pipes;
 using EverVigil.Broker.Protocol;
 
 namespace EverVigil.Broker;
@@ -51,56 +52,92 @@ internal static class Program
 
             using (client)
             {
-                ProtectedBrokerReadiness readiness;
-                try
-                {
-                    readiness = BrokerSystemMutex.Execute(() =>
-                        ProtectedBrokerInstallation.EnsureReady(
-                            launch.Bootstrap,
-                            loadedImage));
-                }
-                catch
-                {
-                    return BrokerExitCodes.ProtectedInstallationFailure;
-                }
-
-                Func<PrivilegedBrokerRequest, string, PrivilegedBrokerResponse> dispatch =
-                    readiness.RetirementPending
-                        ? (request, ownerSid) => BrokerSystemMutex.Execute(() =>
-                            ProtectedBrokerRetirement.Resume(
-                                request,
-                                ownerSid,
-                                Path.GetFullPath(Environment.GetFolderPath(
-                                    Environment.SpecialFolder.CommonApplicationData)),
-                                ProtectedBrokerInstallation.GetProductVersion()))
-                        : readiness.IsCanonicalInvocation
-                        ? BrokerCommandDispatcher.Dispatch
-                        : (request, _) => new PrivilegedBrokerResponse(
-                            PrivilegedBrokerProtocol.SchemaVersion,
-                            request.TransactionId,
-                            Success: true,
-                            PrivilegedBrokerDisposition.CanonicalReady,
-                            PrivilegedBrokerErrorCode.None,
-                            "Protected broker installation completed; invoke the canonical broker.");
-                try
-                {
-                    _ = AuthenticatedPipeServer.ServeOnceAsync(
-                            launch,
-                            client,
-                            dispatch)
-                        .GetAwaiter()
-                        .GetResult();
-                    return BrokerExitCodes.Success;
-                }
-                catch (BrokerPipeAuthenticationException)
-                {
-                    return BrokerExitCodes.AuthenticatedPipeFailure;
-                }
-                catch
-                {
-                    return BrokerExitCodes.InternalFailure;
-                }
+                return RunAfterAuthenticatedClientValidation(
+                    () => AuthenticatedPipeServer.CreatePrecreatedPipe(launch, client),
+                    pipe => RunWithPrecreatedPipe(launch, loadedImage, client, pipe));
             }
+        }
+    }
+
+    internal static int RunAfterAuthenticatedClientValidation(
+        Func<NamedPipeServerStream> pipeFactory,
+        Func<NamedPipeServerStream, int> continueWithPrecreatedPipe)
+    {
+        ArgumentNullException.ThrowIfNull(pipeFactory);
+        ArgumentNullException.ThrowIfNull(continueWithPrecreatedPipe);
+
+        NamedPipeServerStream pipe;
+        try
+        {
+            pipe = pipeFactory() ??
+                throw new InvalidOperationException("Authenticated pipe factory returned no handle.");
+        }
+        catch
+        {
+            return BrokerExitCodes.AuthenticatedPipeFailure;
+        }
+
+        using (pipe)
+        {
+            return continueWithPrecreatedPipe(pipe);
+        }
+    }
+
+    private static int RunWithPrecreatedPipe(
+        BrokerLaunchArguments launch,
+        LockedBrokerImage loadedImage,
+        AuthenticatedClientProcess client,
+        NamedPipeServerStream pipe)
+    {
+        ProtectedBrokerReadiness readiness;
+        try
+        {
+            readiness = BrokerSystemMutex.Execute(() =>
+                ProtectedBrokerInstallation.EnsureReady(
+                    launch.Bootstrap,
+                    loadedImage));
+        }
+        catch
+        {
+            return BrokerExitCodes.ProtectedInstallationFailure;
+        }
+
+        Func<PrivilegedBrokerRequest, string, PrivilegedBrokerResponse> dispatch =
+            readiness.RetirementPending
+                ? (request, ownerSid) => BrokerSystemMutex.Execute(() =>
+                    ProtectedBrokerRetirement.Resume(
+                        request,
+                        ownerSid,
+                        Path.GetFullPath(Environment.GetFolderPath(
+                            Environment.SpecialFolder.CommonApplicationData)),
+                        ProtectedBrokerInstallation.GetProductVersion()))
+                : readiness.IsCanonicalInvocation
+                ? BrokerCommandDispatcher.Dispatch
+                : (request, _) => new PrivilegedBrokerResponse(
+                    PrivilegedBrokerProtocol.SchemaVersion,
+                    request.TransactionId,
+                    Success: true,
+                    PrivilegedBrokerDisposition.CanonicalReady,
+                    PrivilegedBrokerErrorCode.None,
+                    "Protected broker installation completed; invoke the canonical broker.");
+        try
+        {
+            _ = AuthenticatedPipeServer.ServeOnceAsync(
+                    pipe,
+                    launch,
+                    client,
+                    dispatch)
+                .GetAwaiter()
+                .GetResult();
+            return BrokerExitCodes.Success;
+        }
+        catch (BrokerPipeAuthenticationException)
+        {
+            return BrokerExitCodes.AuthenticatedPipeFailure;
+        }
+        catch
+        {
+            return BrokerExitCodes.InternalFailure;
         }
     }
 }
