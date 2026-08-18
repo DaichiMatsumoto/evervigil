@@ -512,6 +512,36 @@ if (-not $oversizedRejected) {
     throw 'An oversized broker response frame was accepted.'
 }
 
+# PowerShell 7.6 emits VoidTaskResult from non-generic Task.GetResult() calls.
+# The broker client must suppress those implementation values or a valid JSON
+# response becomes an object array and strict disposition validation fails.
+$brokerWriteProbe = [IO.MemoryStream]::new()
+try {
+    $firstBrokerWrite = [byte[]](0x01, 0x02)
+    $secondBrokerWrite = [byte[]](0x03, 0x04)
+    $brokerWriteOutput = @(& {
+            [void]($brokerWriteProbe.WriteAsync(
+                    $firstBrokerWrite,
+                    0,
+                    $firstBrokerWrite.Length,
+                    [Threading.CancellationToken]::None).GetAwaiter().GetResult())
+            [void]($brokerWriteProbe.WriteAsync(
+                    $secondBrokerWrite,
+                    0,
+                    $secondBrokerWrite.Length,
+                    [Threading.CancellationToken]::None).GetAwaiter().GetResult())
+            [void]($brokerWriteProbe.FlushAsync(
+                    [Threading.CancellationToken]::None).GetAwaiter().GetResult())
+        })
+    $brokerWriteBytes = $brokerWriteProbe.ToArray()
+} finally {
+    $brokerWriteProbe.Dispose()
+}
+if ($brokerWriteOutput.Count -ne 0 -or
+    [Convert]::ToHexString($brokerWriteBytes) -cne '01020304') {
+    throw 'Broker async writes leaked task implementation values or changed bytes.'
+}
+
 $contents = @{}
 foreach ($path in $productionPaths) {
     $contents[$path] = Get-Content -LiteralPath $path -Raw
@@ -839,6 +869,16 @@ foreach ($brokerGuard in @(
     if (-not $resolverContent.Contains($brokerGuard, [StringComparison]::Ordinal)) {
         throw "A protected-broker client guard is missing: $brokerGuard"
     }
+}
+$suppressedBrokerWriteAwaitCount = [regex]::Matches(
+    $resolverContent,
+    '\[void\]\(\s*\$pipe\.WriteAsync\(').Count
+$suppressedBrokerFlushAwaitCount = [regex]::Matches(
+    $resolverContent,
+    '\[void\]\(\s*\$pipe\.FlushAsync\(').Count
+if ($suppressedBrokerWriteAwaitCount -ne 2 -or
+    $suppressedBrokerFlushAwaitCount -ne 1) {
+    throw 'Every broker async write/flush await must suppress VoidTaskResult output.'
 }
 if (-not $resolverContent.Contains('-FilePath $ExecutablePath', [StringComparison]::Ordinal) -or
     $resolverContent.Contains('-FilePath $InstalledExecutable', [StringComparison]::Ordinal) -or

@@ -2506,18 +2506,18 @@ function Invoke-EverVigilSystemBroker {
             $ioCancellation = [Threading.CancellationTokenSource]::new(
                 [TimeSpan]::FromSeconds(90))
             try {
-                $pipe.WriteAsync(
+                [void]($pipe.WriteAsync(
                         $lengthBytes,
                         0,
                         $lengthBytes.Length,
-                        $ioCancellation.Token).GetAwaiter().GetResult()
-                $pipe.WriteAsync(
+                        $ioCancellation.Token).GetAwaiter().GetResult())
+                [void]($pipe.WriteAsync(
                         $requestBytes,
                         0,
                         $requestBytes.Length,
-                        $ioCancellation.Token).GetAwaiter().GetResult()
-                $pipe.FlushAsync(
-                        $ioCancellation.Token).GetAwaiter().GetResult()
+                        $ioCancellation.Token).GetAwaiter().GetResult())
+                [void]($pipe.FlushAsync(
+                        $ioCancellation.Token).GetAwaiter().GetResult())
                 $responseBytes = Read-EverVigilPipeFrame `
                     -Stream $pipe `
                     -CancellationToken $ioCancellation.Token
