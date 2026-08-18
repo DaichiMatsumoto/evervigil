@@ -2,17 +2,17 @@ namespace EverVigil.UI;
 
 internal static class AppTheme
 {
-    // Independently selected placeholder palette, shared with the temporary icon.
-    public static readonly Color Void = Color.FromArgb(21, 24, 36);
-    public static readonly Color Canvas = Color.FromArgb(29, 33, 48);
-    public static readonly Color Surface = Color.FromArgb(37, 42, 59);
-    public static readonly Color SurfaceElevated = Color.FromArgb(48, 54, 75);
-    public static readonly Color Line = Color.FromArgb(80, 90, 115);
-    public static readonly Color Grid = Color.FromArgb(52, 58, 76);
-    public static readonly Color Text = Color.FromArgb(247, 243, 232);
-    public static readonly Color Muted = Color.FromArgb(167, 169, 180);
-    public static readonly Color Neon = Color.FromArgb(79, 159, 142);
-    public static readonly Color Cyan = Color.FromArgb(138, 180, 200);
+    // Matrix-inspired palette: near-black surfaces with restrained fluorescent green.
+    public static readonly Color Void = Color.FromArgb(4, 12, 8);
+    public static readonly Color Canvas = Color.FromArgb(7, 19, 12);
+    public static readonly Color Surface = Color.FromArgb(10, 31, 18);
+    public static readonly Color SurfaceElevated = Color.FromArgb(14, 48, 26);
+    public static readonly Color Line = Color.FromArgb(27, 91, 49);
+    public static readonly Color Grid = Color.FromArgb(16, 54, 31);
+    public static readonly Color Text = Color.FromArgb(225, 255, 232);
+    public static readonly Color Muted = Color.FromArgb(139, 191, 151);
+    public static readonly Color Neon = Color.FromArgb(57, 255, 136);
+    public static readonly Color Cyan = Color.FromArgb(112, 255, 178);
     public static readonly Color Amber = Color.FromArgb(216, 163, 75);
     public static readonly Color Danger = Color.FromArgb(222, 113, 127);
     public static readonly Color Ink = Text;

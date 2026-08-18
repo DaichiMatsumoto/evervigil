@@ -30,6 +30,7 @@ function Invoke-EverVigilBoundedProcess {
     $startInfo.WorkingDirectory = [IO.Path]::GetFullPath($WorkingDirectory)
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardError = $true
     foreach ($argument in $ArgumentList) {
         [void]$startInfo.ArgumentList.Add([string]$argument)
     }
@@ -40,6 +41,7 @@ function Invoke-EverVigilBoundedProcess {
         if (-not $process.Start()) {
             throw "Could not start process: $FilePath"
         }
+        $standardErrorTask = $process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
             try {
                 $process.Kill($true)
@@ -50,7 +52,12 @@ function Invoke-EverVigilBoundedProcess {
             throw [TimeoutException]::new(
                 "$(Split-Path -Leaf $FilePath) did not exit within $TimeoutSeconds seconds.")
         }
-        return $process.ExitCode
+        $exitCode = $process.ExitCode
+        $standardError = $standardErrorTask.GetAwaiter().GetResult().Trim()
+        if ($exitCode -ne 0 -and -not [string]::IsNullOrWhiteSpace($standardError)) {
+            throw "$(Split-Path -Leaf $FilePath) failed with exit code ${exitCode}: $standardError"
+        }
+        return $exitCode
     } finally {
         $process.Dispose()
     }

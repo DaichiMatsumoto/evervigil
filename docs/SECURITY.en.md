@@ -2,7 +2,7 @@
 
 [日本語](SECURITY.ja.md) | [Reporting policy](../SECURITY.md) | [Technical overview](TECHNICAL_OVERVIEW.en.md)
 
-Target release: EverVigil v2.0.0. Repository:
+Target release: EverVigil v2.1.0. Repository:
 <https://github.com/DaichiMatsumoto/evervigil>.
 
 ## Bridge token
@@ -119,7 +119,7 @@ application content. Inspect and sanitize it manually before sharing.
 - EverVigil has no automatic updater. The user manually downloads a GitHub
   Release, verifies SHA-256, and runs the installer.
 - Community binaries are unsigned and may trigger Microsoft Defender SmartScreen.
-- The unsigned v2.0.0 first broker bootstrap is not a publisher-authenticated
+- The unsigned v2.1.0 first broker bootstrap is not a publisher-authenticated
   trust anchor. A future broker replacement requires an approved signing or
   OS-trusted installer design.
 - A SHA-256 match proves file identity, not publisher identity or safety.

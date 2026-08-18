@@ -141,7 +141,7 @@ function New-TransactionState {
         $state.uninstallRegistrySnapshotSha256 = ''
         $state.uninstallRegistryMutationMarkerSha256 = ''
         $state.externalCommitPhase = 'None'
-        $state.targetVersion = '2.0.0'
+        $state.targetVersion = '2.1.0'
     }
     return $state
 }
@@ -1977,6 +1977,69 @@ try {
         if ($fastExitCode -ne 0) {
             throw "Immediate process command returned exit code $fastExitCode."
         }
+    }
+
+    $boundedFailureCaptured = $false
+    try {
+        [void](Invoke-EverVigilBoundedProcess `
+                -FilePath $env:ComSpec `
+                -ArgumentList @(
+                    '/d',
+                    '/c',
+                    'echo evervigil-bounded-error 1>&2 & exit /b 9') `
+                -WorkingDirectory $env:SystemRoot `
+                -TimeoutSeconds 5)
+    } catch {
+        $boundedFailureCaptured =
+            $_.Exception.Message.Contains(
+                'failed with exit code 9: evervigil-bounded-error',
+                [StringComparison]::Ordinal)
+    }
+    if (-not $boundedFailureCaptured) {
+        throw 'Bounded process stderr was not surfaced to the installer.'
+    }
+
+    $mutexName = "Local\EverVigil.Transaction.Tests-$([guid]::NewGuid().ToString('N'))"
+    $mutexSecurity = [Security.AccessControl.MutexSecurity]::new()
+    $mutexSecurity.SetAccessRuleProtection($true, $false)
+    $authenticatedUsers = [Security.Principal.SecurityIdentifier]::new(
+        [Security.Principal.WellKnownSidType]::AuthenticatedUserSid,
+        $null)
+    $mutexSecurity.AddAccessRule([Security.AccessControl.MutexAccessRule]::new(
+            $authenticatedUsers,
+            [Security.AccessControl.MutexRights]'Synchronize, Modify',
+            [Security.AccessControl.AccessControlType]::Allow))
+    foreach ($identity in @(
+            [Security.Principal.SecurityIdentifier]::new(
+                [Security.Principal.WellKnownSidType]::LocalSystemSid,
+                $null)
+            [Security.Principal.SecurityIdentifier]::new(
+                [Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid,
+                $null)
+        )) {
+        $mutexSecurity.AddAccessRule([Security.AccessControl.MutexAccessRule]::new(
+                $identity,
+                [Security.AccessControl.MutexRights]::FullControl,
+                [Security.AccessControl.AccessControlType]::Allow))
+    }
+    $createdNew = $false
+    $existingMutex = [Threading.MutexAcl]::Create(
+        $false,
+        $mutexName,
+        [ref]$createdNew,
+        $mutexSecurity)
+    try {
+        $reopenedMutex = New-EverVigilSystemTransactionMutex -Name $mutexName
+        try {
+            if (-not $reopenedMutex.WaitOne([TimeSpan]::Zero)) {
+                throw 'The PowerShell transaction mutex could not be acquired.'
+            }
+            $reopenedMutex.ReleaseMutex()
+        } finally {
+            $reopenedMutex.Dispose()
+        }
+    } finally {
+        $existingMutex.Dispose()
     }
 
     $script:taskCleanupAttempts = 0

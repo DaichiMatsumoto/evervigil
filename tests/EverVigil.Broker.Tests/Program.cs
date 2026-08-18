@@ -18,6 +18,7 @@ var tests = new (string Name, Action Run)[]
     ("Authenticated pipe factory creates a duplex server", AuthenticatedPipeFactoryCreatesDuplexServer),
     ("Pipe creation failure precedes protected installation", PipeCreationFailurePreventsProtectedInstallation),
     ("Serve exact root is owned", ServeExactRootIsOwned),
+    ("Serve clean preflight accepts no owned backend", ServeCleanPreflightAcceptsNoOwnedBackend),
     ("Serve root removal preserves unrelated handlers", ServeRootRemovalPreservesUnrelatedHandlers),
     ("Serve parser rejects wrong TCP schema", ServeRejectsWrongTcpSchema),
     ("Serve parser rejects root extra fields", ServeRejectsRootExtraFields),
@@ -30,6 +31,8 @@ var tests = new (string Name, Action Run)[]
     ("Protocol framing rejects unknown fields", ProtocolFramingRejectsUnknownFields),
     ("Firewall names isolate owner SID", FirewallNamesIsolateOwnerSid),
     ("Native COM automation activates fixed Windows services", NativeComAutomationProbe),
+    ("Firewall preflight enumerates installed rules safely", FirewallPreflightEnumerationProbe),
+    ("Apply failure fingerprint excludes exception text", ApplyFailureFingerprintIsSanitized),
     ("Native COM preserves an absent Task Scheduler HRESULT", NativeComPreservesAbsentTaskHResult),
     ("Retained client handle detects process exit", RetainedClientDetectsExit),
     ("Applied write crash converges", AppliedWriteCrashConverges),
@@ -264,6 +267,22 @@ static void ServeExactRootIsOwned()
     Assert(snapshot.UnrelatedHandlersJson == "{}", "Exact root had unrelated handlers.");
 }
 
+static void ServeCleanPreflightAcceptsNoOwnedBackend()
+{
+    var absent = TailscaleServeStatus.ReadRootSnapshot("{}", 3456, []);
+    Assert(
+        absent.State == ServeRootState.RootAbsent,
+        "An empty Serve status was not accepted as a clean preflight state.");
+
+    var unrelated = TailscaleServeStatus.ReadRootSnapshot(
+        ServeStatus(3456, 3457),
+        3456,
+        []);
+    Assert(
+        unrelated.State == ServeRootState.Unowned,
+        "A live Serve root without protected ownership was accepted as owned.");
+}
+
 static void NativeComAutomationProbe()
 {
     using (var policy = NativeComDispatch.Create(NativeComDispatch.NetFwPolicy2ClassId))
@@ -277,6 +296,32 @@ static void NativeComAutomationProbe()
     scheduler.InvokeMethod("Connect");
     Assert(scheduler.GetBooleanProperty("Connected"),
         "Native Task Scheduler COM service did not connect.");
+}
+
+static void FirewallPreflightEnumerationProbe()
+{
+    var probe = new BrokerFirewall($"S-1-5-21-1-2-3-{Random.Shared.Next(20000, 60000)}");
+    var snapshot = probe.CapturePreflight(
+        applied: null,
+        allowLegacyMigration: false);
+    Assert(snapshot.Count == 0,
+        "Random-owner Firewall preflight unexpectedly captured product rules.");
+}
+
+static void ApplyFailureFingerprintIsSanitized()
+{
+    var sensitive = new InvalidOperationException(
+        "sensitive-message-one",
+        new COMException(
+            "sensitive-message-two",
+            unchecked((int)0x80070005)));
+    var fingerprint = PrivilegedSystemConfiguration.DescribeApplyFailure(sensitive);
+    Assert(
+        fingerprint == "InvalidOperationException; COM HRESULT 0x80070005",
+        "Apply failure fingerprint omitted its fixed type or COM HRESULT.");
+    Assert(
+        !fingerprint.Contains("sensitive-message", StringComparison.Ordinal),
+        "Apply failure fingerprint exposed exception text.");
 }
 
 static void NativeComPreservesAbsentTaskHResult()
@@ -1384,7 +1429,7 @@ static void BootstrapRejectsHardLinkedCanonical()
 
 static void BootstrapRejectsOrphanedInstallationReceipt()
 {
-    const string version = "2.0.0";
+    const string version = "2.1.0";
     var root = NewTestRoot();
     try
     {
@@ -1615,7 +1660,7 @@ static void InstalledTailscaleValidationProbe()
 static RetirementTestFixture NewRetirementFixture()
 {
     const string ownerSid = "S-1-5-21-1-2-3-1001";
-    const string version = "2.0.0";
+    const string version = "2.1.0";
     var root = NewTestRoot();
     var store = BrokerStateStore.ForTests(root, ownerSid);
     var versionRoot = PrivilegedBrokerPaths.GetVersionRoot(root, version);
@@ -1645,7 +1690,7 @@ static RetirementTestFixture NewRetirementFixture()
 
 static BootstrapRecoveryFixture NewBootstrapRecoveryFixture(bool canonicalMatchesSource)
 {
-    const string version = "2.0.0";
+    const string version = "2.1.0";
     var root = NewTestRoot();
     var versionRoot = PrivilegedBrokerPaths.GetVersionRoot(root, version);
     Directory.CreateDirectory(versionRoot);

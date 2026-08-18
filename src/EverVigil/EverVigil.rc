@@ -26,12 +26,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Daichi Matsumoto\0"
             VALUE "FileDescription", "EverVigil\0"
-            VALUE "FileVersion", "2.0.0.0\0"
+            VALUE "FileVersion", "2.1.0.0\0"
             VALUE "InternalName", "EverVigil\0"
             VALUE "LegalCopyright", "Copyright © 2026 Daichi Matsumoto\0"
             VALUE "OriginalFilename", "EverVigil.exe\0"
             VALUE "ProductName", "EverVigil\0"
-            VALUE "ProductVersion", "2.0.0\0"
+            VALUE "ProductVersion", "2.1.0\0"
         END
     END
     BLOCK "VarFileInfo"

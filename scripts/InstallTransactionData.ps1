@@ -768,12 +768,14 @@ function Assert-EverVigilExternalShortcutIdentity {
         $shortcut = $shell.CreateShortcut($Path)
         $actualWorkingDirectory = [string]$shortcut.WorkingDirectory
         if (-not [string]::IsNullOrWhiteSpace($actualWorkingDirectory)) {
-            $actualWorkingDirectory = [IO.Path]::GetFullPath(
-                [Environment]::ExpandEnvironmentVariables($actualWorkingDirectory))
+            $actualWorkingDirectory = [IO.Path]::TrimEndingDirectorySeparator(
+                [IO.Path]::GetFullPath(
+                    [Environment]::ExpandEnvironmentVariables($actualWorkingDirectory)))
         }
         $allowedWorkingDirectories = @($ExpectedWorkingDirectory | ForEach-Object {
                 if ([string]::IsNullOrWhiteSpace($_)) { '' } else {
-                    [IO.Path]::GetFullPath($_)
+                    [IO.Path]::TrimEndingDirectorySeparator(
+                        [IO.Path]::GetFullPath($_))
                 }
             })
         if (@($allowedWorkingDirectories | Where-Object {
@@ -846,7 +848,7 @@ function Assert-EverVigilExternalArtifactPrestate {
     $currentWorkingDirectories = @($currentExecutableTargets | ForEach-Object {
             Split-Path -Parent $_
         }) | Select-Object -Unique
-    $currentIconLocations = @('') + @($currentExecutableTargets | ForEach-Object {
+    $currentIconLocations = @('', ',0') + @($currentExecutableTargets | ForEach-Object {
             "$_,0"
         })
     Assert-EverVigilExternalShortcutIdentity `
@@ -860,7 +862,7 @@ function Assert-EverVigilExternalArtifactPrestate {
         -ExpectedTargetPath @((Join-Path $env:LOCALAPPDATA 'EverVigil.Uninstall\unins000.exe')) `
         -ExpectedArguments '' `
         -ExpectedWorkingDirectory @('', (Join-Path $env:LOCALAPPDATA 'EverVigil.Uninstall')) `
-        -ExpectedIconLocation @('', "$(Join-Path $env:LOCALAPPDATA 'EverVigil.Uninstall\unins000.exe'),0")
+        -ExpectedIconLocation @('', ',0', "$(Join-Path $env:LOCALAPPDATA 'EverVigil.Uninstall\unins000.exe'),0")
     Assert-EverVigilExternalShortcutIdentity `
         -Path (Join-Path (Get-EverVigilStartupFolderPath) 'EverVigil.lnk') `
         -ExpectedTargetPath $currentExecutableTargets `
@@ -904,7 +906,7 @@ function Assert-EverVigilExternalArtifactPrestate {
         $legacyWorkingDirectories = @($legacyExecutableTargets | ForEach-Object {
                 Split-Path -Parent $_
             }) | Select-Object -Unique
-        $legacyIconLocations = @('') + @($legacyExecutableTargets | ForEach-Object {
+        $legacyIconLocations = @('', ',0') + @($legacyExecutableTargets | ForEach-Object {
                 "$_,0"
             })
         Assert-EverVigilExternalShortcutIdentity `
@@ -920,7 +922,7 @@ function Assert-EverVigilExternalArtifactPrestate {
                     "$($script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData)\unins000.exe")) `
             -ExpectedArguments '' `
             -ExpectedWorkingDirectory @('', (Join-Path $env:LOCALAPPDATA $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData)) `
-            -ExpectedIconLocation @('', "$(Join-Path $env:LOCALAPPDATA "$($script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData)\unins000.exe"),0")
+            -ExpectedIconLocation @('', ',0', "$(Join-Path $env:LOCALAPPDATA "$($script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData)\unins000.exe"),0")
         Assert-EverVigilExternalShortcutIdentity `
             -Path (Join-Path (Get-EverVigilStartupFolderPath) $script:LegacyCompatibilityApplicationStartupShortcutFileName) `
             -ExpectedTargetPath $legacyExecutableTargets `

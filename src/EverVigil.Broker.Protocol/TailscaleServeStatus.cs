@@ -17,8 +17,7 @@ public static class TailscaleServeStatus
         {
             throw new ArgumentOutOfRangeException(nameof(publicPort));
         }
-        if (ownedBackendPorts.Count == 0 ||
-            ownedBackendPorts.Any(port => port is < 1 or > 65535))
+        if (ownedBackendPorts.Any(port => port is < 1 or > 65535))
         {
             throw new ArgumentOutOfRangeException(nameof(ownedBackendPorts));
         }

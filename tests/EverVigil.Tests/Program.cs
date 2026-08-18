@@ -66,10 +66,13 @@ var tests = new (string Name, Action Run)[]
     ("single instance acquires an existing unowned mutex", SingleInstanceAcquiresExistingUnownedMutex),
     ("single-instance kernel objects grant the current user full control", SingleInstanceObjectsGrantCurrentUserAccess),
     ("default single-instance scope spans login sessions", DefaultSingleInstanceScopeSpansLoginSessions),
+    ("system transaction reopens with least privilege", SystemTransactionReopensWithLeastPrivilege),
     ("headless control commands suppress startup error dialogs", HeadlessCommandsSuppressStartupErrorDialogs),
+    ("headless failures are safe for installer diagnostics", HeadlessFailuresAreSafeForInstallerDiagnostics),
     ("atomic files receive their protected ACL at creation", AtomicFilesReceiveProtectedAclAtCreation),
     ("atomic replacement preserves the protected ACL", AtomicReplacementPreservesProtectedAcl),
     ("startup waits for dependency configuration", StartupWaitsForDependencyConfiguration),
+    ("installer health accepts the pre-commit runtime", InstallerHealthAcceptsPreCommitRuntime),
     ("concurrent token stores converge on one token", ConcurrentTokenStoresConvergeOnOneToken),
     ("legacy import preserves an existing DPAPI token", LegacyImportPreservesExistingDpapiToken),
     ("DPAPI token storage does not contain plaintext", DpapiTokenStorageIsEncrypted),
@@ -82,6 +85,7 @@ var tests = new (string Name, Action Run)[]
     ("pending system journal rejects premature commit and mismatched transaction", PendingSystemJournalRejectsUnsafeCompletion),
     ("application cannot consume an installer-owned pending journal", InstallerPendingJournalIsNotCommittedByApplication),
     ("installer system configuration commits only by exact transaction", InstallerSystemConfigurationRequiresExactTransaction),
+    ("installer PowerShell journal matches the production JSON contract", InstallerPowerShellJournalMatchesProductionContract),
     ("applied system configuration survives settings recovery", AppliedSystemConfigurationSurvivesSettingsRecovery),
     ("failed applied-state persistence keeps startup blocked", FailedAppliedStatePersistenceKeepsStartupBlocked),
     ("required system configuration blocks supervisor start", RequiredSystemConfigurationBlocksSupervisorStart),
@@ -869,7 +873,7 @@ static void ApplicationMetadataContract()
         "This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.",
         "The required independent-project notice changed.");
     Assert(
-        ApplicationMetadata.Version == "2.0.0",
+        ApplicationMetadata.Version == "2.1.0",
         $"Unexpected application version: {ApplicationMetadata.Version}");
     Assert(
         Uri.TryCreate(ApplicationMetadata.GitHubProfileUrl, UriKind.Absolute, out var profileUri) &&
@@ -1135,6 +1139,45 @@ static void DefaultSingleInstanceScopeSpansLoginSessions()
     Assert(scope.Contains(sid, StringComparison.Ordinal), "Default scope is not isolated by user SID.");
 }
 
+static void SystemTransactionReopensWithLeastPrivilege()
+{
+    var name = $"Local\\EverVigil.SystemTransaction.Tests-{Guid.NewGuid():N}";
+    var security = new System.Security.AccessControl.MutexSecurity();
+    security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+    security.AddAccessRule(new System.Security.AccessControl.MutexAccessRule(
+        new System.Security.Principal.SecurityIdentifier(
+            System.Security.Principal.WellKnownSidType.AuthenticatedUserSid,
+            null),
+        System.Security.AccessControl.MutexRights.Synchronize |
+        System.Security.AccessControl.MutexRights.Modify,
+        System.Security.AccessControl.AccessControlType.Allow));
+    foreach (var identity in new[]
+             {
+                 new System.Security.Principal.SecurityIdentifier(
+                     System.Security.Principal.WellKnownSidType.LocalSystemSid,
+                     null),
+                 new System.Security.Principal.SecurityIdentifier(
+                     System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid,
+                     null)
+             })
+    {
+        security.AddAccessRule(new System.Security.AccessControl.MutexAccessRule(
+            identity,
+            System.Security.AccessControl.MutexRights.FullControl,
+            System.Security.AccessControl.AccessControlType.Allow));
+    }
+
+    using var existing = System.Threading.MutexAcl.Create(
+        initiallyOwned: false,
+        name,
+        out _,
+        security);
+    using var reopened = EverVigil.Services.SystemConfigurationService
+        .CreateSystemTransactionMutex(name);
+    Assert(reopened.WaitOne(TimeSpan.Zero), "The least-privilege mutex handle could not wait.");
+    reopened.ReleaseMutex();
+}
+
 static void SingleInstanceObjectsGrantCurrentUserAccess()
 {
     var scope = $"Local\\EverVigil.Tests-{Guid.NewGuid():N}";
@@ -1208,6 +1251,24 @@ static void HeadlessCommandsSuppressStartupErrorDialogs()
     Assert(
         EverVigil.Program.ShouldShowStartupError([]),
         "An interactive launch would suppress its startup error dialog.");
+}
+
+static void HeadlessFailuresAreSafeForInstallerDiagnostics()
+{
+    var formatted = EverVigil.Program.FormatHeadlessFailure(
+        new InvalidDataException("first line\r\nsecond line"));
+    Assert(
+        formatted == "[evervigil-headless-error] InvalidDataException: first line  second line",
+        "The headless failure diagnostic changed its stable format.");
+    Assert(
+        !formatted.Contains('\r') && !formatted.Contains('\n'),
+        "The headless failure diagnostic retained a line break.");
+
+    var longMessage = new string('x', 600);
+    var bounded = EverVigil.Program.FormatHeadlessFailure(new IOException(longMessage));
+    Assert(
+        bounded.Length == "[evervigil-headless-error] IOException: ".Length + 512,
+        "The headless failure diagnostic was not bounded.");
 }
 
 static void AtomicFilesReceiveProtectedAclAtCreation()
@@ -1341,6 +1402,17 @@ static void StartupWaitsForDependencyConfiguration()
             requiresSystemConfiguration: true,
             startRequested: false),
         "A system-configuration block was not surfaced through supervisor state.");
+}
+
+static void InstallerHealthAcceptsPreCommitRuntime()
+{
+    Assert(
+        EverVigil.Program.IsInstallerRuntimeHealthy(local: true, provider: true),
+        "A healthy local/provider runtime was rejected before protected commit.");
+    Assert(
+        !EverVigil.Program.IsInstallerRuntimeHealthy(local: false, provider: true) &&
+        !EverVigil.Program.IsInstallerRuntimeHealthy(local: true, provider: false),
+        "Installer runtime health accepted a failed local or provider endpoint.");
 }
 
 static void ConcurrentTokenStoresConvergeOnOneToken()
@@ -1973,6 +2045,86 @@ static void InstallerSystemConfigurationRequiresExactTransaction()
                     fixedId.ToString("N")
                 ],
                 "--system-transaction-id"));
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+}
+
+static void InstallerPowerShellJournalMatchesProductionContract()
+{
+    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-{Guid.NewGuid():N}");
+    var paths = new EverVigil.Infrastructure.DataPaths(
+        root,
+        Path.Combine(root, "settings.json"),
+        Path.Combine(root, "token.dat"),
+        Path.Combine(root, "Logs"),
+        Path.Combine(root, "Logs", "evervigil.log"),
+        Path.Combine(root, "startup.lnk"));
+    var ownerSid = System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value ??
+        throw new InvalidOperationException("The test owner SID is unavailable.");
+    var transactionId = Guid.NewGuid();
+    try
+    {
+        var settingsStore = new EverVigil.Infrastructure.SettingsStore(paths);
+        var target = settingsStore.Current with
+        {
+            PublicPort = 34_56,
+            BackendPort = 34_57,
+            TailscalePath = Path.GetFullPath(Path.Combine(root, "tailscale.exe"))
+        };
+        File.WriteAllBytes(target.TailscalePath, [0x4d, 0x5a]);
+        settingsStore.Save(target);
+
+        var ownerJson = System.Text.Json.JsonSerializer.Serialize(ownerSid);
+        var dataRootJson = System.Text.Json.JsonSerializer.Serialize(Path.GetFullPath(root));
+        var tailscalePathJson = System.Text.Json.JsonSerializer.Serialize(target.TailscalePath);
+        var installerJson = $$"""
+            {
+              "schemaVersion": 1,
+              "transactionId": "{{transactionId:D}}",
+              "ownerSid": {{ownerJson}},
+              "dataRoot": {{dataRootJson}},
+              "initiator": "Installer",
+              "target": {
+                "publicPort": {{target.PublicPort}},
+                "backendPort": {{target.BackendPort}},
+                "tailscalePath": {{tailscalePathJson}}
+              },
+              "previous": null,
+              "previousMappingOwned": false,
+              "existingTargetMappingOwned": false,
+              "phase": "MutationsCompleted",
+              "observedTargetRouteOwnership": "Unused",
+              "observedPreviousRouteOwnership": "Unused",
+              "firewallSnapshotCaptured": true,
+              "originalMainFirewallPort": null,
+              "originalTemporaryFirewallPort": null,
+              "previousRouteMutationAuthorized": false,
+              "targetRouteMutationAuthorized": true,
+              "firewallMutationAuthorized": true
+            }
+            """;
+        Directory.CreateDirectory(root);
+        File.WriteAllText(
+            paths.PendingSystemConfigurationPath,
+            installerJson,
+            new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+        settingsStore.CommitInstallerSystemConfiguration(transactionId, target);
+
+        Assert(
+            !File.Exists(paths.PendingSystemConfigurationPath),
+            "The production reader retained a valid installer PowerShell journal.");
+        Assert(
+            File.Exists(Path.Combine(
+                root,
+                EverVigil.Infrastructure.SettingsStore.AppliedSystemConfigurationFileName)),
+            "The production reader did not commit the installer PowerShell journal.");
     }
     finally
     {

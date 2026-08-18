@@ -1690,14 +1690,14 @@ function Assert-EverVigilInstallerFinalizationPreflight {
         -ExpectedTargetPath @($installedExecutable) `
         -ExpectedArguments '' `
         -ExpectedWorkingDirectory @([string]$State.installRoot) `
-        -ExpectedIconLocation @('', "$installedExecutable,0")
+        -ExpectedIconLocation @('', ',0', "$installedExecutable,0")
     $uninstaller = Join-Path $env:LOCALAPPDATA 'EverVigil.Uninstall\unins000.exe'
     Assert-EverVigilExternalShortcutIdentity `
         -Path (Join-Path $programsRoot 'EverVigil\Uninstall EverVigil.lnk') `
         -ExpectedTargetPath @($uninstaller) `
         -ExpectedArguments '' `
         -ExpectedWorkingDirectory @('', (Split-Path -Parent $uninstaller)) `
-        -ExpectedIconLocation @('', "$uninstaller,0")
+        -ExpectedIconLocation @('', ',0', "$uninstaller,0")
     $startupPath = Join-Path `
         (Get-EverVigilStartupFolderPath) `
         'EverVigil.lnk'

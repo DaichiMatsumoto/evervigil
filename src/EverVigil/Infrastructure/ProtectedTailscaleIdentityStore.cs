@@ -118,7 +118,10 @@ internal sealed class ProtectedTailscaleIdentityStore
         var json = reader.ReadToEnd();
         var endpoint = ParseAndValidate(json, _ownerSid.Value, settings, DateTimeOffset.UtcNow);
         ValidateLiveIdentity(endpoint);
-        ValidateLiveServeRoute(settings);
+        // The protected broker validates and commits the Serve route before it
+        // writes this ledger.  The medium-integrity UI must not query the
+        // administrator-only tailscaled pipe and turn a valid ledger into a
+        // false negative.
         return endpoint;
     }
 

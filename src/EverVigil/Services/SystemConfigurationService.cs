@@ -215,13 +215,27 @@ internal static class SystemConfigurationService
         }
     }
 
-    private static Mutex CreateSystemTransactionMutex()
+    private static Mutex CreateSystemTransactionMutex() =>
+        CreateSystemTransactionMutex(SystemTransactionMutexName);
+
+    internal static Mutex CreateSystemTransactionMutex(string name)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        const MutexRights requiredRights = MutexRights.Synchronize | MutexRights.Modify;
+        try
+        {
+            return MutexAcl.OpenExisting(name, requiredRights);
+        }
+        catch (WaitHandleCannotBeOpenedException)
+        {
+            // Create the mutex below. Another process may win that race.
+        }
+
         var security = new MutexSecurity();
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
         security.AddAccessRule(new MutexAccessRule(
             new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
-            MutexRights.Synchronize | MutexRights.Modify,
+            requiredRights,
             AccessControlType.Allow));
         foreach (var identity in new[]
                  {
@@ -234,11 +248,18 @@ internal static class SystemConfigurationService
                 MutexRights.FullControl,
                 AccessControlType.Allow));
         }
-        return MutexAcl.Create(
-            initiallyOwned: false,
-            SystemTransactionMutexName,
-            out _,
-            security);
+        try
+        {
+            return MutexAcl.Create(
+                initiallyOwned: false,
+                name,
+                out _,
+                security);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return MutexAcl.OpenExisting(name, requiredRights);
+        }
     }
 }
 

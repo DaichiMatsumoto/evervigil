@@ -111,6 +111,8 @@ if (-not (Test-Path -LiteralPath $InstallTransactionScript -PathType Leaf)) {
     throw "The install transaction recovery helper is missing: $InstallTransactionScript"
 }
 . $InstallTransactionDataHelper
+$installTransactionTemporaryPrefix =
+    "$($script:LegacyCompatibilityDataTransactionJournalFileName).new-"
 $transactionRecoveryRoots = [Collections.Generic.List[string]]::new()
 foreach ($recognizedDataRoot in $RecognizedDataRoots) {
     $candidateTransactionPath = Join-Path `
@@ -678,7 +680,7 @@ function Get-ValidatedEverVigilProtectedBrokerRetirementState {
             -AllowedName @('Broker')
         Assert-ExactRetirementDirectoryEntries `
             -Path $paths.BrokerRoot `
-            -AllowedName @('State', '2.0.0')
+            -AllowedName @('State', '2.1.0')
         Assert-ExactRetirementDirectoryEntries `
             -Path $paths.VersionRoot `
             -AllowedName @(

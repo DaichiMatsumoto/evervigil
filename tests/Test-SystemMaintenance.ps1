@@ -35,7 +35,7 @@ foreach ($path in $productionPaths) {
 . $resolverPath
 
 if ((Get-EverVigilProtectedBrokerPath) -cne
-    'C:\ProgramData\EverVigil\Broker\2.0.0\EverVigil.Broker.exe') {
+    'C:\ProgramData\EverVigil\Broker\2.1.0\EverVigil.Broker.exe') {
     throw 'The canonical broker path is not the fixed ProgramData version root.'
 }
 if (Test-EverVigilProtectedBrokerInstallation `
@@ -289,7 +289,7 @@ $validReceipt = @"
   "length": 12345,
   "schemaVersion": 1,
   "sha256": "$receiptSha256",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "fileName": "EverVigil.Broker.exe"
 }
 "@
@@ -303,7 +303,7 @@ $invalidReceipts = @(
     $validReceipt.Replace('"schemaVersion"', '"SchemaVersion"')
     $validReceipt.Replace('"length": 12345', '"length": "12345"')
     $validReceipt.Replace('"schemaVersion": 1', '"schemaVersion": 1.0')
-    $validReceipt.Replace('"version": "2.0.0"', '"version": "2.0.1"')
+    $validReceipt.Replace('"version": "2.1.0"', '"version": "2.1.1"')
     $validReceipt.Replace($receiptSha256, $receiptSha256.ToUpperInvariant())
     $validReceipt.Replace(
         '"fileName": "EverVigil.Broker.exe"',
@@ -365,7 +365,7 @@ try {
         schemaVersion = 1
         transactionId = $retirementTransactionId.ToString('D')
         ownerSid = $receiptOwnerSid
-        version = '2.0.0'
+        version = '2.1.0'
         canonicalFileName = 'EverVigil.Broker.exe'
         length = 12345
         sha256 = $retirementSha256
@@ -444,7 +444,7 @@ $retirementResumeProductRoot = Join-Path `
     "artifacts\retirement-resume-$PID-$([guid]::NewGuid().ToString('N'))"
 $retirementResumeBrokerRoot = Join-Path $retirementResumeProductRoot 'Broker'
 $retirementResumeStateRoot = Join-Path $retirementResumeBrokerRoot 'State'
-$retirementResumeVersionRoot = Join-Path $retirementResumeBrokerRoot '2.0.0'
+$retirementResumeVersionRoot = Join-Path $retirementResumeBrokerRoot '2.1.0'
 $retirementResumeCanonicalPath = Join-Path `
     $retirementResumeVersionRoot `
     'EverVigil.Broker.exe'
@@ -870,7 +870,7 @@ foreach ($privilegedPowerShellMutation in @(
     }
 }
 foreach ($brokerGuard in @(
-        "'EverVigil\Broker\2.0.0\EverVigil.Broker.exe'"
+        "'EverVigil\Broker\2.1.0\EverVigil.Broker.exe'"
         "'broker\EverVigil.Broker.exe'"
         'Test-EverVigilProtectedBrokerInstallation'
         'Test-EverVigilProtectedBrokerSecurityDescriptor'
@@ -886,7 +886,7 @@ foreach ($brokerGuard in @(
         '(Get-FileHash `'
         '-Algorithm SHA256'
         '$brokerInfo.Length'
-        "[string]`$version -cne '2.0.0'"
+        "[string]`$version -cne '2.1.0'"
         "[string]`$fileName -cne 'EverVigil.Broker.exe'"
         '[string]$receiptSha256 -cnotmatch ''\A[0-9a-f]{64}\z'''
         '[IO.FileAttributes]::ReparsePoint'

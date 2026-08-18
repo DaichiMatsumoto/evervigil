@@ -46,9 +46,9 @@ release risk rather than being treated as a completed loopback-bind guarantee.
 
 ## Install and update
 
-EverVigil v2.0.0 is installed and updated manually:
+EverVigil v2.1.0 is installed and updated manually:
 
-1. Download `EverVigil-2.0.0-Setup.exe` from the approved GitHub Release.
+1. Download `EverVigil-2.1.0-Setup.exe` from the approved GitHub Release.
 2. Compare the file's SHA-256 with the value published in that Release.
 3. Run the installer and review the independent-project notice.
 
@@ -56,7 +56,7 @@ EverVigil has no automatic updater. Community builds are not
 Authenticode-signed and may trigger Microsoft Defender SmartScreen. Verify the
 SHA-256 before running an installer.
 
-The v2.0.0 installer uses the in-place upgrade path for existing v1.2.1 users.
+The v2.1.0 installer uses the in-place upgrade path for existing installations.
 It preserves settings, the DPAPI-protected bridge token, and the startup
 preference. A failure before the durable protected-system commit boundary
 restores the prior working installation. If final commit is interrupted after

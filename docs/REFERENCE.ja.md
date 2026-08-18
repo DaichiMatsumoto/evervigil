@@ -2,7 +2,7 @@
 
 [English](REFERENCE.en.md) | [利用ガイド](README.ja.md) | [技術概要](TECHNICAL_OVERVIEW.ja.md) | [リポジトリ](https://github.com/DaichiMatsumoto/evervigil)
 
-対象release: `2.0.0`
+対象release: `2.1.0`
 
 ## Runtime topology
 
@@ -128,8 +128,8 @@ dotnet run --project .\tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.cspro
 .\tests\Test-InstallTransaction.ps1
 .\scripts\Test-NuGetVulnerabilities.ps1 -SolutionPath .\EverVigil.sln
 .\scripts\New-PlaceholderIcon.ps1 -Check
-.\scripts\Test-ReleaseVersion.ps1 -Version 2.0.0
-.\scripts\Build-Release.ps1 -Version 2.0.0
+.\scripts\Test-ReleaseVersion.ps1 -Version 2.1.0
+.\scripts\Build-Release.ps1 -Version 2.1.0
 ```
 
 Release承認にはsource、staged file、binary、installer展開内容、VersionInfo、icon、notice、

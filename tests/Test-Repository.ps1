@@ -3141,8 +3141,8 @@ if ($applicationProject.Project.PropertyGroup.OutputType -ne 'WinExe') {
 $applicationManifest = [xml](Get-Content -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\app.manifest') -Raw)
 $manifestIdentity = $applicationManifest.assembly.assemblyIdentity
 $projectVersion = [string]$applicationProject.Project.PropertyGroup.Version
-if ($projectVersion -cne '2.0.0') {
-    $failures.Add("The initial EverVigil release version must be exactly 2.0.0, not '$projectVersion'.")
+if ($projectVersion -cne '2.1.0') {
+    $failures.Add("The EverVigil release version must be exactly 2.1.0, not '$projectVersion'.")
 }
 $expectedManifestVersion = ConvertTo-WindowsManifestVersion -Version $projectVersion
 if ($manifestIdentity.name -ne 'EverVigil.app' -or
@@ -3156,7 +3156,7 @@ if ($applicationProject.Project.PropertyGroup.PackageLicenseExpression -ne 'GPL-
     $applicationProject.Project.PropertyGroup.Copyright -ne 'Copyright © 2026 Daichi Matsumoto') {
     $failures.Add('Application metadata must identify Daichi Matsumoto and GPL-3.0-only.')
 }
-if ($applicationProject.Project.PropertyGroup.InformationalVersion -ne '2.0.0' -or
+if ($applicationProject.Project.PropertyGroup.InformationalVersion -ne '2.1.0' -or
     $applicationProject.Project.PropertyGroup.IncludeSourceRevisionInInformationalVersion -ne 'false') {
     $failures.Add('Release VersionInfo must not include the temporary pre-initialization Git revision.')
 }
@@ -3178,7 +3178,7 @@ foreach ($win32ResourceGuard in @(
         '1 RT_MANIFEST "app.manifest"'
         '32512 ICON "Assets\\evervigil-placeholder.ico"'
         'VALUE "OriginalFilename", "EverVigil.exe\0"'
-        'VALUE "ProductVersion", "2.0.0\0"'
+        'VALUE "ProductVersion", "2.1.0\0"'
     )) {
     if (-not $win32ResourceSource.Contains($win32ResourceGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Custom Win32 resource guard is missing: $win32ResourceGuard")
@@ -4091,6 +4091,14 @@ foreach ($requiredLifecycleGuard in @(
 }
 
 $uninstallContent = Get-Content -LiteralPath (Join-Path $RepositoryRoot 'Uninstall.ps1') -Raw
+foreach ($uninstallTransactionGuard in @(
+        '$installTransactionTemporaryPrefix ='
+        '.new-'
+    )) {
+    if (-not $uninstallContent.Contains($uninstallTransactionGuard, [StringComparison]::Ordinal)) {
+        $failures.Add("Uninstall transaction prefix initialization is missing: $uninstallTransactionGuard")
+    }
+}
 $installPathResolverPath = Join-Path $RepositoryRoot 'scripts\Resolve-SafeInstallRoot.ps1'
 $installPathResolverContent = Get-Content -LiteralPath $installPathResolverPath -Raw
 foreach ($installPathGuard in @(
@@ -4731,6 +4739,17 @@ foreach ($customInstallGuard in @(
         'protectedBrokerCleanupAuthorized = -not $protectedBrokerWasPresentBefore'
         '$transactionState.protectedBrokerReady = $true'
         'cleanupTransactionId = $CleanupTransactionId'
+        "transactionId = ([guid]`$TransactionId).ToString('D')"
+        "([guid][string]`$pending.transactionId).ToString('N')"
+        "([guid][string]`$State.transactionId).ToString('N')"
+        '$pending.observedTargetRouteOwnership = if ('
+        '[bool]$pending.existingTargetMappingOwned)'
+        '$pending.observedPreviousRouteOwnership = if ('
+        '[bool]$pending.previousMappingOwned)'
+        '$pending.firewallSnapshotCaptured = $true'
+        '$pending.targetRouteMutationAuthorized = $true'
+        '$pending.firewallMutationAuthorized = $true'
+        '$pending.phase = ''MutationsCompleted'''
         'targetVersion = $TargetVersion'
         'Assert-TargetExecutableVersion -Path $publishedExecutable'
         'Assert-TargetExecutableVersion -Path $InstalledExecutable'
@@ -5252,6 +5271,14 @@ if ($installContent.Contains('function Test-SystemRollbackCompleted', [StringCom
 }
 if (-not $installContent.Contains("Invoke-AppCommand -Arguments @('--health-check') -TimeoutSeconds 60", [StringComparison]::Ordinal)) {
     $failures.Add('Install must allow the health command to complete all bounded provider probes.')
+}
+if (-not $installContent.Contains(
+        '($migrationApplied -or',
+        [StringComparison]::Ordinal) -or
+    $installContent.Contains(
+        'migrationApplied is not ownership evidence',
+        [StringComparison]::Ordinal)) {
+    $failures.Add('Immediate rollback must defer ownership authority to the protected broker ledger after local commit.')
 }
 if (-not $installContent.Contains('return Invoke-EverVigilBoundedProcess', [StringComparison]::Ordinal) -or
     -not $installTransactionContent.Contains('$exitCode = Invoke-EverVigilBoundedProcess', [StringComparison]::Ordinal)) {
@@ -5966,25 +5993,19 @@ foreach ($protectedIdentityGuard in @(
         '.WaitAsync(TimeSpan.FromSeconds(3))'
         'return resolved.Length > 0 && resolved.All(address =>'
         'protectedAddresses.Contains(normalized) && local.Contains(normalized)'
-        'ValidateLiveServeRoute(settings);'
-        'TailscaleServeStatus.ReadRootSnapshot('
-        'snapshot.State == ServeRootState.Owned && !snapshot.FunnelActive'
-        'startInfo.ArgumentList.Add("serve")'
-        'startInfo.ArgumentList.Add("status")'
-        'startInfo.ArgumentList.Add("--json")'
-        'UseShellExecute = false'
-        'startInfo.Environment.Clear()'
-        'startInfo.Environment["SystemRoot"] = windows'
-        'startInfo.Environment["WINDIR"] = windows'
-        'startInfo.Environment["TEMP"] = Path.Combine(windows, "Temp")'
-        'startInfo.Environment["TMP"] = Path.Combine(windows, "Temp")'
-        'StatusCommandTimeout = TimeSpan.FromSeconds(5)'
+        'ValidateLiveIdentity(endpoint);'
+        'The medium-integrity UI must not query the'
     )) {
     if (-not $protectedTailscaleIdentityContent.Contains(
             $protectedIdentityGuard,
             [StringComparison]::Ordinal)) {
         $failures.Add("Protected Tailscale identity guard is missing: $protectedIdentityGuard")
     }
+}
+if ($protectedTailscaleIdentityContent.Contains(
+        'ValidateLiveServeRoute(settings);',
+        [StringComparison]::Ordinal)) {
+    $failures.Add('The medium UI must not query the administrator-only tailscaled pipe.')
 }
 if ($protectedTailscaleIdentityContent.Contains('Verb = "runas"', [StringComparison]::Ordinal) -or
     $protectedTailscaleIdentityContent.Contains('UseShellExecute = true', [StringComparison]::Ordinal)) {

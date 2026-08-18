@@ -261,7 +261,7 @@ internal sealed class DashboardForm : Form
         _stateLabel.Location = new Point(18, 15);
         _stateDetailLabel.AutoSize = false;
         _stateDetailLabel.Location = new Point(20, 64);
-        _stateDetailLabel.Size = new Size(330, 24);
+        _stateDetailLabel.Size = new Size(260, 24);
         _stateDetailLabel.Font = new Font("Cascadia Mono", 8.5F);
         _stateDetailLabel.ForeColor = AppTheme.Muted;
         _stateDetailLabel.AutoEllipsis = true;
@@ -289,6 +289,13 @@ internal sealed class DashboardForm : Form
         var refresh = NewCommandButton("ButtonRefresh", (_, _) => UpdateOverview(_supervisor.Current));
         actions.Controls.AddRange(new Control[] { refresh, _restartButton, _stopButton, _startButton });
         statusPanel.Controls.Add(actions);
+        void ResizeStatusDetail()
+        {
+            var availableWidth = statusPanel.ClientSize.Width - actions.Width - 40;
+            _stateDetailLabel.Width = Math.Max(80, availableWidth);
+        }
+        statusPanel.Resize += (_, _) => ResizeStatusDetail();
+        ResizeStatusDetail();
 
         var signals = new TableLayoutPanel
         {

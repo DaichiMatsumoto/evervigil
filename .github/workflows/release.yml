@@ -68,7 +68,7 @@ jobs:
           try {
             $releaseCriticalSourceHashes = [ordered]@{
               '.\.github\release-host-lock.json' = '7e19d79efd66e4d3def287bd6795b2d0e41f0ddc2bd8583d33b906b6a619acff'
-              '.\.github\release-source-manifest.json' = '957e8a36c02be865462f7a3435fa0c7455dfecd6da3bb951e1555ad8c2041621'
+              '.\.github\release-source-manifest.json' = '584d276dfe49f5dc65f26c15f97b769b911008b7999875e8530b1125e148d69a'
               '.\tests\ReleasePathIsolation.ps1' = '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35'
               '.\tests\Test-ReleaseHost.ps1' = '819d18a7222ff6827e76757843acfed210ddf748a686308ed12df2b0e1e83d06'
             }
@@ -2451,7 +2451,7 @@ jobs:
             }
           }
 
-          $setupFixturePath = 'C:\EverVigilAudit\candidate\EverVigil-2.0.0-Setup.exe'
+          $setupFixturePath = 'C:\EverVigilAudit\candidate\EverVigil-2.1.0-Setup.exe'
           $setupSuccessFixture = @"
           Original Setup EXE: $setupFixturePath
           Setup command line: /VERYSILENT /NORESTART

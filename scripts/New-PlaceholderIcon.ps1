@@ -44,16 +44,55 @@ function New-PlaceholderBitmap {
             [Drawing.PointF]::new(398 * $scale, 512 * $scale)
         )
 
-        $outerBrush = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#2D3142'))
-        $innerBrush = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#4F9F8E'))
+        $outerBrush = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#07130C'))
+        $innerBrush = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#39FF88'))
         $outline = [Drawing.Pen]::new(
-            [Drawing.ColorTranslator]::FromHtml('#F7F3E8'),
-            [Math]::Max(1.0, 44 * $scale))
+            [Drawing.ColorTranslator]::FromHtml('#E7FCE8'),
+            [Math]::Max(1.0, 30 * $scale))
         try {
             $outline.LineJoin = [Drawing.Drawing2D.LineJoin]::Round
             $graphics.FillPolygon($outerBrush, $outer)
             $graphics.DrawPolygon($outline, $outer)
             $graphics.FillPolygon($innerBrush, $inner)
+
+            # Matrix-inspired visor: opaque lenses keep the mark legible at 16px,
+            # while the neon bridge and temples preserve the Even Terminal cue.
+            [Drawing.PointF[]]$leftLens = @(
+                [Drawing.PointF]::new(326 * $scale, 434 * $scale)
+                [Drawing.PointF]::new(488 * $scale, 434 * $scale)
+                [Drawing.PointF]::new(458 * $scale, 556 * $scale)
+                [Drawing.PointF]::new(350 * $scale, 556 * $scale))
+            [Drawing.PointF[]]$rightLens = @(
+                [Drawing.PointF]::new(536 * $scale, 434 * $scale)
+                [Drawing.PointF]::new(698 * $scale, 434 * $scale)
+                [Drawing.PointF]::new(674 * $scale, 556 * $scale)
+                [Drawing.PointF]::new(566 * $scale, 556 * $scale))
+            $lensBrush = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#020503'))
+            $lensPen = [Drawing.Pen]::new(
+                [Drawing.ColorTranslator]::FromHtml('#39FF88'),
+                [Math]::Max(1.0, 16 * $scale))
+            try {
+                $lensPen.LineJoin = [Drawing.Drawing2D.LineJoin]::Round
+                $graphics.FillPolygon($lensBrush, $leftLens)
+                $graphics.FillPolygon($lensBrush, $rightLens)
+                $graphics.DrawPolygon($lensPen, $leftLens)
+                $graphics.DrawPolygon($lensPen, $rightLens)
+                $graphics.DrawLine(
+                    $lensPen,
+                    [Drawing.PointF]::new(488 * $scale, 472 * $scale),
+                    [Drawing.PointF]::new(536 * $scale, 472 * $scale))
+                $graphics.DrawLine(
+                    $lensPen,
+                    [Drawing.PointF]::new(326 * $scale, 452 * $scale),
+                    [Drawing.PointF]::new(250 * $scale, 420 * $scale))
+                $graphics.DrawLine(
+                    $lensPen,
+                    [Drawing.PointF]::new(698 * $scale, 452 * $scale),
+                    [Drawing.PointF]::new(774 * $scale, 420 * $scale))
+            } finally {
+                $lensPen.Dispose()
+                $lensBrush.Dispose()
+            }
         } finally {
             $outline.Dispose()
             $innerBrush.Dispose()

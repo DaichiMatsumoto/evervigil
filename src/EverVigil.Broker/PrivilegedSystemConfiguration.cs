@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using EverVigil.Broker.Protocol;
 
 namespace EverVigil.Broker;
@@ -190,6 +191,7 @@ internal static class PrivilegedSystemConfiguration
             legacyTask,
             selfIdentity,
             legacyV121Configuration);
+        var failureStage = "apply.start";
         try
         {
             pending = RecordApplyPreflight(
@@ -199,16 +201,19 @@ internal static class PrivilegedSystemConfiguration
                 new BrokerFirewall(ownerSid),
                 applied,
                 request.MigrateLegacySystemState,
-                targetRouteShared);
+                targetRouteShared,
+                stage => failureStage = stage);
             pending = ApplyMutations(
                 store,
                 pending,
                 tailscale,
                 new BrokerFirewall(ownerSid),
                 legacyTaskService,
-                targetRouteShared);
+                targetRouteShared,
+                stage => failureStage = stage);
             if (request.Initiator == PrivilegedBrokerInitiator.Interactive)
             {
+                failureStage = "commit";
                 CommitCompleted(store, pending, tailscale, new BrokerFirewall(ownerSid));
             }
             return Success(
@@ -237,7 +242,9 @@ internal static class PrivilegedSystemConfiguration
                     new AggregateException(applyException, rollbackException));
             }
             throw new BrokerRefusalException(
-                "System configuration was refused and the protected previous state was restored.",
+                $"System configuration failed at {failureStage} " +
+                $"({DescribeApplyFailure(applyException)}); " +
+                "the protected previous state was restored.",
                 MapErrorCode(applyException),
                 innerException: applyException);
         }
@@ -284,8 +291,10 @@ internal static class PrivilegedSystemConfiguration
         BrokerFirewall firewall,
         BrokerAppliedLedger? applied,
         bool legacyTaskAuthorized,
-        bool targetRouteShared)
+        bool targetRouteShared,
+        Action<string> setFailureStage)
     {
+        setFailureStage("preflight.serve");
         var status = tailscale.ReadServeStatus();
         var targetOwnedBackends = targetRouteShared
             ? new[] { pending.Target.BackendPort }
@@ -342,10 +351,12 @@ internal static class PrivilegedSystemConfiguration
             }
         }
 
+        setFailureStage("preflight.firewall");
         var firewallSnapshot = firewall.CapturePreflight(
             applied,
             allowLegacyMigration: legacyTaskAuthorized,
             legacyBackendPort: pending.LegacyV121Configuration?.BackendPort ?? 3457);
+        setFailureStage("state.preflight");
         return store.Update(pending.TransactionId, current => current with
         {
             Phase = BrokerMutationPhase.PreflightVerified,
@@ -363,17 +374,21 @@ internal static class PrivilegedSystemConfiguration
         TrustedTailscale tailscale,
         BrokerFirewall firewall,
         LegacyScheduledTask legacyTaskService,
-        bool targetRouteShared)
+        bool targetRouteShared,
+        Action<string> setFailureStage)
     {
         if (pending.LegacyTask is not null)
         {
             var legacyTaskSnapshot = pending.LegacyTask;
+            setFailureStage("state.legacy-task-prepared");
             pending = store.Update(pending.TransactionId, current => current with
             {
                 Phase = BrokerMutationPhase.LegacyTaskMutationPrepared,
                 LegacyTaskMutationAuthorized = true
             });
+            setFailureStage("mutate.legacy-task");
             legacyTaskService.RemoveOwned(legacyTaskSnapshot);
+            setFailureStage("state.legacy-task-removed");
             pending = store.Update(pending.TransactionId, current => current with
             {
                 Phase = BrokerMutationPhase.LegacyTaskRemoved
@@ -382,22 +397,26 @@ internal static class PrivilegedSystemConfiguration
 
         if (!targetRouteShared)
         {
+            setFailureStage("preflight.backend-port");
             RequireBackendPortAvailable(pending.Target.BackendPort);
         }
         if (pending.Previous is not null &&
             pending.Previous.PublicPort != pending.Target.PublicPort)
         {
             var previous = pending.Previous;
+            setFailureStage("state.previous-route-prepared");
             pending = store.Update(pending.TransactionId, current => current with
             {
                 Phase = BrokerMutationPhase.PreviousRouteMutationPrepared,
                 PreviousRouteMutationAuthorized = true
             });
+            setFailureStage("mutate.previous-route");
             tailscale.RemoveOwnedRoot(
                 previous.PublicPort,
                 previous.BackendPort,
                 pending.PreviousUnrelatedHandlersJson ??
                     throw new InvalidDataException("Previous unrelated handler snapshot is missing."));
+            setFailureStage("state.previous-route-removed");
             pending = store.Update(pending.TransactionId, current => current with
             {
                 Phase = BrokerMutationPhase.PreviousRouteRemoved
@@ -406,11 +425,13 @@ internal static class PrivilegedSystemConfiguration
 
         if (!targetRouteShared)
         {
+            setFailureStage("state.target-route-prepared");
             pending = store.Update(pending.TransactionId, current => current with
             {
                 Phase = BrokerMutationPhase.TargetRouteMutationPrepared,
                 TargetRouteMutationAuthorized = true
             });
+            setFailureStage("mutate.target-route");
             tailscale.ApplyRoot(
                 pending.Target.PublicPort,
                 pending.Target.BackendPort,
@@ -422,25 +443,30 @@ internal static class PrivilegedSystemConfiguration
                     : null,
                 pending.TargetUnrelatedHandlersJson ??
                     throw new InvalidDataException("Target unrelated handler snapshot is missing."));
+            setFailureStage("state.target-route-applied");
             pending = store.Update(pending.TransactionId, current => current with
             {
                 Phase = BrokerMutationPhase.TargetRouteApplied
             });
         }
 
+        setFailureStage("state.firewall-prepared");
         pending = store.Update(pending.TransactionId, current => current with
         {
             Phase = BrokerMutationPhase.FirewallMutationPrepared,
             FirewallMutationAuthorized = true
         });
+        setFailureStage("mutate.firewall");
         firewall.ConfigureTarget(
             pending.Target.BackendPort,
             pending.OriginalFirewallRules,
             removeLegacy: pending.MigrateLegacySystemState);
+        setFailureStage("state.firewall-applied");
         pending = store.Update(pending.TransactionId, current => current with
         {
             Phase = BrokerMutationPhase.FirewallApplied
         });
+        setFailureStage("state.mutations-completed");
         return store.Update(pending.TransactionId, current => current with
         {
             Phase = BrokerMutationPhase.MutationsCompleted
@@ -1186,6 +1212,21 @@ internal static class PrivilegedSystemConfiguration
             InvalidDataException => PrivilegedBrokerErrorCode.OwnershipMismatch,
             _ => PrivilegedBrokerErrorCode.ExternalCommandFailed
         };
+
+    internal static string DescribeApplyFailure(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is COMException comException)
+            {
+                return $"{exception.GetType().Name}; COM HRESULT " +
+                    $"0x{unchecked((uint)comException.HResult):X8}";
+            }
+        }
+        return $"{exception.GetType().Name}; HRESULT " +
+            $"0x{unchecked((uint)exception.HResult):X8}";
+    }
 
     private static PrivilegedBrokerResponse Success(
         PrivilegedBrokerRequest request,

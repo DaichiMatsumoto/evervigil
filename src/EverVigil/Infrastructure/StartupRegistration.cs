@@ -18,6 +18,18 @@ internal sealed class StartupRegistration
     {
         var executable = Environment.ProcessPath ??
             throw new InvalidOperationException("Application executable path is unavailable.");
+
+        // Upgrades can encounter a valid shortcut that is already pointing at
+        // this executable.  Re-saving it is unnecessary and can be rejected by
+        // Windows policies that allow reading the Startup folder but deny
+        // replacing an existing file.  Treat the owned, exact shortcut as the
+        // desired durable state and avoid the write entirely.
+        if (IsShortcutOwnedBy(_paths.StartupShortcutPath, executable))
+        {
+            RegistrationChanged?.Invoke(true);
+            return;
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(_paths.StartupShortcutPath)!);
 
         if (File.Exists(_paths.StartupShortcutPath) && !IsShortcutOwnedBy(

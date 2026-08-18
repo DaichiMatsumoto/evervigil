@@ -4,7 +4,7 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="AppSubtitle" xml:space="preserve"><value>独立した WINDOWS トレイツール // ローカルプロセス監視</value></data>
+  <data name="AppSubtitle" xml:space="preserve"><value>EVEN TERMINAL // ローカルプロセス監視</value></data>
   <data name="HeaderNode" xml:space="preserve"><value>ノード制御 / {0}</value></data>
   <data name="TabOverview" xml:space="preserve"><value>概要</value></data>
   <data name="TabConnection" xml:space="preserve"><value>接続</value></data>
@@ -68,7 +68,7 @@
   <data name="LanguageEnglish" xml:space="preserve"><value>English / 英語</value></data>
   <data name="LanguageJapanese" xml:space="preserve"><value>日本語</value></data>
   <data name="FieldDisplayName" xml:space="preserve"><value>ノード名</value></data>
-  <data name="FieldPublicHost" xml:space="preserve"><value>Tailscale Self ホスト（自動）</value></data>
+  <data name="FieldPublicHost" xml:space="preserve"><value>TAILNET SELF（自動）</value></data>
   <data name="FieldPublicPort" xml:space="preserve"><value>公開ポート</value></data>
   <data name="FieldBackendPort" xml:space="preserve"><value>バックエンドポート</value></data>
   <data name="FieldCodexPort" xml:space="preserve"><value>Codex ポート</value></data>

@@ -12,7 +12,7 @@ namespace EverVigil.Services;
 
 internal static class PrivilegedBrokerClient
 {
-    internal const string BrokerVersion = "2.0.0";
+    internal const string BrokerVersion = "2.1.0";
     private static readonly TimeSpan PipeTimeout = TimeSpan.FromSeconds(90);
     private const FileSystemRights DangerousRights =
         FileSystemRights.WriteData |

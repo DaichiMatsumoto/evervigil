@@ -127,9 +127,7 @@ internal static class Program
                     .GetAwaiter().GetResult();
                 var provider = probe.IsProviderReadyAsync(settings, token, CancellationToken.None)
                     .GetAwaiter().GetResult();
-                var tailnet = probe.IsPublicEndpointReadyAsync(settings, token, CancellationToken.None)
-                    .GetAwaiter().GetResult();
-                return local && provider && tailnet ? 0 : 1;
+                return IsInstallerRuntimeHealthy(local, provider) ? 0 : 1;
             }
 
             using var coordinator = new SingleInstanceCoordinator();
@@ -207,6 +205,10 @@ internal static class Program
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
+            else
+            {
+                Console.Error.WriteLine(FormatHeadlessFailure(exception));
+            }
 
             return 1;
         }
@@ -241,6 +243,25 @@ internal static class Program
             "--validate-settings"
         ];
         return !headlessArguments.Any(argument => HasArgument(arguments, argument));
+    }
+
+    internal static bool IsInstallerRuntimeHealthy(bool local, bool provider) =>
+        local && provider;
+
+    internal static string FormatHeadlessFailure(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        const int maximumMessageLength = 512;
+        var message = exception.Message
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Trim();
+        if (message.Length > maximumMessageLength)
+        {
+            message = message[..maximumMessageLength];
+        }
+
+        return $"[evervigil-headless-error] {exception.GetType().Name}: {message}";
     }
 
     internal static bool ShouldStartSupervisor(

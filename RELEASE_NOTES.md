@@ -1,4 +1,4 @@
-# EverVigil v2.0.0
+# EverVigil v2.1.0
 
 Release status: private release candidate pending verification and approval.
 
@@ -32,7 +32,7 @@ This is an independent community project. It is not an official Even Realities p
 - The user installs `@evenrealities/even-terminal` separately. EverVigil does
   not bundle, fork, patch, or redistribute that package.
 - Installation and update are manual: download
-  `EverVigil-2.0.0-Setup.exe` from the approved GitHub Release, verify the
+  `EverVigil-2.1.0-Setup.exe` from the approved GitHub Release, verify the
   published SHA-256, and run the installer. There is no automatic updater.
 - The installer is unsigned and may trigger Microsoft Defender SmartScreen.
 - Tailscale Serve is Tailnet-only, depends on Tailnet ACLs, and does not use
@@ -74,7 +74,7 @@ This is an independent community project. It is not an official Even Realities p
 - `@evenrealities/even-terminal`はユーザーが別途導入します。EverVigilは
   このpackageをbundle、fork、patch、再配布しません。
 - 導入・更新は手動です。承認済みGitHub Releaseから
-  `EverVigil-2.0.0-Setup.exe`を取得し、公開SHA-256を照合してから実行します。
+  `EverVigil-2.1.0-Setup.exe`を取得し、公開SHA-256を照合してから実行します。
   自動更新機能はありません。
 - installerは未署名で、Microsoft Defender SmartScreenが警告する場合があります。
 - Tailscale ServeはTailnet内だけで利用し、Tailnet ACLに依存します。
@@ -88,7 +88,7 @@ This is an independent community project. It is not an official Even Realities p
 
 ## SHA-256
 
-`EverVigil-2.0.0-Setup.exe`
+`EverVigil-2.1.0-Setup.exe`
 
 ```text
 {{EVERVIGIL_INSTALLER_SHA256}}

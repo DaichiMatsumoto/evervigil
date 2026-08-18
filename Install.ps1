@@ -623,6 +623,17 @@ function Invoke-SystemBrokerMaintenance {
         if ([string]$brokerResponse.disposition -cne 'Completed' -or -not $pending) {
             throw 'The protected broker returned without durable Apply completion.'
         }
+        # Mirror the same durable local completion evidence as
+        # PendingSystemConfigurationStore.MarkProtectedBrokerCompleted. The
+        # application deliberately rejects a completed phase without these
+        # fail-closed invariants.
+        $pending.observedTargetRouteOwnership = if (
+            [bool]$pending.existingTargetMappingOwned) { 'Owned' } else { 'Unused' }
+        $pending.observedPreviousRouteOwnership = if (
+            [bool]$pending.previousMappingOwned) { 'Owned' } else { 'Unused' }
+        $pending.firewallSnapshotCaptured = $true
+        $pending.targetRouteMutationAuthorized = $true
+        $pending.firewallMutationAuthorized = $true
         $pending.phase = 'MutationsCompleted'
         Write-InstallPendingSystemJournalState -State $pending
     } elseif ($Mode -eq 'Commit') {
@@ -903,7 +914,8 @@ function Commit-InstallerSystemConfigurationLocally {
     }
     $pending = Read-InstallerPendingSystemJournal
     if ($null -eq $pending -or
-        [string]$pending.transactionId -cne [string]$State.transactionId -or
+        ([guid][string]$pending.transactionId).ToString('N') -cne
+            ([guid][string]$State.transactionId).ToString('N') -or
         [string]$pending.ownerSid -cne [string]$State.ownerSid -or
         [string]$pending.initiator -cne 'Installer' -or
         [string]$pending.phase -cne 'MutationsCompleted') {
@@ -1168,7 +1180,7 @@ function New-InstallPendingSystemJournal {
     }
     $state = [ordered]@{
         schemaVersion = 1
-        transactionId = ([guid]$TransactionId).ToString()
+        transactionId = ([guid]$TransactionId).ToString('D')
         ownerSid = $ownerSid
         dataRoot = [IO.Path]::GetFullPath($DataRoot)
         initiator = 'Installer'
@@ -2085,14 +2097,9 @@ try {
         }
     }
     if (-not $rollbackError -and
-        $migrationApplied -and
-        -not $pendingSystemJournalExists -and
-        $systemJournalTemporaries.Count -eq 0) {
-        $rollbackError = [InvalidOperationException]::new(
-            'System rollback requires the durable pending system journal; migrationApplied is not ownership evidence.')
-    }
-    if (-not $rollbackError -and
-        ($pendingSystemJournalExists -or $systemJournalTemporaries.Count -gt 0)) {
+        ($migrationApplied -or
+            $pendingSystemJournalExists -or
+            $systemJournalTemporaries.Count -gt 0)) {
         try {
             Invoke-SystemBrokerMaintenance `
                 -Mode Rollback `

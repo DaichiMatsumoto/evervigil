@@ -39,7 +39,9 @@ function New-TestShortcut {
         $shortcut.TargetPath = $TargetPath
         $shortcut.Arguments = $Arguments
         $shortcut.WorkingDirectory = $WorkingDirectory
-        $shortcut.IconLocation = $IconLocation
+        if (-not [string]::IsNullOrEmpty($IconLocation)) {
+            $shortcut.IconLocation = $IconLocation
+        }
         $shortcut.Save()
     } finally {
         if ($null -ne $shortcut -and
@@ -199,18 +201,18 @@ try {
         -TargetPath $targetExecutable `
         -Arguments '' `
         -WorkingDirectory $installRoot `
-        -IconLocation "$targetExecutable,0"
+        -IconLocation ''
     New-TestShortcut `
         -Path $uninstallShortcut `
         -TargetPath $uninstaller `
         -Arguments '' `
         -WorkingDirectory $supportRoot `
-        -IconLocation "$uninstaller,0"
+        -IconLocation ''
     New-TestShortcut `
         -Path $startupShortcut `
         -TargetPath $targetExecutable `
         -Arguments '--background' `
-        -WorkingDirectory $installRoot `
+        -WorkingDirectory ($installRoot + [IO.Path]::DirectorySeparatorChar) `
         -IconLocation "$targetExecutable,0"
 
     $legacyRegistryRecords = @(
@@ -237,7 +239,7 @@ try {
         legacyCleanupAuthorized = $false
         legacyCredentialFound = $false
         legacyTokenPath = ''
-        targetVersion = '2.0.0'
+        targetVersion = '2.1.0'
         existingInstallPresent = $true
         startupWasRegistered = $true
         migrationApplied = $false
@@ -282,7 +284,7 @@ try {
         }
     }
     Set-TestRegistryRecords -Record @(
-        (Get-TestCurrentInnoRegistryRecords -Version '2.0.0' |
+        (Get-TestCurrentInnoRegistryRecords -Version '2.1.0' |
             Select-Object -First 4))
 
     $unexpectedSupport = Join-Path $supportRoot 'unexpected-inno.tmp'
@@ -410,7 +412,7 @@ try {
         -RecoveryRoot $recoveryRoot `
         -TransactionId $transactionId
 
-    $currentRecords = @(Get-TestCurrentInnoRegistryRecords -Version '2.0.0')
+    $currentRecords = @(Get-TestCurrentInnoRegistryRecords -Version '2.1.0')
     for ($recordCount = 0; $recordCount -le $currentRecords.Count; $recordCount++) {
         Set-TestRegistryRecords -Record @($currentRecords | Select-Object -First $recordCount)
         Restore-EverVigilUninstallRegistrySnapshot `
@@ -444,7 +446,7 @@ try {
             throw "A mismatched DisplayVersion was accepted for $($versionCase.Version)."
         }
     }
-    $state.targetVersion = '2.0.0'
+    $state.targetVersion = '2.1.0'
     Set-TestRegistryRecords -Record $currentRecords
     $alreadyCurrentSnapshot = Get-EverVigilUninstallRegistryState
     Assert-EverVigilPartialInnoRegistryOwned `

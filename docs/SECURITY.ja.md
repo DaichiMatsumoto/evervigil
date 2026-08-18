@@ -2,7 +2,7 @@
 
 [English](SECURITY.en.md) | [報告ポリシー](../SECURITY.md) | [技術概要](TECHNICAL_OVERVIEW.ja.md)
 
-対象release: EverVigil v2.0.0。Repository:
+対象release: EverVigil v2.1.0。Repository:
 <https://github.com/DaichiMatsumoto/evervigil>。
 
 ## Bridge token
@@ -100,7 +100,7 @@ network到達制御はbridge-token認証の代替ではなく、same-host softwa
 
 - 自動更新機能はありません。GitHub Releaseを手動取得し、SHA-256を検証して実行します。
 - コミュニティbinaryは未署名でMicrosoft Defender SmartScreenが警告する場合があります。
-- 未署名v2.0.0 brokerの初回bootstrapはpublisher認証済みtrust anchorではありません。将来の
+- 未署名v2.1.0 brokerの初回bootstrapはpublisher認証済みtrust anchorではありません。将来の
   broker置換には承認済みcode signingまたはOS-trusted installer設計が必要です。
 - SHA-256一致が示すのはfile identityであり、publisher identityや安全性ではありません。
 - installerとchecksumを同じReleaseから取得する場合、SHA-256だけではpublisher真正性を
