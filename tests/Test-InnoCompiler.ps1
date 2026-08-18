@@ -9,6 +9,44 @@ $resolverPath = Join-Path $repositoryRoot 'scripts\Resolve-InnoCompiler.ps1'
 $resourceCompilerScript = Join-Path $repositoryRoot 'scripts\Compile-WindowsResource.ps1'
 $installerPath = Join-Path $repositoryRoot 'installer\EverVigil.iss'
 $installerContent = Get-Content -LiteralPath $installerPath -Raw
+$installWorkerMatch = [regex]::Match(
+    $installerContent,
+    '(?ms)^function InstallEverVigil: String;\s*(?<body>.*?)^end;')
+if (-not $installWorkerMatch.Success) {
+    throw 'The production installer worker function could not be inspected.'
+}
+$installWorkerBody = $installWorkerMatch.Groups['body'].Value
+$firstWorkerRunIndex = $installWorkerBody.IndexOf(
+    'if not ExecuteInstallWorker(',
+    [StringComparison]::Ordinal)
+$runtimeFailureIndex = $installWorkerBody.IndexOf(
+    'if IsPowerShellInternalRuntimeFailure(ResultCode) then',
+    [StringComparison]::Ordinal)
+$runtimeRecoveryIndex = $installWorkerBody.IndexOf(
+    "if not RunInstallTransaction('Recover', Detail) then",
+    $runtimeFailureIndex,
+    [StringComparison]::Ordinal)
+$runtimeResidueIndex = $installWorkerBody.IndexOf(
+    'if HasUnresolvedInstallTransaction then',
+    $runtimeRecoveryIndex,
+    [StringComparison]::Ordinal)
+$secondWorkerRunIndex = $installWorkerBody.IndexOf(
+    'if not ExecuteInstallWorker(',
+    $runtimeResidueIndex,
+    [StringComparison]::Ordinal)
+if (-not $installerContent.Contains(
+        'Result := ResultCode = -2146233082;',
+        [StringComparison]::Ordinal) -or
+    $firstWorkerRunIndex -lt 0 -or
+    $runtimeFailureIndex -le $firstWorkerRunIndex -or
+    $runtimeRecoveryIndex -le $runtimeFailureIndex -or
+    $runtimeResidueIndex -le $runtimeRecoveryIndex -or
+    $secondWorkerRunIndex -le $runtimeResidueIndex -or
+    ([regex]::Matches(
+        $installWorkerBody,
+        'if not ExecuteInstallWorker\(')).Count -ne 2) {
+    throw 'PowerShell 0x80131506 recovery must remain exact, transaction-gated, and limited to one retry.'
+}
 $expectedUninstallSupportSources = @(
     'Source: "{#PackageRoot}\Uninstall.ps1"; DestDir: "{#MySupportRoot}\Support"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Complete-InstallTransaction.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'

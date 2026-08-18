@@ -1792,6 +1792,11 @@ foreach ($installerGuard in @(
         "'{#RequiredLegalNotice}'"
         'Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"'
         'function InstallEverVigil: String;'
+        'function ExecuteInstallWorker('
+        'function IsPowerShellInternalRuntimeFailure('
+        'Result := ResultCode = -2146233082;'
+        'Recovering the authenticated transaction before one retry.'
+        'if HasUnresolvedInstallTransaction then'
         'function RunInstallTransaction'
         'procedure CurStepChanged(CurStep: TSetupStep);'
         'procedure DeinitializeSetup;'

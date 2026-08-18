@@ -316,6 +316,44 @@ begin
   Result := Executed and (ResultCode = 0);
 end;
 
+function ExecuteInstallWorker(
+  const InstallScript: String;
+  const Parameters: String;
+  var ResultCode: Integer;
+  var Output: TExecOutput;
+  var Detail: String): Boolean;
+begin
+  Detail := '';
+  try
+    Result := ExecAndCaptureOutput(
+      PowerShellPath,
+      Parameters,
+      ExtractFileDir(InstallScript),
+      SW_SHOWNORMAL,
+      ewWaitUntilTerminated,
+      ResultCode,
+      Output);
+  except
+    Detail := GetExceptionMessage;
+    Result := False;
+    Exit;
+  end;
+  LogCapturedOutput(Output);
+  Log(Format('EverVigil install worker exit code: %d', [ResultCode]));
+end;
+
+function IsPowerShellInternalRuntimeFailure(const ResultCode: Integer): Boolean;
+begin
+  { 0x80131506 / System.ExecutionEngineException, represented as signed Int32. }
+  Result := ResultCode = -2146233082;
+end;
+
+function HasUnresolvedInstallTransaction: Boolean;
+begin
+  Result := FileExists(InstallTransactionPath) or
+    HasInstallTransactionTemporary(ActiveDataRoot);
+end;
+
 function InitializeSetup: Boolean;
 var
   AuditRoot: String;
@@ -382,7 +420,6 @@ end;
 
 function InstallEverVigil: String;
 var
-  Executed: Boolean;
   InstallScript: String;
   Parameters: String;
   PreviousInstallRoot: String;
@@ -409,8 +446,7 @@ begin
       SetupLogDescription;
     Exit;
   end;
-  if FileExists(InstallTransactionPath) or
-    HasInstallTransactionTemporary(ActiveDataRoot) then
+  if HasUnresolvedInstallTransaction then
   begin
     Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
       'Pending transaction recovery requires manual attention.' + #13#10 + #13#10 +
@@ -425,22 +461,51 @@ begin
   PreviousInstallRoot := PreviousInstallDirectory;
   if PreviousInstallRoot <> '' then
     Parameters := Parameters + ' -PreviousInstallRoot ' + QuoteArgument(PreviousInstallRoot);
-  try
-    Executed := ExecAndCaptureOutput(
-      PowerShellPath,
-      Parameters,
-      ExtractFileDir(InstallScript),
-      SW_SHOWNORMAL,
-      ewWaitUntilTerminated,
-      ResultCode,
-      Output);
-  except
+  if not ExecuteInstallWorker(
+    InstallScript,
+    Parameters,
+    ResultCode,
+    Output,
+    Detail) then
+  begin
     Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
-      GetExceptionMessage + #13#10 + #13#10 + SetupLogDescription;
+      Detail + #13#10 + #13#10 + SetupLogDescription;
     Exit;
   end;
-  LogCapturedOutput(Output);
-  if (not Executed) or (ResultCode <> 0) or
+
+  if IsPowerShellInternalRuntimeFailure(ResultCode) then
+  begin
+    Log(
+      'PowerShell terminated with 0x80131506 before the install worker ' +
+      'completed. Recovering the authenticated transaction before one retry.');
+    if not RunInstallTransaction('Recover', Detail) then
+    begin
+      Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
+        'Recovery after the PowerShell runtime failure failed: ' + Detail +
+        #13#10 + #13#10 + SetupLogDescription;
+      Exit;
+    end;
+    if HasUnresolvedInstallTransaction then
+    begin
+      Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
+        'Recovery after the PowerShell runtime failure requires manual attention.' +
+        #13#10 + #13#10 + SetupLogDescription;
+      Exit;
+    end;
+    if not ExecuteInstallWorker(
+      InstallScript,
+      Parameters,
+      ResultCode,
+      Output,
+      Detail) then
+    begin
+      Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
+        Detail + #13#10 + #13#10 + SetupLogDescription;
+      Exit;
+    end;
+  end;
+
+  if (ResultCode <> 0) or
     (not FileExists(ExpandConstant('{app}\EverVigil.exe'))) or
     (not FileExists(InstallTransactionPath)) then
   begin
