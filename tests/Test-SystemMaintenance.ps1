@@ -430,6 +430,76 @@ try {
     }
 }
 
+# A response-loss retry can resume after all retirement files were removed but
+# before the empty version directory was deleted. That directory remains a
+# known child until the child-to-parent directory deletion loop reaches it.
+$originalRetirementPathsFunction = (Get-Command `
+        Get-EverVigilProtectedBrokerRetirementPaths `
+        -CommandType Function).ScriptBlock
+$originalRetirementAclFunction = (Get-Command `
+        Test-EverVigilProtectedBrokerRetirementAcl `
+        -CommandType Function).ScriptBlock
+$retirementResumeProductRoot = Join-Path `
+    $repositoryRoot `
+    "artifacts\retirement-resume-$PID-$([guid]::NewGuid().ToString('N'))"
+$retirementResumeBrokerRoot = Join-Path $retirementResumeProductRoot 'Broker'
+$retirementResumeStateRoot = Join-Path $retirementResumeBrokerRoot 'State'
+$retirementResumeVersionRoot = Join-Path $retirementResumeBrokerRoot '2.0.0'
+$retirementResumeCanonicalPath = Join-Path `
+    $retirementResumeVersionRoot `
+    'EverVigil.Broker.exe'
+$retirementResumeInstallationReceiptPath = Join-Path `
+    $retirementResumeVersionRoot `
+    'installation.json'
+$retirementResumeReceiptPath = Join-Path `
+    $retirementResumeVersionRoot `
+    'retirement.json'
+$retirementResumeDirectories = @(
+    $retirementResumeProductRoot
+    $retirementResumeBrokerRoot
+    $retirementResumeStateRoot
+    $retirementResumeVersionRoot
+)
+try {
+    New-Item -ItemType Directory -Path $retirementResumeStateRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $retirementResumeVersionRoot -Force | Out-Null
+    function Get-EverVigilProtectedBrokerRetirementPaths {
+        [pscustomobject]@{
+            ProductRoot = $retirementResumeProductRoot
+            BrokerRoot = $retirementResumeBrokerRoot
+            StateRoot = $retirementResumeStateRoot
+            VersionRoot = $retirementResumeVersionRoot
+            CanonicalPath = $retirementResumeCanonicalPath
+            InstallationReceiptPath = $retirementResumeInstallationReceiptPath
+            RetirementReceiptPath = $retirementResumeReceiptPath
+        }
+    }
+    function Test-EverVigilProtectedBrokerRetirementAcl {
+        param([string]$Path, [string]$OwnerSid, [switch]$Directory)
+        return $Directory -and $Path -cin $retirementResumeDirectories
+    }
+    Complete-EverVigilProtectedBrokerRetirementFromReceipt `
+        -ExpectedOwnerSid ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value) `
+        -ExpectedTransactionId ([guid]::NewGuid())
+    if (Test-Path -LiteralPath $retirementResumeProductRoot) {
+        throw 'Protected broker retirement did not remove its empty version tree.'
+    }
+} finally {
+    Set-Item `
+        -LiteralPath Function:\Get-EverVigilProtectedBrokerRetirementPaths `
+        -Value $originalRetirementPathsFunction
+    Set-Item `
+        -LiteralPath Function:\Test-EverVigilProtectedBrokerRetirementAcl `
+        -Value $originalRetirementAclFunction
+    if (Test-Path -LiteralPath $retirementResumeProductRoot) {
+        Remove-Item `
+            -LiteralPath $retirementResumeProductRoot `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+    }
+}
+
 $transactionId = [guid]::NewGuid()
 $validResponse = [pscustomobject]@{
     schemaVersion = [int64]1

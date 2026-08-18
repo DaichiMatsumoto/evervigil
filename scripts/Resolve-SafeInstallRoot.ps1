@@ -2194,7 +2194,11 @@ function Complete-EverVigilProtectedBrokerRetirementFromReceipt {
 
     Assert-RetirementDirectory -Path $paths.StateRoot -AllowedName @()
     Assert-RetirementDirectory -Path $paths.VersionRoot -AllowedName @()
-    Assert-RetirementDirectory -Path $paths.BrokerRoot -AllowedName @('State')
+    # The empty version directory is deleted in the child-to-parent loop below.
+    # It remains a known entry until that deletion has completed.
+    Assert-RetirementDirectory `
+        -Path $paths.BrokerRoot `
+        -AllowedName @('State', '2.0.0')
     Assert-RetirementDirectory -Path $paths.ProductRoot -AllowedName @('Broker')
     foreach ($retirementDirectory in @(
             $paths.StateRoot,
