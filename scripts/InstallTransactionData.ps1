@@ -673,6 +673,20 @@ function Assert-EverVigilFixedExternalTree {
             -Recurse `
             -Force `
             -ErrorAction Stop)
+
+    $trustedArtifactOwners = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase)
+    if (Get-Command Get-EverVigilOwnerSid -ErrorAction SilentlyContinue) {
+        [void]$trustedArtifactOwners.Add([string](Get-EverVigilOwnerSid))
+    }
+    foreach ($wellKnownSid in @(
+            [Security.Principal.WellKnownSidType]::LocalSystemSid
+            [Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid
+        )) {
+        [void]$trustedArtifactOwners.Add(
+            ([Security.Principal.SecurityIdentifier]::new($wellKnownSid, $null)).Value)
+    }
+
     foreach ($entry in $entries) {
         if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             throw "The external artifact tree contains a reparse point: $($entry.FullName)"
@@ -693,14 +707,10 @@ function Assert-EverVigilFixedExternalTree {
                 throw "The external artifact file size is outside the allowed range: $relative"
             }
             if (Get-Command Get-EverVigilOwnerSid -ErrorAction SilentlyContinue) {
-                $expectedOwner = Get-EverVigilOwnerSid
                 $actualOwner = [IO.FileSystemAclExtensions]::GetAccessControl(
                     [IO.FileInfo]::new($entry.FullName)).GetOwner(
-                    [Security.Principal.SecurityIdentifier]).Value
-                if (-not [string]::Equals(
-                        $actualOwner,
-                        $expectedOwner,
-                        [StringComparison]::OrdinalIgnoreCase)) {
+                        [Security.Principal.SecurityIdentifier]).Value
+                if (-not $trustedArtifactOwners.Contains($actualOwner)) {
                     throw "The external artifact file has an unexpected owner: $relative"
                 }
             }
@@ -730,14 +740,20 @@ function Assert-EverVigilInstallerManagedArtifactTarget {
         throw "The installer-managed external artifact is not a bounded regular file: $Path"
     }
     if (Get-Command Get-EverVigilOwnerSid -ErrorAction SilentlyContinue) {
-        $expectedOwner = Get-EverVigilOwnerSid
+        $trustedArtifactOwners = [Collections.Generic.HashSet[string]]::new(
+            [StringComparer]::OrdinalIgnoreCase)
+        [void]$trustedArtifactOwners.Add([string](Get-EverVigilOwnerSid))
+        foreach ($wellKnownSid in @(
+                [Security.Principal.WellKnownSidType]::LocalSystemSid
+                [Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid
+            )) {
+            [void]$trustedArtifactOwners.Add(
+                ([Security.Principal.SecurityIdentifier]::new($wellKnownSid, $null)).Value)
+        }
         $actualOwner = [IO.FileSystemAclExtensions]::GetAccessControl(
             [IO.FileInfo]::new($item.FullName)).GetOwner(
-            [Security.Principal.SecurityIdentifier]).Value
-        if (-not [string]::Equals(
-                $actualOwner,
-                $expectedOwner,
-                [StringComparison]::OrdinalIgnoreCase)) {
+                [Security.Principal.SecurityIdentifier]).Value
+        if (-not $trustedArtifactOwners.Contains($actualOwner)) {
             throw "The installer-managed external artifact has an unexpected owner: $Path"
         }
     }

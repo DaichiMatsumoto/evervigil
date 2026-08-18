@@ -173,8 +173,8 @@
     },
     {
       "path": "scripts/InstallTransactionData.ps1",
-      "length": 86881,
-      "sha256": "b7b7b703e466bb9f51791b58aa471e82adb2b05363350998a18e9f37e726b638"
+      "length": 87736,
+      "sha256": "b116a69f7752f58880e1c76b47637be99b87e2cdcc36add54a362cb98272f24a"
     },
     {
       "path": "scripts/Invoke-InteractiveUserTask.ps1",
