@@ -123,7 +123,8 @@ internal sealed class AuthenticatedClientProcess : IDisposable
 
     internal static void RequireBrokerHighIntegrity()
     {
-        using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+        using var identity = WindowsIdentity.GetCurrent(
+            TokenAccessLevels.Query | TokenAccessLevels.Duplicate);
         if (identity.User is null ||
             !new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
         {

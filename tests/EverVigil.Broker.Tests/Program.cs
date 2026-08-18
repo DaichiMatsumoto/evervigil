@@ -11,6 +11,7 @@ var tests = new (string Name, Action Run)[]
 {
     ("Fail-on-skip policy rejects skipped tests", FailOnSkipPolicyRejectsSkippedTests),
     ("Broker launch stages have distinct exit codes", BrokerLaunchStagesHaveDistinctExitCodes),
+    ("Broker integrity validation has sufficient token rights", BrokerIntegrityValidationHasSufficientTokenRights),
     ("Serve exact root is owned", ServeExactRootIsOwned),
     ("Serve root removal preserves unrelated handlers", ServeRootRemovalPreservesUnrelatedHandlers),
     ("Serve parser rejects wrong TCP schema", ServeRejectsWrongTcpSchema),
@@ -156,6 +157,24 @@ static void BrokerLaunchStagesHaveDistinctExitCodes()
         "The native pre-Main probe compatibility exit code changed unexpectedly.");
     Assert(BrokerExitCodes.ProtectedInstallationFailure == 4,
         "The protected installation failure exit code changed unexpectedly.");
+}
+
+static void BrokerIntegrityValidationHasSufficientTokenRights()
+{
+    try
+    {
+        AuthenticatedClientProcess.RequireBrokerHighIntegrity();
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return;
+    }
+    catch (Exception exception)
+    {
+        throw new InvalidOperationException(
+            "Broker integrity validation failed before producing its security decision.",
+            exception);
+    }
 }
 
 static void ServeExactRootIsOwned()
