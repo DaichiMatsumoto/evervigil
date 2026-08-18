@@ -769,14 +769,20 @@ function Assert-VerifiedTree {
                 throw "Refusing to remove a non-regular recovery directory: $Path"
             }
             $expectedTransactionId = ([guid][string]$State.transactionId).ToString('N')
-            $expectedOwnerSid = Get-EverVigilOwnerSid
+            $trustedRecoveryOwners = [Collections.Generic.HashSet[string]]::new(
+                [StringComparer]::OrdinalIgnoreCase)
+            [void]$trustedRecoveryOwners.Add([string](Get-EverVigilOwnerSid))
+            foreach ($wellKnownSid in @(
+                    [Security.Principal.WellKnownSidType]::LocalSystemSid
+                    [Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid
+                )) {
+                [void]$trustedRecoveryOwners.Add(
+                    ([Security.Principal.SecurityIdentifier]::new($wellKnownSid, $null)).Value)
+            }
             $actualRootOwnerSid = [IO.FileSystemAclExtensions]::GetAccessControl(
                 [IO.DirectoryInfo]::new($rootItem.FullName)).GetOwner(
-                [Security.Principal.SecurityIdentifier]).Value
-            if (-not [string]::Equals(
-                    $actualRootOwnerSid,
-                    $expectedOwnerSid,
-                    [StringComparison]::OrdinalIgnoreCase)) {
+                    [Security.Principal.SecurityIdentifier]).Value
+            if (-not $trustedRecoveryOwners.Contains($actualRootOwnerSid)) {
                 throw "Refusing to remove a recovery directory with an unexpected owner: $Path"
             }
             $entries = @(Get-ChildItem -LiteralPath $resolved -Force -ErrorAction Stop)
@@ -797,10 +803,7 @@ function Assert-VerifiedTree {
                 $actualOwnerSid = [IO.FileSystemAclExtensions]::GetAccessControl(
                     [IO.FileInfo]::new($entry.FullName)).GetOwner(
                     [Security.Principal.SecurityIdentifier]).Value
-                if (-not [string]::Equals(
-                        $actualOwnerSid,
-                        $expectedOwnerSid,
-                        [StringComparison]::OrdinalIgnoreCase)) {
+                if (-not $trustedRecoveryOwners.Contains($actualOwnerSid)) {
                     throw "Refusing to remove a recovery file with an unexpected owner: $($entry.FullName)"
                 }
             }
