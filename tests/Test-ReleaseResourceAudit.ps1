@@ -239,6 +239,17 @@ $installerContent = Get-Content -LiteralPath $installerScriptPath -Raw
 $buildContent = Get-Content -LiteralPath $buildScriptPath -Raw
 $auditContent = Get-Content -LiteralPath $auditScriptPath -Raw
 $moduleContent = Get-Content -LiteralPath $modulePath -Raw
+if (-not $auditContent.Contains(
+        ') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }',
+        [StringComparison]::Ordinal) -or
+    $auditContent.IndexOf(
+        ') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }',
+        [StringComparison]::Ordinal) -gt
+    $auditContent.IndexOf(
+        'Get-FileSurfaceFingerprintLines -Path $protectedPaths',
+        [StringComparison]::Ordinal)) {
+    throw 'The release resource audit must remove an absent install location before binding its protected path array.'
+}
 foreach ($requiredInstallerGuard in @(
         '#ifdef ResourceAuditBuild',
         'AppId={{{#ResourceAuditAppId}}',

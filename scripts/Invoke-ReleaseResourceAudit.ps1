@@ -130,7 +130,7 @@ function Get-ProtectedHostSnapshot {
         (Join-Path $programsRoot $script:LegacyCompatibilityApplicationProductName),
         (Join-Path $startupRoot 'EverVigil.lnk'),
         (Join-Path $startupRoot $script:LegacyCompatibilityApplicationStartupShortcutFileName)
-    )
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $lines = @(
         Get-RegistryFingerprintLines -Path @($uninstallRegistry, $runRegistry)
         Get-FileSurfaceFingerprintLines -Path $protectedPaths

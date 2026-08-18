@@ -1668,6 +1668,15 @@ foreach ($guidedInstallerGuard in @(
         $failures.Add("Guided installer release guard is missing: $guidedInstallerGuard")
     }
 }
+$releaseResourceAuditContent = Get-Content `
+    -LiteralPath (Join-Path $RepositoryRoot 'scripts\Invoke-ReleaseResourceAudit.ps1') `
+    -Raw
+if (-not $releaseResourceAuditContent.Contains(
+        ') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'The resource audit must exclude an absent current install location before binding protected paths.')
+}
 $releaseCleanupCallCount = ([regex]::Matches(
         $buildReleaseContent,
         '(?m)^\s*Remove-ReleaseWorkingTreesWithRetry\s*`?\s*$')).Count
