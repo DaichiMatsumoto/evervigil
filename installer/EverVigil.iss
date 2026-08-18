@@ -481,15 +481,15 @@ begin
     if not RunInstallTransaction('Recover', Detail) then
     begin
       Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
-        'Recovery after the PowerShell runtime failure failed: ' + Detail +
-        #13#10 + #13#10 + SetupLogDescription;
+        'Recovery after the PowerShell runtime failure failed: ' + Detail + #13#10 + #13#10 +
+        SetupLogDescription;
       Exit;
     end;
     if HasUnresolvedInstallTransaction then
     begin
       Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
-        'Recovery after the PowerShell runtime failure requires manual attention.' +
-        #13#10 + #13#10 + SetupLogDescription;
+        'Recovery after the PowerShell runtime failure requires manual attention.' + #13#10 + #13#10 +
+        SetupLogDescription;
       Exit;
     end;
     if not ExecuteInstallWorker(
@@ -501,6 +501,31 @@ begin
     begin
       Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
         Detail + #13#10 + #13#10 + SetupLogDescription;
+      Exit;
+    end;
+    if IsPowerShellInternalRuntimeFailure(ResultCode) then
+    begin
+      Log(
+        'PowerShell terminated with 0x80131506 again. No further retry will be attempted; ' +
+        'recovering the authenticated transaction before setup exits.');
+      if not RunInstallTransaction('Recover', Detail) then
+      begin
+        Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
+          'Recovery after the repeated PowerShell runtime failure failed: ' + Detail + #13#10 + #13#10 +
+          SetupLogDescription;
+        Exit;
+      end;
+      if HasUnresolvedInstallTransaction then
+      begin
+        Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
+          'Recovery after the repeated PowerShell runtime failure requires manual attention.' + #13#10 + #13#10 +
+          SetupLogDescription;
+        Exit;
+      end;
+      Result := CustomMessage('InstallFailed') + #13#10 + #13#10 +
+        'PowerShell encountered the same internal runtime failure again. ' +
+        'The installation transaction was recovered safely and was not retried again.' + #13#10 + #13#10 +
+        SetupLogDescription;
       Exit;
     end;
   end;

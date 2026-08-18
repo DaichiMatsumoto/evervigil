@@ -1796,6 +1796,7 @@ foreach ($installerGuard in @(
         'function IsPowerShellInternalRuntimeFailure('
         'Result := ResultCode = -2146233082;'
         'Recovering the authenticated transaction before one retry.'
+        'No further retry will be attempted;'
         'if HasUnresolvedInstallTransaction then'
         'function RunInstallTransaction'
         'procedure CurStepChanged(CurStep: TSetupStep);'

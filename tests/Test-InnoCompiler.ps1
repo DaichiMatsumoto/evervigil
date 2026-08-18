@@ -34,6 +34,22 @@ $secondWorkerRunIndex = $installWorkerBody.IndexOf(
     'if not ExecuteInstallWorker(',
     $runtimeResidueIndex,
     [StringComparison]::Ordinal)
+$secondRuntimeFailureIndex = $installWorkerBody.IndexOf(
+    'if IsPowerShellInternalRuntimeFailure(ResultCode) then',
+    $secondWorkerRunIndex,
+    [StringComparison]::Ordinal)
+$secondRuntimeRecoveryIndex = $installWorkerBody.IndexOf(
+    "if not RunInstallTransaction('Recover', Detail) then",
+    $secondRuntimeFailureIndex,
+    [StringComparison]::Ordinal)
+$secondRuntimeResidueIndex = $installWorkerBody.IndexOf(
+    'if HasUnresolvedInstallTransaction then',
+    $secondRuntimeRecoveryIndex,
+    [StringComparison]::Ordinal)
+$finalWorkerResultIndex = $installWorkerBody.IndexOf(
+    'if (ResultCode <> 0) or',
+    $secondRuntimeResidueIndex,
+    [StringComparison]::Ordinal)
 if (-not $installerContent.Contains(
         'Result := ResultCode = -2146233082;',
         [StringComparison]::Ordinal) -or
@@ -42,10 +58,20 @@ if (-not $installerContent.Contains(
     $runtimeRecoveryIndex -le $runtimeFailureIndex -or
     $runtimeResidueIndex -le $runtimeRecoveryIndex -or
     $secondWorkerRunIndex -le $runtimeResidueIndex -or
+    $secondRuntimeFailureIndex -le $secondWorkerRunIndex -or
+    $secondRuntimeRecoveryIndex -le $secondRuntimeFailureIndex -or
+    $secondRuntimeResidueIndex -le $secondRuntimeRecoveryIndex -or
+    $finalWorkerResultIndex -le $secondRuntimeResidueIndex -or
     ([regex]::Matches(
         $installWorkerBody,
-        'if not ExecuteInstallWorker\(')).Count -ne 2) {
-    throw 'PowerShell 0x80131506 recovery must remain exact, transaction-gated, and limited to one retry.'
+        'if not ExecuteInstallWorker\(')).Count -ne 2 -or
+    ([regex]::Matches(
+        $installWorkerBody,
+        'if IsPowerShellInternalRuntimeFailure\(ResultCode\) then')).Count -ne 2 -or
+    -not $installWorkerBody.Contains(
+        'No further retry will be attempted;',
+        [StringComparison]::Ordinal)) {
+    throw 'PowerShell 0x80131506 recovery must remain exact, transaction-gated, limited to one retry, and recover after a repeated runtime failure.'
 }
 $expectedUninstallSupportSources = @(
     'Source: "{#PackageRoot}\Uninstall.ps1"; DestDir: "{#MySupportRoot}\Support"; Flags: ignoreversion'
