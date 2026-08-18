@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.IO.Pipes;
 using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using EverVigil.Broker;
@@ -12,6 +14,7 @@ var tests = new (string Name, Action Run)[]
     ("Fail-on-skip policy rejects skipped tests", FailOnSkipPolicyRejectsSkippedTests),
     ("Broker launch stages have distinct exit codes", BrokerLaunchStagesHaveDistinctExitCodes),
     ("Broker integrity validation has sufficient token rights", BrokerIntegrityValidationHasSufficientTokenRights),
+    ("Authenticated pipe factory creates a duplex server", AuthenticatedPipeFactoryCreatesDuplexServer),
     ("Serve exact root is owned", ServeExactRootIsOwned),
     ("Serve root removal preserves unrelated handlers", ServeRootRemovalPreservesUnrelatedHandlers),
     ("Serve parser rejects wrong TCP schema", ServeRejectsWrongTcpSchema),
@@ -175,6 +178,28 @@ static void BrokerIntegrityValidationHasSufficientTokenRights()
             "Broker integrity validation failed before producing its security decision.",
             exception);
     }
+}
+
+static void AuthenticatedPipeFactoryCreatesDuplexServer()
+{
+    using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+    var currentUserSid = identity.User ??
+        throw new InvalidOperationException("The broker test user SID is unavailable.");
+    var security = new PipeSecurity();
+    security.SetOwner(currentUserSid);
+    security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+    security.AddAccessRule(new PipeAccessRule(
+        currentUserSid,
+        PipeAccessRights.FullControl,
+        AccessControlType.Allow));
+
+    using var pipe = AuthenticatedPipeServer.CreateServerPipe(
+        $"EverVigil.Broker.Tests.{Guid.NewGuid():N}",
+        security);
+    Assert(pipe.CanRead && pipe.CanWrite,
+        "The authenticated pipe factory did not create a duplex server handle.");
+    Assert(!pipe.SafePipeHandle.IsInvalid && !pipe.SafePipeHandle.IsClosed,
+        "The authenticated pipe factory returned an invalid server handle.");
 }
 
 static void ServeExactRootIsOwned()

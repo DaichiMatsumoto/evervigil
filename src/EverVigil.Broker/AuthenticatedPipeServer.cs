@@ -22,17 +22,7 @@ internal static class AuthenticatedPipeServer
         RequireAuthenticatedClientStillActive(client);
 
         var security = CreatePipeSecurity(client.UserSid);
-        await using var pipe = NamedPipeServerStreamAcl.Create(
-            launch.PipeName,
-            PipeDirection.InOut,
-            maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.WriteThrough,
-            inBufferSize: PrivilegedBrokerProtocol.MaximumFrameBytes + sizeof(int),
-            outBufferSize: PrivilegedBrokerProtocol.MaximumFrameBytes + sizeof(int),
-            security,
-            HandleInheritability.None,
-            PipeAccessRights.ReadWrite);
+        await using var pipe = CreateServerPipe(launch.PipeName, security);
 
         using (var connectionCancellation = new CancellationTokenSource(ConnectionTimeout))
         {
@@ -67,6 +57,26 @@ internal static class AuthenticatedPipeServer
             requestCancellation.Token).ConfigureAwait(false);
         pipe.WaitForPipeDrain();
         return response;
+    }
+
+    internal static NamedPipeServerStream CreateServerPipe(
+        string pipeName,
+        PipeSecurity security)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pipeName);
+        ArgumentNullException.ThrowIfNull(security);
+
+        return NamedPipeServerStreamAcl.Create(
+            pipeName,
+            PipeDirection.InOut,
+            maxNumberOfServerInstances: 1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous | PipeOptions.WriteThrough,
+            inBufferSize: PrivilegedBrokerProtocol.MaximumFrameBytes + sizeof(int),
+            outBufferSize: PrivilegedBrokerProtocol.MaximumFrameBytes + sizeof(int),
+            security,
+            inheritability: HandleInheritability.None,
+            additionalAccessRights: (PipeAccessRights)0);
     }
 
     private static void RequireAuthenticatedClientStillActive(
