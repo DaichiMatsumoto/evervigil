@@ -116,6 +116,58 @@ function Remove-EverVigilNewApplicationDataFiles {
     }
 }
 
+function Remove-EverVigilEmptyApplicationDataContainers {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DataRoot,
+        [Parameter(Mandatory)][bool]$DataRootExisted,
+        [Parameter(Mandatory)][bool]$TransactionsRootWasPresent
+    )
+
+    if (-not (Test-Path -LiteralPath $DataRoot)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $DataRoot -PathType Container)) {
+        throw "The EverVigil data root is not a directory: $DataRoot"
+    }
+    $dataRootItem = Get-Item -LiteralPath $DataRoot -Force -ErrorAction Stop
+    if (($dataRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "The EverVigil data root is a reparse point: $DataRoot"
+    }
+
+    $transactionsRoot = Join-Path `
+        $DataRoot `
+        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
+    if (-not $TransactionsRootWasPresent -and
+        (Test-Path -LiteralPath $transactionsRoot)) {
+        if (-not (Test-Path -LiteralPath $transactionsRoot -PathType Container)) {
+            throw "The EverVigil transaction recovery root is not a directory: $transactionsRoot"
+        }
+        $transactionsRootItem = Get-Item `
+            -LiteralPath $transactionsRoot `
+            -Force `
+            -ErrorAction Stop
+        if (($transactionsRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "The EverVigil transaction recovery root is a reparse point: $transactionsRoot"
+        }
+        if (@(Get-ChildItem -LiteralPath $transactionsRoot -Force -ErrorAction Stop).Count -eq 0) {
+            Remove-Item -LiteralPath $transactionsRoot -Force -ErrorAction Stop
+            if (Test-Path -LiteralPath $transactionsRoot) {
+                throw "The empty EverVigil transaction recovery root remained after rollback: $transactionsRoot"
+            }
+        }
+    }
+
+    if (-not $DataRootExisted -and
+        (Test-Path -LiteralPath $DataRoot -PathType Container) -and
+        @(Get-ChildItem -LiteralPath $DataRoot -Force -ErrorAction Stop).Count -eq 0) {
+        Remove-Item -LiteralPath $DataRoot -Force -ErrorAction Stop
+        if (Test-Path -LiteralPath $DataRoot) {
+            throw "The empty EverVigil data root remained after rollback: $DataRoot"
+        }
+    }
+}
+
 function Get-EverVigilInstallTransactionTemporaryFiles {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$DataRoot)

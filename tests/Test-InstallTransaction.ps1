@@ -192,6 +192,74 @@ try {
         throw 'Install transaction preflight did not distinguish its atomic temporary from unrelated data.'
     }
 
+    $immediateRollbackDataRoot = Join-Path `
+        $testLocalAppData `
+        'immediate-clean-rollback-data-root'
+    $immediateRollbackTransactionsRoot = Join-Path `
+        $immediateRollbackDataRoot `
+        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
+    New-Item `
+        -ItemType Directory `
+        -Path $immediateRollbackTransactionsRoot `
+        -Force | Out-Null
+    $immediateRollbackJournal = Join-Path `
+        $immediateRollbackDataRoot `
+        $script:LegacyCompatibilityDataTransactionJournalFileName
+    [IO.File]::WriteAllText(
+        $immediateRollbackJournal,
+        '{}',
+        [Text.UTF8Encoding]::new($false))
+    Remove-EverVigilEmptyApplicationDataContainers `
+        -DataRoot $immediateRollbackDataRoot `
+        -DataRootExisted $false `
+        -TransactionsRootWasPresent $false
+    if ((Test-Path -LiteralPath $immediateRollbackTransactionsRoot) -or
+        -not (Test-Path -LiteralPath $immediateRollbackDataRoot -PathType Container) -or
+        -not (Test-Path -LiteralPath $immediateRollbackJournal -PathType Leaf)) {
+        throw 'Immediate rollback removed its data root before retiring the transaction journal.'
+    }
+    Remove-Item `
+        -LiteralPath $immediateRollbackJournal `
+        -Force `
+        -ErrorAction Stop
+    Remove-EverVigilEmptyApplicationDataContainers `
+        -DataRoot $immediateRollbackDataRoot `
+        -DataRootExisted $false `
+        -TransactionsRootWasPresent $false
+    if (Test-Path -LiteralPath $immediateRollbackDataRoot) {
+        throw 'Immediate rollback left an empty clean-install data root after retiring its journal.'
+    }
+    $preexistingRollbackDataRoot = Join-Path `
+        $testLocalAppData `
+        'preexisting-immediate-rollback-data-root'
+    New-Item -ItemType Directory -Path $preexistingRollbackDataRoot | Out-Null
+    Remove-EverVigilEmptyApplicationDataContainers `
+        -DataRoot $preexistingRollbackDataRoot `
+        -DataRootExisted $true `
+        -TransactionsRootWasPresent $false
+    if (-not (Test-Path -LiteralPath $preexistingRollbackDataRoot -PathType Container)) {
+        throw 'Immediate rollback removed a data root that existed before installation.'
+    }
+    $unrelatedRollbackDataPath = Join-Path `
+        $preexistingRollbackDataRoot `
+        'unrelated.txt'
+    [IO.File]::WriteAllText(
+        $unrelatedRollbackDataPath,
+        'preserve',
+        [Text.UTF8Encoding]::new($false))
+    Remove-EverVigilEmptyApplicationDataContainers `
+        -DataRoot $preexistingRollbackDataRoot `
+        -DataRootExisted $false `
+        -TransactionsRootWasPresent $false
+    if (-not (Test-Path -LiteralPath $unrelatedRollbackDataPath -PathType Leaf)) {
+        throw 'Immediate rollback removed unrelated application data from a newly created root.'
+    }
+    Remove-Item `
+        -LiteralPath $preexistingRollbackDataRoot `
+        -Recurse `
+        -Force `
+        -ErrorAction Stop
+
     $transactionPath = Join-Path $testLocalAppData 'EverVigil\install-transaction.json'
     $typeGuardRoot = Join-Path $testRoot 'legacy-cleanup-type-guard'
     $typeGuardState = New-TransactionState `
@@ -776,6 +844,68 @@ try {
         throw 'Rolled-back cleanup repeated rollback mutations instead of retiring only its evidence.'
     }
     Remove-Item -LiteralPath $postRollbackMarkerPath -Force -ErrorAction Stop
+
+    $reparseRecoveryDataRoot = Join-Path $testLocalAppData 'EverVigil'
+    $reparseRecoveryTransactionsRoot = Join-Path `
+        $reparseRecoveryDataRoot `
+        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
+    $reparseRecoveryTarget = Join-Path `
+        $testRoot `
+        'reparse-recovery-target'
+    New-Item -ItemType Directory -Path $reparseRecoveryDataRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $reparseRecoveryTarget -Force | Out-Null
+    New-Item `
+        -ItemType Junction `
+        -Path $reparseRecoveryTransactionsRoot `
+        -Target $reparseRecoveryTarget | Out-Null
+    $reparseRecoveryRoot = Join-Path `
+        $reparseRecoveryTransactionsRoot `
+        $transactionId
+    $reparseRecoveryInstallRoot = Join-Path `
+        $testRoot `
+        'reparse-recovery-install'
+    $reparseRecoveryState = New-TransactionState `
+        -InstallRoot $reparseRecoveryInstallRoot `
+        -PreviousInstallRoot $reparseRecoveryInstallRoot `
+        -BackupRoot "$reparseRecoveryInstallRoot.backup-$transactionId" `
+        -PreviousBackupRoot "$reparseRecoveryInstallRoot.relocated-$transactionId" `
+        -RecoveryRoot $reparseRecoveryRoot `
+        -DestinationBackupPlanned $false `
+        -PreviousBackupPlanned $false `
+        -DestinationOwnedInstallPresent $false `
+        -InstallRootChanged $false `
+        -DataRootExisted $false `
+        -TransactionsRootWasPresent $false `
+        -Status rolledBack
+    $reparseRecoveryTransactionPath = Join-Path `
+        $reparseRecoveryDataRoot `
+        $script:LegacyCompatibilityDataTransactionJournalFileName
+    [IO.File]::WriteAllText(
+        $reparseRecoveryTransactionPath,
+        (($reparseRecoveryState | ConvertTo-Json -Depth 6) + "`n"),
+        [Text.UTF8Encoding]::new($false))
+    $reparseRecoveryRejected = $false
+    $reparseRecoveryError = ''
+    try {
+        & $transactionScript `
+            -Action Recover `
+            -TransactionPath $reparseRecoveryTransactionPath
+    } catch {
+        $reparseRecoveryRejected = $true
+        $reparseRecoveryError = $_.Exception.Message
+    }
+    if (-not $reparseRecoveryRejected -or
+        -not $reparseRecoveryError.Contains(
+            'transaction recovery root is a reparse point',
+            [StringComparison]::Ordinal) -or
+        -not (Test-Path -LiteralPath $reparseRecoveryTransactionPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $reparseRecoveryTransactionsRoot -PathType Container) -or
+        -not (Test-Path -LiteralPath $reparseRecoveryTarget -PathType Container)) {
+        throw "Rolled-back recovery removed a transaction junction or lost its retry authority. Error: $reparseRecoveryError"
+    }
+    Remove-Item -LiteralPath $reparseRecoveryTransactionsRoot -Force -ErrorAction Stop
+    Remove-Item -LiteralPath $reparseRecoveryDataRoot -Recurse -Force -ErrorAction Stop
+    Remove-Item -LiteralPath $reparseRecoveryTarget -Recurse -Force -ErrorAction Stop
 
     $dataRoot = Join-Path $testLocalAppData 'EverVigil'
     $lockedStagingCleanupRoot = Join-Path `

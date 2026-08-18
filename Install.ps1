@@ -1489,33 +1489,20 @@ function Remove-NewApplicationData {
             Remove-Item -LiteralPath $logRoot -Force
         }
     }
-    $transactionsRoot = Join-Path `
-        $DataRoot `
-        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
-    if (-not $transactionsRootWasPresent -and
-        (Test-Path -LiteralPath $transactionsRoot -PathType Container) -and
-        @(Get-ChildItem -LiteralPath $transactionsRoot -Force).Count -eq 0) {
-        Remove-Item -LiteralPath $transactionsRoot -Force
-    }
-    if (-not $dataRootExisted -and
-        (Test-Path -LiteralPath $DataRoot -PathType Container) -and
-        @(Get-ChildItem -LiteralPath $DataRoot -Force).Count -eq 0) {
-        Remove-Item -LiteralPath $DataRoot -Force
-    }
+    Remove-EverVigilEmptyApplicationDataContainers `
+        -DataRoot $DataRoot `
+        -DataRootExisted $dataRootExisted `
+        -TransactionsRootWasPresent $transactionsRootWasPresent
 }
 
 function Remove-TransactionRecoveryArtifacts {
     Remove-InstallTransactionTree `
         -Role recoveryRoot `
         -Path $TransactionRecoveryRoot
-    $transactionsRoot = Join-Path `
-        $DataRoot `
-        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
-    if (-not $transactionsRootWasPresent -and
-        (Test-Path -LiteralPath $transactionsRoot -PathType Container) -and
-        @(Get-ChildItem -LiteralPath $transactionsRoot -Force).Count -eq 0) {
-        Remove-Item -LiteralPath $transactionsRoot -Force
-    }
+    Remove-EverVigilEmptyApplicationDataContainers `
+        -DataRoot $DataRoot `
+        -DataRootExisted $dataRootExisted `
+        -TransactionsRootWasPresent $transactionsRootWasPresent
 }
 
 function Assert-TargetExecutableVersion {
@@ -2292,6 +2279,13 @@ try {
             if (Test-Path -LiteralPath $TransactionPath -PathType Leaf) {
                 Remove-Item -LiteralPath $TransactionPath -Force -ErrorAction Stop
             }
+            # The transaction journal is the last entry during an immediate
+            # clean-install rollback. Re-evaluate the containers only after
+            # that authority has been removed successfully.
+            Remove-EverVigilEmptyApplicationDataContainers `
+                -DataRoot $DataRoot `
+                -DataRootExisted $dataRootExisted `
+                -TransactionsRootWasPresent $transactionsRootWasPresent
             $preserveRecoveryArtifacts = $false
         } catch {
             $rollbackError = $_.Exception

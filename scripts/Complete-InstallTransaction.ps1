@@ -1305,14 +1305,10 @@ function Remove-TransactionRecoveryFiles {
         -State $State `
         -Role recoveryRoot `
         -Kind RecoveryDirectory
-    $transactionsRoot = Join-Path `
-        $script:InstallTransactionDataRoot `
-        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
-    if (-not [bool]$State.transactionsRootWasPresent -and
-        (Test-Path -LiteralPath $transactionsRoot -PathType Container) -and
-        @(Get-ChildItem -LiteralPath $transactionsRoot -Force).Count -eq 0) {
-        Remove-Item -LiteralPath $transactionsRoot -Force
-    }
+    Remove-EverVigilEmptyApplicationDataContainers `
+        -DataRoot $script:InstallTransactionDataRoot `
+        -DataRootExisted ([bool]$State.dataRootExisted) `
+        -TransactionsRootWasPresent ([bool]$State.transactionsRootWasPresent)
 }
 
 function Remove-TemporaryPublishTree {
@@ -1383,21 +1379,10 @@ function Remove-NewApplicationData {
 function Remove-EmptyApplicationDataContainers {
     param([Parameter(Mandatory)]$State)
 
-    if (-not (Test-Path -LiteralPath $script:InstallTransactionDataRoot -PathType Container)) {
-        return
-    }
-    $transactionsRoot = Join-Path `
-        $script:InstallTransactionDataRoot `
-        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
-    if (-not [bool]$State.transactionsRootWasPresent -and
-        (Test-Path -LiteralPath $transactionsRoot -PathType Container) -and
-        @(Get-ChildItem -LiteralPath $transactionsRoot -Force).Count -eq 0) {
-        Remove-Item -LiteralPath $transactionsRoot -Force
-    }
-    if (-not [bool]$State.dataRootExisted -and
-        @(Get-ChildItem -LiteralPath $script:InstallTransactionDataRoot -Force).Count -eq 0) {
-        Remove-Item -LiteralPath $script:InstallTransactionDataRoot -Force
-    }
+    Remove-EverVigilEmptyApplicationDataContainers `
+        -DataRoot $script:InstallTransactionDataRoot `
+        -DataRootExisted ([bool]$State.dataRootExisted) `
+        -TransactionsRootWasPresent ([bool]$State.transactionsRootWasPresent)
 }
 
 function Complete-RolledBackInstallTransaction {

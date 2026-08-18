@@ -3284,6 +3284,7 @@ if ($installRecoveryLaunchCount -ne 4) {
 foreach ($transactionDataGuard in @(
         'function Get-EverVigilInstallTransactionTemporaryFiles'
         'function Remove-EverVigilNewApplicationDataFiles'
+        'function Remove-EverVigilEmptyApplicationDataContainers'
         'function Copy-EverVigilFileDurably'
         '[IO.FileOptions]::WriteThrough'
         '$destinationStream.Flush($true)'
@@ -3329,6 +3330,42 @@ foreach ($rollbackCleanupCaller in @($installContent, $installTransactionContent
         $failures.Add(
             'Every install rollback entrypoint must use fail-closed application-data cleanup.')
     }
+    if (-not $rollbackCleanupCaller.Contains(
+            'Remove-EverVigilEmptyApplicationDataContainers',
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            'Every install rollback entrypoint must retire newly created empty data containers.')
+    }
+}
+$immediateJournalRemoval =
+    'Remove-Item -LiteralPath $TransactionPath -Force -ErrorAction Stop'
+$immediateJournalRemovalIndex = $installContent.IndexOf(
+    $immediateJournalRemoval,
+    [StringComparison]::Ordinal)
+$immediateContainerCleanupIndex = if ($immediateJournalRemovalIndex -ge 0) {
+    $installContent.IndexOf(
+        'Remove-EverVigilEmptyApplicationDataContainers',
+        $immediateJournalRemovalIndex + $immediateJournalRemoval.Length,
+        [StringComparison]::Ordinal)
+} else {
+    -1
+}
+if ($immediateJournalRemovalIndex -lt 0 -or $immediateContainerCleanupIndex -lt 0) {
+    $failures.Add(
+        'Immediate rollback must recheck empty application-data containers after removing its journal.')
+}
+$recoveryFileCleanupMatch = [regex]::Match(
+    $installTransactionContent,
+    '(?ms)^function Remove-TransactionRecoveryFiles \{(?<body>.*?)^\}')
+if (-not $recoveryFileCleanupMatch.Success -or
+    -not $recoveryFileCleanupMatch.Groups['body'].Value.Contains(
+        'Remove-EverVigilEmptyApplicationDataContainers',
+        [StringComparison]::Ordinal) -or
+    $recoveryFileCleanupMatch.Groups['body'].Value.Contains(
+        'Remove-Item -LiteralPath $transactionsRoot',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'Transaction recovery evidence cleanup must use the shared reparse-safe container helper.')
 }
 $transactionTokens = $null
 $transactionParseErrors = $null
