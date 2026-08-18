@@ -97,7 +97,7 @@ if ($actualUninstallSupportSources.Count -ne
 }
 if ([regex]::Matches(
         $installerContent,
-        '(?m)^UsePreviousAppDir=no$').Count -ne 2 -or
+        '(?m)^UsePreviousAppDir=no$').Count -ne 3 -or
     $installerContent.Contains(
         'UsePreviousAppDir=yes',
         [StringComparison]::Ordinal) -or
@@ -107,7 +107,7 @@ if ([regex]::Matches(
     -not $installerContent.Contains(
         "' -PreviousInstallRoot '",
         [StringComparison]::Ordinal)) {
-    throw 'The Inno source must keep {app} on the EverVigil path and pass the inherited registration only as PreviousInstallRoot.'
+    throw 'The production and isolated audit builds must ignore prior app directories, while production passes the inherited registration only as PreviousInstallRoot.'
 }
 $outdatedCandidate = Join-Path `
     $repositoryRoot `

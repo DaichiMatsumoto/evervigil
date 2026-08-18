@@ -423,10 +423,20 @@ function Test-InstallerAuditExtraction {
 
 function Invoke-InstallerAuditExtraction {
     param(
-        [Parameter(Mandatory)][string]$InstallerPath,
+        [Parameter(Mandatory)][string]$PayloadAuditInstallerPath,
+        [Parameter(Mandatory)][string]$ProductionInstallerPath,
         [Parameter(Mandatory)][string]$ExpectedRoot,
         [Parameter(Mandatory)][string]$DestinationRoot
     )
+
+    $resolvedPayloadAuditInstallerPath = [IO.Path]::GetFullPath($PayloadAuditInstallerPath)
+    $resolvedProductionInstallerPath = [IO.Path]::GetFullPath($ProductionInstallerPath)
+    if ([string]::Equals(
+            $resolvedPayloadAuditInstallerPath,
+            $resolvedProductionInstallerPath,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The production installer must never be executed for payload extraction.'
+    }
 
     $attemptErrors = [Collections.Generic.List[string]]::new()
     for ($attempt = 1; $attempt -le 3; $attempt++) {
@@ -435,7 +445,7 @@ function Invoke-InstallerAuditExtraction {
                 Remove-Item -LiteralPath $DestinationRoot -Recurse -Force
             }
             $auditProcess = Start-Process `
-                -FilePath $InstallerPath `
+                -FilePath $resolvedPayloadAuditInstallerPath `
                 -ArgumentList @(
                     '/VERYSILENT'
                     '/SUPPRESSMSGBOXES'
@@ -598,6 +608,7 @@ $brokerEnvironmentProbeRoot = Join-Path $resolvedOutputRoot 'broker-environment-
 $packageRoot = Join-Path $resolvedOutputRoot 'installer-package'
 $installerPath = Join-Path $resolvedOutputRoot "EverVigil-$Version-Setup.exe"
 $auditInstallerPath = Join-Path $resolvedOutputRoot "EverVigil-$Version-ResourceAudit.exe"
+$payloadAuditInstallerPath = Join-Path $resolvedOutputRoot "EverVigil-$Version-PayloadAudit.exe"
 $resourceAuditInstallRoot = Join-Path $resolvedOutputRoot 'resource-audit-install'
 $resourceAuditReportPath = Join-Path $resolvedOutputRoot 'resource-audit-report.json'
 $installerNoticePreviewPath = Join-Path $resolvedOutputRoot 'installer-notice-preview.txt'
@@ -821,10 +832,35 @@ if (-not (Test-Path -LiteralPath $auditInstallerPath -PathType Leaf)) {
     throw "Compiled resource-audit installer not found: $auditInstallerPath"
 }
 
-Invoke-InstallerAuditExtraction `
-    -InstallerPath $installerPath `
-    -ExpectedRoot $packageRoot `
-    -DestinationRoot $auditExtractRoot
+$payloadAuditCompilerArguments = @(
+    "/DMyAppVersion=$Version"
+    "/DMyVersionInfoVersion=$versionInfoVersion"
+    "/DPackageRoot=$packageRoot"
+    "/DRepositoryRoot=$repositoryRoot"
+    "/DInstallerOutputRoot=$resolvedOutputRoot"
+    "/DWizardBrandImage=$wizardBrandImage"
+    '/DPayloadAuditBuild=1'
+    '/DPayloadAuditAppId=C8E6DE5F-A2D9-4D6B-889F-8CF43F588E88'
+    $installerScriptPath
+)
+& $compiler.Path @payloadAuditCompilerArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "Inno Setup payload-audit compilation failed with exit code $LASTEXITCODE."
+}
+if (-not (Test-Path -LiteralPath $payloadAuditInstallerPath -PathType Leaf)) {
+    throw "Compiled payload-audit installer not found: $payloadAuditInstallerPath"
+}
+
+try {
+    Invoke-InstallerAuditExtraction `
+        -PayloadAuditInstallerPath $payloadAuditInstallerPath `
+        -ProductionInstallerPath $installerPath `
+        -ExpectedRoot $packageRoot `
+        -DestinationRoot $auditExtractRoot
+} finally {
+    Remove-ReleaseWorkingTreesWithRetry `
+        -Path $payloadAuditInstallerPath
+}
 & $scannerPath `
     -PackageRoot $auditExtractRoot `
     -DenyValue $DenyValue `

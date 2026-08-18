@@ -1761,12 +1761,18 @@ foreach ($guidedInstallerGuard in @(
         '/AUDITEXTRACT='
         '-PackageRoot $auditExtractRoot'
         'EverVigil-$Version-Setup.exe'
+        'EverVigil-$Version-PayloadAudit.exe'
         '-m:1'
         '-nr:false'
         '-p:UseSharedCompilation=false'
         '-BinaryPath $installerPath'
         '/DResourceAuditBuild=1'
         '/DResourceAuditAppId=A17D6AC4-2F11-45CF-A0BE-42C2F607F7B8'
+        '/DPayloadAuditBuild=1'
+        '/DPayloadAuditAppId=C8E6DE5F-A2D9-4D6B-889F-8CF43F588E88'
+        '-PayloadAuditInstallerPath $payloadAuditInstallerPath'
+        '-ProductionInstallerPath $installerPath'
+        'The production installer must never be executed for payload extraction.'
         'Invoke-ReleaseResourceAudit.ps1'
         'resource-audit-report.json'
         'installer-notice-preview.txt'
@@ -1798,12 +1804,54 @@ if (-not $releaseResourceAuditContent.Contains(
     $failures.Add(
         'The resource audit must exclude an absent current install location before binding protected paths.')
 }
+$releaseResourceAuditTokens = $null
+$releaseResourceAuditParseErrors = $null
+$releaseResourceAuditAst = [Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path $RepositoryRoot 'scripts\Invoke-ReleaseResourceAudit.ps1'),
+    [ref]$releaseResourceAuditTokens,
+    [ref]$releaseResourceAuditParseErrors)
+$resourceAuditProcessInvocations = @($releaseResourceAuditAst.FindAll(
+        {
+            param($node)
+            $node -is [Management.Automation.Language.CommandAst] -and
+                $node.GetCommandName() -eq 'Invoke-HiddenProcess'
+        },
+        $true))
+$productionInstallerResourceAuditExecutions = @($resourceAuditProcessInvocations | Where-Object {
+        $_.Extent.Text.Contains('$InstallerPath', [StringComparison]::OrdinalIgnoreCase) -and
+            -not $_.Extent.Text.Contains('$AuditInstallerPath', [StringComparison]::OrdinalIgnoreCase)
+    })
+$productionInstallerResourceAuditDirectExecutions = @($releaseResourceAuditAst.FindAll(
+        {
+            param($node)
+            if ($node -isnot [Management.Automation.Language.CommandAst] -or
+                $node.CommandElements.Count -eq 0) {
+                return $false
+            }
+            return [string]::Equals(
+                $node.CommandElements[0].Extent.Text,
+                '$InstallerPath',
+                [StringComparison]::OrdinalIgnoreCase)
+        },
+        $true))
+if ($releaseResourceAuditParseErrors.Count -gt 0 -or
+    $resourceAuditProcessInvocations.Count -ne 2 -or
+    @($resourceAuditProcessInvocations | Where-Object {
+            $_.Extent.Text.Contains(
+                '-FilePath ([IO.Path]::GetFullPath($AuditInstallerPath))',
+                [StringComparison]::Ordinal)
+        }).Count -ne 1 -or
+    $productionInstallerResourceAuditExecutions.Count -ne 0 -or
+    $productionInstallerResourceAuditDirectExecutions.Count -ne 0) {
+    $failures.Add(
+        'The resource audit may inspect production Setup resources but must execute only the dedicated ResourceAudit installer and its generated uninstaller.')
+}
 $releaseCleanupCallCount = ([regex]::Matches(
         $buildReleaseContent,
         '(?m)^\s*Remove-ReleaseWorkingTreesWithRetry\s*`?\s*$')).Count
-if ($releaseCleanupCallCount -ne 2) {
+if ($releaseCleanupCallCount -ne 3) {
     $failures.Add(
-        "Release working-tree cleanup must retry before and after the audit; found $releaseCleanupCallCount of 2 calls.")
+        "Release working-tree cleanup must retry before, immediately after payload audit, and after the resource audit; found $releaseCleanupCallCount of 3 calls.")
 }
 $buildReleaseTokens = $null
 $buildReleaseParseErrors = $null
@@ -1839,6 +1887,100 @@ if ($buildReleaseParseErrors.Count -gt 0 -or
     -not $auditCleanupAst -or
     $auditCleanupParent -isnot [Management.Automation.Language.TryStatementAst]) {
     $failures.Add('Installer audit destination cleanup must remain inside each bounded retry attempt.')
+}
+$auditStartProcessAsts = @()
+if ($auditExtractionFunctionAst) {
+    $auditStartProcessAsts = @($auditExtractionFunctionAst.FindAll(
+            {
+                param($node)
+                $node -is [Management.Automation.Language.CommandAst] -and
+                    $node.GetCommandName() -eq 'Start-Process'
+            },
+            $true))
+}
+$auditInvocationAsts = @($buildReleaseAst.FindAll(
+        {
+            param($node)
+            $node -is [Management.Automation.Language.CommandAst] -and
+                $node.GetCommandName() -eq 'Invoke-InstallerAuditExtraction'
+        },
+        $true))
+$productionInstallerStartAsts = @($buildReleaseAst.FindAll(
+        {
+            param($node)
+            $node -is [Management.Automation.Language.CommandAst] -and
+                $node.GetCommandName() -eq 'Start-Process' -and
+                $node.Extent.Text.Contains(
+                    '-FilePath $installerPath',
+                    [StringComparison]::OrdinalIgnoreCase)
+        },
+        $true))
+$productionInstallerDirectInvocationAsts = @($buildReleaseAst.FindAll(
+        {
+            param($node)
+            if ($node -isnot [Management.Automation.Language.CommandAst] -or
+                $node.CommandElements.Count -eq 0) {
+                return $false
+            }
+            return [string]::Equals(
+                $node.CommandElements[0].Extent.Text,
+                '$installerPath',
+                [StringComparison]::OrdinalIgnoreCase)
+        },
+        $true))
+$auditFunctionText = if ($auditExtractionFunctionAst) {
+    $auditExtractionFunctionAst.Extent.Text
+} else {
+    ''
+}
+$auditInvocationText = if ($auditInvocationAsts.Count -eq 1) {
+    $auditInvocationAsts[0].Extent.Text
+} else {
+    ''
+}
+$auditInvocationTryAst = if ($auditInvocationAsts.Count -eq 1) {
+    $parent = $auditInvocationAsts[0].Parent
+    while ($parent -and
+        $parent -isnot [Management.Automation.Language.TryStatementAst]) {
+        $parent = $parent.Parent
+    }
+    $parent
+}
+$payloadAuditCleanupText = if ($auditInvocationTryAst -and $auditInvocationTryAst.Finally) {
+    $auditInvocationTryAst.Finally.Extent.Text
+} else {
+    ''
+}
+if ($auditStartProcessAsts.Count -ne 1 -or
+    -not $auditStartProcessAsts[0].Extent.Text.Contains(
+        '-FilePath $resolvedPayloadAuditInstallerPath',
+        [StringComparison]::Ordinal) -or
+    $auditInvocationAsts.Count -ne 1 -or
+    -not $auditInvocationText.Contains(
+        '-PayloadAuditInstallerPath $payloadAuditInstallerPath',
+        [StringComparison]::Ordinal) -or
+    -not $auditInvocationText.Contains(
+        '-ProductionInstallerPath $installerPath',
+        [StringComparison]::Ordinal) -or
+    -not $auditFunctionText.Contains(
+        '[IO.Path]::GetFullPath($PayloadAuditInstallerPath)',
+        [StringComparison]::Ordinal) -or
+    -not $auditFunctionText.Contains(
+        '[IO.Path]::GetFullPath($ProductionInstallerPath)',
+        [StringComparison]::Ordinal) -or
+    -not $auditFunctionText.Contains(
+        '[StringComparison]::OrdinalIgnoreCase',
+        [StringComparison]::Ordinal) -or
+    -not $payloadAuditCleanupText.Contains(
+        'Remove-ReleaseWorkingTreesWithRetry',
+        [StringComparison]::Ordinal) -or
+    -not $payloadAuditCleanupText.Contains(
+        '-Path $payloadAuditInstallerPath',
+        [StringComparison]::Ordinal) -or
+    $productionInstallerStartAsts.Count -ne 0 -or
+    $productionInstallerDirectInvocationAsts.Count -ne 0) {
+    $failures.Add(
+        'Payload extraction must execute only the dedicated payload-audit EXE after a fail-closed absolute-path comparison with the production installer.')
 }
 foreach ($innoFallbackGuard in @(
         '$rejectedCandidates.Add('
@@ -1913,6 +2055,17 @@ foreach ($installerGuard in @(
         'UninstallFilesDir={#MySupportRoot}'
         '#ifdef ResourceAuditBuild'
         'AppId={{{#ResourceAuditAppId}}'
+        '#ifdef PayloadAuditBuild'
+        '#error ResourceAuditBuild and PayloadAuditBuild cannot be combined.'
+        '#error PayloadAuditAppId must be defined for a payload-audit build.'
+        'AppId={{{#PayloadAuditAppId}}'
+        'DefaultDirName={tmp}\EverVigil.PayloadAudit'
+        'OutputBaseFilename=EverVigil-{#MyAppVersion}-PayloadAudit'
+        'VersionInfoDescription={#MyAppName} payload audit extractor'
+        'VersionInfoOriginalFileName=EverVigil-{#MyAppVersion}-PayloadAudit.exe'
+        'VersionInfoProductName={#MyAppName} Payload Audit'
+        'Payload audit build requires /AUDITEXTRACT.'
+        '/AUDITEXTRACT is rejected by this build.'
         'CreateUninstallRegKey=no'
         'UninstallFilesDir={app}'
         'Source: "{#PackageRoot}\payload\EverVigil.exe"; DestDir: "{app}"; Flags: ignoreversion'
@@ -1958,6 +2111,54 @@ foreach ($installerGuard in @(
 }
 if ([regex]::Matches($installerContent, '(?m)^Source: ').Count -ne 10) {
     $failures.Add('The guided setup must embed nine production sources plus one isolated resource-audit payload source; the broker is inside the recursively embedded package source.')
+}
+$initializeSetupStart = $installerContent.IndexOf(
+    'function InitializeSetup: Boolean;',
+    [StringComparison]::Ordinal)
+$initializeSetupEnd = $installerContent.IndexOf(
+    'function SetupLogDescription: String;',
+    [StringComparison]::Ordinal)
+$payloadAuditBranch = if ($initializeSetupStart -ge 0) {
+    $installerContent.IndexOf(
+        '#ifdef PayloadAuditBuild',
+        $initializeSetupStart,
+        [StringComparison]::Ordinal)
+} else {
+    -1
+}
+$payloadAuditExtraction = if ($payloadAuditBranch -ge 0) {
+    $installerContent.IndexOf(
+        "ExtractTemporaryFiles('{tmp}\EverVigil.Package\*')",
+        $payloadAuditBranch,
+        [StringComparison]::Ordinal)
+} else {
+    -1
+}
+$productionAuditRejectionBranch = if ($payloadAuditExtraction -ge 0) {
+    $installerContent.IndexOf(
+        '#else',
+        $payloadAuditExtraction,
+        [StringComparison]::Ordinal)
+} else {
+    -1
+}
+$productionAuditRejection = if ($productionAuditRejectionBranch -ge 0) {
+    $installerContent.IndexOf(
+        "Log('/AUDITEXTRACT is rejected by this build.');",
+        $productionAuditRejectionBranch,
+        [StringComparison]::Ordinal)
+} else {
+    -1
+}
+if ($initializeSetupStart -lt 0 -or
+    $initializeSetupEnd -le $initializeSetupStart -or
+    $payloadAuditBranch -le $initializeSetupStart -or
+    $payloadAuditExtraction -le $payloadAuditBranch -or
+    $productionAuditRejectionBranch -le $payloadAuditExtraction -or
+    $productionAuditRejection -le $productionAuditRejectionBranch -or
+    $productionAuditRejection -ge $initializeSetupEnd) {
+    $failures.Add(
+        'Only PayloadAuditBuild may extract embedded payload; production InitializeSetup must reject /AUDITEXTRACT.')
 }
 $expectedUninstallSupportSources = @(
     'Source: "{#PackageRoot}\Uninstall.ps1"; DestDir: "{#MySupportRoot}\Support"; Flags: ignoreversion'

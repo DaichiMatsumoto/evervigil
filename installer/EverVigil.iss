@@ -28,8 +28,16 @@
 #define MyUninstallRegistryKey LegacyCompatibilityApplicationUninstallRegistrySubKey
 
 #ifdef ResourceAuditBuild
+  #ifdef PayloadAuditBuild
+    #error ResourceAuditBuild and PayloadAuditBuild cannot be combined.
+  #endif
   #ifndef ResourceAuditAppId
     #error ResourceAuditAppId must be defined for a resource-audit build.
+  #endif
+#endif
+#ifdef PayloadAuditBuild
+  #ifndef PayloadAuditAppId
+    #error PayloadAuditAppId must be defined for a payload-audit build.
   #endif
 #endif
 
@@ -37,7 +45,11 @@
 #ifdef ResourceAuditBuild
 AppId={{{#ResourceAuditAppId}}
 #else
+  #ifdef PayloadAuditBuild
+AppId={{{#PayloadAuditAppId}}
+  #else
 AppId={{{#LegacyCompatibilityApplicationAppId}}
+  #endif
 #endif
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -51,7 +63,11 @@ AppComments=An independent Windows tray utility that keeps Even Terminal running
 #ifdef ResourceAuditBuild
 DefaultDirName={tmp}\EverVigil.ResourceAudit
 #else
+  #ifdef PayloadAuditBuild
+DefaultDirName={tmp}\EverVigil.PayloadAudit
+  #else
 DefaultDirName={localappdata}\Programs\EverVigil
+  #endif
 #endif
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
@@ -70,7 +86,11 @@ MinVersion=10.0.22000
 #ifdef ResourceAuditBuild
 OutputBaseFilename=EverVigil-{#MyAppVersion}-ResourceAudit
 #else
+  #ifdef PayloadAuditBuild
+OutputBaseFilename=EverVigil-{#MyAppVersion}-PayloadAudit
+  #else
 OutputBaseFilename=EverVigil-{#MyAppVersion}-Setup
+  #endif
 #endif
 OutputDir={#InstallerOutputRoot}
 PrivilegesRequired=lowest
@@ -87,20 +107,33 @@ UninstallFilesDir={app}
 UsePreviousAppDir=no
 UsePreviousLanguage=no
 #else
+  #ifdef PayloadAuditBuild
+CreateUninstallRegKey=no
+UninstallFilesDir={app}
+UsePreviousAppDir=no
+UsePreviousLanguage=no
+  #else
 UninstallFilesDir={#MySupportRoot}
 ; Keep the new product directory independent from the inherited AppId. The
 ; prior registration is read explicitly by PreviousInstallDirectory and is
 ; passed only as -PreviousInstallRoot for controlled migration/retirement.
 UsePreviousAppDir=no
 UsePreviousLanguage=yes
+  #endif
 #endif
 UninstallLogging=yes
 UsePreviousGroup=no
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoCopyright=Copyright © 2026 Daichi Matsumoto
+#ifdef PayloadAuditBuild
+VersionInfoDescription={#MyAppName} payload audit extractor
+VersionInfoOriginalFileName=EverVigil-{#MyAppVersion}-PayloadAudit.exe
+VersionInfoProductName={#MyAppName} Payload Audit
+#else
 VersionInfoDescription={#MyAppName} guided installer
 VersionInfoOriginalFileName=EverVigil-{#MyAppVersion}-Setup.exe
 VersionInfoProductName={#MyAppName}
+#endif
 VersionInfoProductVersion={#MyAppVersion}
 VersionInfoVersion={#MyVersionInfoVersion}
 WizardImageBackColor=white
@@ -355,6 +388,7 @@ begin
 end;
 
 function InitializeSetup: Boolean;
+#ifdef PayloadAuditBuild
 var
   AuditRoot: String;
   AuditScript: String;
@@ -362,11 +396,16 @@ var
   Executed: Boolean;
   ResultCode: Integer;
   Output: TExecOutput;
+#endif
 begin
-  Result := True;
+#ifdef PayloadAuditBuild
+  Result := False;
   AuditRoot := ExpandConstant('{param:AUDITEXTRACT|}');
   if AuditRoot = '' then
+  begin
+    Log('Payload audit build requires /AUDITEXTRACT.');
     Exit;
+  end;
 
   try
     ExtractTemporaryFiles('{tmp}\EverVigil.Package\*');
@@ -391,6 +430,14 @@ begin
     Log('Audit extraction failed: ' + GetExceptionMessage);
   end;
   Result := False;
+#else
+  Result := True;
+  if ExpandConstant('{param:AUDITEXTRACT|}') <> '' then
+  begin
+    Log('/AUDITEXTRACT is rejected by this build.');
+    Result := False;
+  end;
+#endif
 end;
 
 function SetupLogDescription: String;
