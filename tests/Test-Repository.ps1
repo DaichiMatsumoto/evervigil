@@ -641,6 +641,7 @@ foreach ($releaseGuard in @(
         'Revalidate candidate and production audits without executing repository code'
         'production-installer-audit-amd:'
         'production-installer-audit-intel:'
+        'schema v2 required'
         'group: evervigil-production-audit-amd'
         'group: evervigil-production-audit-intel'
         'labels: [self-hosted, Windows, X64, ephemeral, audit-controller, isolated-physical-target, windows-11-pro, evervigil-production-audit, target-cpu-amd]'
@@ -665,6 +666,38 @@ foreach ($releaseGuard in @(
         "needs.production-installer-audit-amd.result == 'success'"
         "needs.production-installer-audit-intel.result == 'success'"
         'Assert-ProductionAudit'
+        '[long]$report.schemaVersion -ne 2'
+        "'cleanInstall'"
+        'Assert-CleanInstallAudit'
+        'Get-CanonicalCleanInstallAuditJson'
+        'Assert-ProductionSetupAuditLog'
+        'clean-install-execution-attestation'
+        'candidate-production-setup-executed'
+        'clean-product-state-absent'
+        'standard-user-hkcu-install'
+        'prepare-to-install-succeeded'
+        'setup-exit-zero'
+        'broker-authenticated-pipe-roundtrip'
+        'installer-log-error-free'
+        'powershell-runtime-crash-free'
+        'installed-version-exact'
+        'install-transaction-finalized'
+        'protectedBrokerExecutableAbsent'
+        'protectedBrokerRootAbsent'
+        'bootstrapPipeConnected'
+        'CanonicalReady'
+        'canonicalPipeConnected'
+        'NoChange'
+        'authenticationExitCode3Count'
+        'C:\Program Files\PowerShell\7\pwsh.exe'
+        'C:\Program Files\PowerShell\7\coreclr.dll'
+        'applicationErrorEvent1000Count'
+        'dotNetRuntimeEvent1023Count'
+        'internalClrError80131506Count'
+        'windowsErrorReportingEvent1001Count'
+        'transactionCompleted'
+        'A #015 publish-job production Setup semantic negative fixture was not rejected.'
+        'exited before opening its authenticated pipe'
         'AMD and Intel audits must come from distinct credential-free physical targets.'
         'target-credential-isolation'
         'github-job-token-absent-on-target'
@@ -686,6 +719,22 @@ foreach ($releaseGuard in @(
         $failures.Add("Private draft release guard is missing: $releaseGuard")
     }
 }
+if ([regex]::Matches(
+        $releaseWorkflowContent,
+        [regex]::Escape('schema v2 required')).Count -ne 2) {
+    $failures.Add('AMD and Intel production audit jobs must both require schema v2.')
+}
+foreach ($controllerHarnessFlag in @(
+        '--controller-only',
+        '--require-token-free-target',
+        '--require-fresh-physical-target')) {
+    if ([regex]::Matches(
+            $releaseWorkflowContent,
+            [regex]::Escape($controllerHarnessFlag)).Count -ne 2) {
+        $failures.Add(
+            "The unchanged external harness CLI flag must occur once in each audit job: $controllerHarnessFlag")
+    }
+}
 
 $productionAuditReportContent = Get-Content `
     -LiteralPath (Join-Path $RepositoryRoot 'tests\Test-ProductionInstallerAuditReport.ps1') `
@@ -696,6 +745,49 @@ foreach ($productionAuditGuard in @(
         'production-installer-audit-report.json'
         'evervigil-production-installer-e2e'
         'manifestSha256'
+        '[long]$report.schemaVersion -ne 2'
+        "'cleanInstall'"
+        'Assert-CleanInstallContract'
+        'ConvertTo-CanonicalCleanInstallJson'
+        'Assert-ProductionSetupLog'
+        "'clean-install-execution-attestation'"
+        "'candidate-production-setup-executed'"
+        "'clean-product-state-absent'"
+        "'standard-user-hkcu-install'"
+        "'prepare-to-install-succeeded'"
+        "'setup-exit-zero'"
+        "'broker-authenticated-pipe-roundtrip'"
+        "'installer-log-error-free'"
+        "'powershell-runtime-crash-free'"
+        "'installed-version-exact'"
+        "'install-transaction-finalized'"
+        'protectedBrokerExecutableAbsent'
+        'protectedBrokerInstallationReceiptAbsent'
+        'protectedBrokerRootAbsent'
+        'protectedBrokerRetirementReceiptAbsent'
+        'auditExtractRequested'
+        'resourceAuditBuild'
+        'installerSha256Before'
+        'installerSha256After'
+        'bootstrapPipeConnected'
+        'CanonicalReady'
+        'canonicalPipeConnected'
+        'NoChange'
+        'authenticationExitCode3Count'
+        'C:\Program Files\PowerShell\7\pwsh.exe'
+        'C:\Program Files\PowerShell\7\coreclr.dll'
+        'applicationErrorEvent1000Count'
+        'dotNetRuntimeEvent1023Count'
+        'internalClrError80131506Count'
+        'windowsErrorReportingEvent1001Count'
+        'eventWindowCoversSetupLifecycle'
+        'transactionCompleted'
+        'A #015 production Setup semantic negative fixture was not rejected.'
+        'exited before opening its authenticated pipe'
+        '/AUDITEXTRACT'
+        'EverVigil install worker exit code'
+        'PrepareToInstall failed'
+        '0x80131506'
         'ExpectedWorkflowRunId'
         'ExpectedWorkflowRunAttempt'
         'ExpectedAuditJob'
@@ -771,6 +863,35 @@ foreach ($productionAuditGuard in @(
 if ($productionAuditReportContent -match '(?i)Start-Process|&\s*\$candidateInstaller') {
     $failures.Add(
         'The report validator must not execute the production installer or replace the external audit harness.')
+}
+
+foreach ($referenceContract in @(
+        [pscustomobject]@{
+            Path = 'docs\REFERENCE.ja.md'
+            Label = 'Japanese'
+        },
+        [pscustomobject]@{
+            Path = 'docs\REFERENCE.en.md'
+            Label = 'English'
+        })) {
+    $referenceContent = Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot $referenceContract.Path) `
+        -Raw
+    foreach ($referenceGuard in @(
+            'schemaVersion=2',
+            'clean-install-execution-attestation',
+            'protectedBrokerRootAbsent',
+            'PrepareToInstall',
+            '/AUDITEXTRACT',
+            'broker-authenticated-pipe-roundtrip',
+            'CanonicalReady',
+            'NoChange',
+            '0x80131506')) {
+        if (-not $referenceContent.Contains($referenceGuard, [StringComparison]::Ordinal)) {
+            $failures.Add(
+                "$($referenceContract.Label) reference is missing the production clean-install v2 contract: $referenceGuard")
+        }
+    }
 }
 
 $nativeAotRestoreMatch = [regex]::Match(

@@ -147,6 +147,26 @@ token永続化、normal update）、v1.2.1の既定／custom path・port移行�
 境界後forward recovery、Start menu・ARP・support登録、設定保持／完全uninstall、別の
 administrator資格情報を使うover-the-shoulder昇格、residue／system snapshotです。
 
+clean installのreport契約は`schemaVersion=2`です。report直下の`cleanInstall`と
+`clean-install-execution-attestation` JSON evidenceは、同じexact objectを保持します。
+外部監査harnessの既存CLIは変更しませんが、AMD／Intelの両方でv2を出力できなければ
+旧schemaを受理せずfail-closedにします。`cleanInstall`は次をすべて証明します。
+
+- 実行前に現行／legacy data root、install root、transaction journal／temporary file、
+  `C:\ProgramData\EverVigil` protected broker root全体（`protectedBrokerRootAbsent=true`）、
+  protected broker executable／receipt、Start menu、ARP、uninstall supportが存在しない。
+- candidate名とSHA-256へ実行前後とも一致する本番Setup pathをstandard userで直接実行し、
+  HKCU install、`PrepareToInstall`成功、Setup exit 0である。`/AUDITEXTRACT`、resource-audit
+  build、compatibility mode、administrative install modeは本番実行の代替にできない。
+- medium-integrity clientからhigh-integrity brokerへの二段階authenticated pipeが成功し、
+  `broker-authenticated-pipe-roundtrip`はbootstrap=`CanonicalReady`、canonical status=`NoChange`、
+  両exit 0、pipe接続true、authentication exit 3の発生0を要求する。
+- 実際の`pwsh.exe`／`coreclr.dll` path、version、SHA-256を記録し、Setup lifecycle全体の
+  Application Error Event 1000、.NET Runtime Event 1023、WER Event 1001、`0x80131506`を0件にする。
+- exact version、`CONFIGURATION REQUIRED`、installed executable、Start menu、ARP、support、
+  完了済みtransactionをpost-stateで確認し、journal／temporary file、installer error、
+  `PrepareToInstall` failure、legacy data rootが残らない。
+
 各targetにはGitHub Actions runnerを登録せず、GitHub job token、runner登録credential、
 tailnet auth keyを配置しません。外部監査harnessは固定hashと保護済みProgram Files pathを
 検証したcontroller上でだけ動き、credentialへ到達できない別targetへcandidateを渡します。

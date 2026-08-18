@@ -164,6 +164,32 @@ recovery; exact Start menu, ARP, and support registration; preserve and complete
 uninstall; over-the-shoulder elevation using separate administrator credentials;
 and residue/system snapshots.
 
+The clean-install report contract is `schemaVersion=2`. The top-level
+`cleanInstall` object and the `clean-install-execution-attestation` JSON evidence
+must carry the same exact object. The existing external audit-harness CLI remains
+unchanged, but both AMD and Intel harness runs must emit v2; the gate rejects an
+older schema fail-closed. `cleanInstall` attests all of the following:
+
+- Before execution, the current and legacy data roots, install root, transaction
+  journal/temporary files, the entire `C:\ProgramData\EverVigil` protected broker
+  root (`protectedBrokerRootAbsent=true`), protected broker executable/receipts,
+  Start menu, ARP, and uninstall support are absent.
+- The real production Setup path, whose name and pre/post SHA-256 exactly match the
+  candidate, runs directly as a standard user with an HKCU install, successful
+  `PrepareToInstall`, and Setup exit zero. `/AUDITEXTRACT`, a resource-audit build,
+  compatibility mode, or administrative install mode cannot substitute for it.
+- The two-stage authenticated pipe from a medium-integrity client to the
+  high-integrity broker succeeds. `broker-authenticated-pipe-roundtrip` requires
+  bootstrap=`CanonicalReady`, canonical status=`NoChange`, both exits zero, both
+  pipe connections true, and zero authentication exit-3 events.
+- The actual `pwsh.exe` and `coreclr.dll` paths, versions, and SHA-256 values are
+  recorded. Across the full Setup lifecycle, Application Error Event 1000, .NET
+  Runtime Event 1023, WER Event 1001, and `0x80131506` must each have zero events.
+- Post-state verifies the exact installed version, `CONFIGURATION REQUIRED`, the
+  installed executable, Start menu, ARP, support, and a completed transaction,
+  with no remaining journal/temporary files, installer errors,
+  `PrepareToInstall` failures, or legacy data root.
+
 No GitHub Actions runner is registered on either target, and no GitHub job
 token, runner registration credential, or Tailnet auth key is placed there. The
 external audit harness runs only on a controller after its fixed hash and
