@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
@@ -29,6 +30,7 @@ var tests = new (string Name, Action Run)[]
     ("Protocol framing rejects unknown fields", ProtocolFramingRejectsUnknownFields),
     ("Firewall names isolate owner SID", FirewallNamesIsolateOwnerSid),
     ("Native COM automation activates fixed Windows services", NativeComAutomationProbe),
+    ("Native COM preserves an absent Task Scheduler HRESULT", NativeComPreservesAbsentTaskHResult),
     ("Retained client handle detects process exit", RetainedClientDetectsExit),
     ("Applied write crash converges", AppliedWriteCrashConverges),
     ("Applied phase write crash converges", AppliedPhaseCrashConverges),
@@ -275,6 +277,24 @@ static void NativeComAutomationProbe()
     scheduler.InvokeMethod("Connect");
     Assert(scheduler.GetBooleanProperty("Connected"),
         "Native Task Scheduler COM service did not connect.");
+}
+
+static void NativeComPreservesAbsentTaskHResult()
+{
+    using var scheduler = NativeComDispatch.Create(NativeComDispatch.TaskSchedulerClassId);
+    scheduler.InvokeMethod("Connect");
+    using var root = scheduler.InvokeDispatchMethod("GetFolder", @"\");
+    var absentName = $"EverVigil.Broker.Tests.Absent.{Guid.NewGuid():N}";
+    try
+    {
+        using var unexpected = root.InvokeDispatchMethod("GetTask", absentName);
+        throw new InvalidOperationException(
+            "Task Scheduler unexpectedly returned the random absent task.");
+    }
+    catch (COMException exception) when (
+        unchecked((uint)exception.HResult) is 0x80070002 or 0x8004130F)
+    {
+    }
 }
 
 static void ServeRootRemovalPreservesUnrelatedHandlers()

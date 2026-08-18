@@ -24,7 +24,9 @@ internal sealed unsafe class NativeComDispatch : IDisposable
     private const ushort DispatchPropertyPut = 0x4;
     private const int DispatchPropertyPutId = -3;
     private const int ParameterNotFound = unchecked((int)0x80020004);
+    private const int DispatchException = unchecked((int)0x80020009);
     private const int ChangedApartmentMode = unchecked((int)0x80010106);
+    private const uint ControlFacilityError = 0x800A0000;
     private const ushort VariantEmpty = 0;
     private const ushort VariantNull = 1;
     private const ushort VariantInt16 = 2;
@@ -209,6 +211,7 @@ internal sealed unsafe class NativeComDispatch : IDisposable
             NamedArgumentCount = flags == DispatchPropertyPut ? 1u : 0u
         };
         NativeVariant result = default;
+        NativeExceptionInformation exceptionInformation = default;
         uint argumentError = 0;
         var empty = Guid.Empty;
         try
@@ -222,7 +225,7 @@ internal sealed unsafe class NativeComDispatch : IDisposable
                 ushort,
                 DispatchParameters*,
                 NativeVariant*,
-                nint,
+                NativeExceptionInformation*,
                 uint*,
                 int>)vtable[6];
             var hresult = invoke(
@@ -233,9 +236,12 @@ internal sealed unsafe class NativeComDispatch : IDisposable
                 flags,
                 &parameters,
                 &result,
-                0,
+                &exceptionInformation,
                 &argumentError);
-            ThrowForResult(hresult, $"COM member '{name}' failed.");
+            ThrowForDispatchResult(
+                hresult,
+                $"COM member '{name}' failed.",
+                &exceptionInformation);
             return new NativeComValue(result);
         }
         catch
@@ -245,6 +251,7 @@ internal sealed unsafe class NativeComDispatch : IDisposable
         }
         finally
         {
+            FreeExceptionInformation(&exceptionInformation);
             for (var index = 0; index < arguments.Count; index++)
             {
                 FreeArgument(variants + index);
@@ -368,6 +375,52 @@ internal sealed unsafe class NativeComDispatch : IDisposable
         }
     }
 
+    private static void ThrowForDispatchResult(
+        int result,
+        string message,
+        NativeExceptionInformation* exceptionInformation)
+    {
+        if (result != DispatchException)
+        {
+            ThrowForResult(result, message);
+            return;
+        }
+
+        if (exceptionInformation->DeferredFillIn != 0)
+        {
+            var fillIn = (delegate* unmanaged[Stdcall]<NativeExceptionInformation*, int>)
+                exceptionInformation->DeferredFillIn;
+            ThrowForResult(
+                fillIn(exceptionInformation),
+                $"{message} Deferred COM exception information could not be loaded.");
+        }
+
+        var normalizedResult = exceptionInformation->Scode < 0
+            ? exceptionInformation->Scode
+            : exceptionInformation->Code != 0
+                ? unchecked((int)(ControlFacilityError | exceptionInformation->Code))
+                : result;
+        ThrowForResult(normalizedResult, message);
+    }
+
+    private static void FreeExceptionInformation(
+        NativeExceptionInformation* exceptionInformation)
+    {
+        foreach (var value in new[]
+                 {
+                     exceptionInformation->Source,
+                     exceptionInformation->Description,
+                     exceptionInformation->HelpFile
+                 })
+        {
+            if (value != 0)
+            {
+                Marshal.FreeBSTR(value);
+            }
+        }
+        *exceptionInformation = default;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct DispatchParameters
     {
@@ -375,6 +428,20 @@ internal sealed unsafe class NativeComDispatch : IDisposable
         internal int* NamedArgumentIds;
         internal uint ArgumentCount;
         internal uint NamedArgumentCount;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeExceptionInformation
+    {
+        internal ushort Code;
+        internal ushort Reserved;
+        internal nint Source;
+        internal nint Description;
+        internal nint HelpFile;
+        internal uint HelpContext;
+        internal nint ReservedPointer;
+        internal nint DeferredFillIn;
+        internal int Scode;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 16)]
