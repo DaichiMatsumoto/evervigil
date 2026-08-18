@@ -1677,8 +1677,7 @@ function Assert-EverVigilInstallerFinalizationPreflight {
             'Support\scripts\LegacyCompatibility.generated.ps1'
             'Support\scripts\Resolve-SafeInstallRoot.ps1') `
         -RequireAllFiles
-    $programsRoot = [Environment]::GetFolderPath(
-        [Environment+SpecialFolder]::Programs)
+    $programsRoot = Get-EverVigilProgramsFolderPath
     Assert-EverVigilFixedExternalTree `
         -Root (Join-Path $programsRoot 'EverVigil') `
         -AllowedDirectories @() `

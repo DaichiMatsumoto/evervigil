@@ -163,8 +163,8 @@
     },
     {
       "path": "scripts/Complete-InstallTransaction.ps1",
-      "length": 94038,
-      "sha256": "a2dc96a4c0503ab611c81468691af568cd5826b82eaefd4cdb550acdc9135355"
+      "length": 93993,
+      "sha256": "a51de154897e5616933c1f42ad8fbb316f9c8c85437712e1ab534eb378b484e2"
     },
     {
       "path": "scripts/Export-InstallerPayload.ps1",
