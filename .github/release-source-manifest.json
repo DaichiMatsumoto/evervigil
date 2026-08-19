@@ -38,8 +38,8 @@
     },
     {
       "path": "Install.ps1",
-      "length": 97869,
-      "sha256": "84c8e2d3eb2b31fe5f948a9190d2ebba771f0e7c59f4ba4caa65b70272292346"
+      "length": 98173,
+      "sha256": "1373267da307f4050eae97da065ae70e9cad7f6cbf0843bebcb6c8565183ca7a"
     },
     {
       "path": "LICENSE",
@@ -78,8 +78,8 @@
     },
     {
       "path": "Uninstall.ps1",
-      "length": 92132,
-      "sha256": "67325fe563355b61701bb4b6c3424c6685d9cbfa33386f0bd26018d034149db7"
+      "length": 92146,
+      "sha256": "d04d492de4ee0ab74e273af964898f53e576b25d281459ecd5daf77e567bb980"
     },
     {
       "path": "compatibility/legacy-v1.2.1.json",
@@ -208,8 +208,8 @@
     },
     {
       "path": "scripts/Resolve-SafeInstallRoot.ps1",
-      "length": 99603,
-      "sha256": "5b518f322db305a2a138906db878ace894a0d59a1ee0b860eddb52fe8b9f54d6"
+      "length": 101602,
+      "sha256": "8b6b79317309fa68d6efae921509baa7e3559b97904cff16bae90b90dc5e0f92"
     },
     {
       "path": "scripts/Sync-LegacyCompatibility.ps1",
@@ -728,13 +728,13 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 278469,
-      "sha256": "f0fb74cba70e6dae90b753f13321e5c5bf6015c8310388f7766f66fe9a279b87"
+      "length": 279569,
+      "sha256": "b40ebc33cfd3ee9c007f9a86b4e52b5365a613b45108269fd573626f45e6d0d2"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",
-      "length": 52948,
-      "sha256": "5214b78eed8cefda01aa7568d72db087a97596a72e94ac397240598fe63fd812"
+      "length": 54722,
+      "sha256": "c0615cc49944dae0fc1080dba74803c9b73db63e87420ee96d3d00b9f33944e3"
     },
     {
       "path": "tests/Test-UninstallTransactionResidue.ps1",

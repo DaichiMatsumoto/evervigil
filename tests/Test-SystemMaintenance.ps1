@@ -43,6 +43,51 @@ if (Test-EverVigilProtectedBrokerInstallation `
     throw 'A user-writable repository broker was accepted as the protected broker.'
 }
 
+$versionLayoutRoot = Join-Path `
+    $repositoryRoot `
+    "artifacts\broker-version-layout-$PID-$([guid]::NewGuid().ToString('N'))"
+$versionLayoutStateRoot = Join-Path $versionLayoutRoot 'State'
+$versionLayoutCurrentRoot = Join-Path $versionLayoutRoot '2.1.1'
+try {
+    Assert-EverVigilProtectedBrokerVersionLayout `
+        -BrokerRoot $versionLayoutRoot `
+        -VersionRoot $versionLayoutCurrentRoot
+    New-Item -ItemType Directory -Path $versionLayoutStateRoot -Force | Out-Null
+    $missingCurrentRejected = $false
+    try {
+        Assert-EverVigilProtectedBrokerVersionLayout `
+            -BrokerRoot $versionLayoutRoot `
+            -VersionRoot $versionLayoutCurrentRoot
+    } catch {
+        $missingCurrentRejected = $true
+    }
+    if (-not $missingCurrentRejected) {
+        throw 'Protected state without the current broker version was accepted.'
+    }
+
+    New-Item -ItemType Directory -Path $versionLayoutCurrentRoot -Force | Out-Null
+    Assert-EverVigilProtectedBrokerVersionLayout `
+        -BrokerRoot $versionLayoutRoot `
+        -VersionRoot $versionLayoutCurrentRoot
+    $obsoleteVersionRoot = Join-Path $versionLayoutRoot '2.1.0'
+    New-Item -ItemType Directory -Path $obsoleteVersionRoot -Force | Out-Null
+    $obsoleteVersionRejected = $false
+    try {
+        Assert-EverVigilProtectedBrokerVersionLayout `
+            -BrokerRoot $versionLayoutRoot `
+            -VersionRoot $versionLayoutCurrentRoot
+    } catch {
+        $obsoleteVersionRejected = $true
+    }
+    if (-not $obsoleteVersionRejected) {
+        throw 'An obsolete protected broker version was accepted for in-place upgrade.'
+    }
+} finally {
+    if (Test-Path -LiteralPath $versionLayoutRoot) {
+        Remove-Item -LiteralPath $versionLayoutRoot -Recurse -Force
+    }
+}
+
 $systemSid = [Security.Principal.SecurityIdentifier]::new(
     [Security.Principal.WellKnownSidType]::LocalSystemSid,
     $null)

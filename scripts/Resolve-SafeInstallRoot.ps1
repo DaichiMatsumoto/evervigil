@@ -1752,6 +1752,54 @@ function Get-EverVigilProtectedBrokerRetirementPaths {
     }
 }
 
+function Assert-EverVigilProtectedBrokerVersionLayout {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$BrokerRoot,
+        [Parameter(Mandatory)][string]$VersionRoot
+    )
+
+    $resolvedBrokerRoot = [IO.Path]::GetFullPath($BrokerRoot)
+    $resolvedVersionRoot = [IO.Path]::GetFullPath($VersionRoot)
+    $expectedVersionName = [IO.Path]::GetFileName($resolvedVersionRoot)
+    if ([string]::IsNullOrWhiteSpace($expectedVersionName) -or
+        -not [string]::Equals(
+            [IO.Path]::GetDirectoryName($resolvedVersionRoot),
+            $resolvedBrokerRoot,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The protected broker version root is not a direct child of the broker root.'
+    }
+    if (-not (Test-Path -LiteralPath $resolvedBrokerRoot)) {
+        return
+    }
+
+    $brokerRootItem = Get-Item `
+        -LiteralPath $resolvedBrokerRoot `
+        -Force `
+        -ErrorAction Stop
+    if (-not $brokerRootItem.PSIsContainer -or
+        ($brokerRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "The protected broker root is not a regular directory: $resolvedBrokerRoot"
+    }
+
+    foreach ($entry in @(Get-ChildItem `
+            -LiteralPath $resolvedBrokerRoot `
+            -Force `
+            -ErrorAction Stop)) {
+        $knownDirectory = $entry.PSIsContainer -and
+            ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0 -and
+            ($entry.Name -ceq 'State' -or $entry.Name -ceq $expectedVersionName)
+        if (-not $knownDirectory) {
+            throw "A different protected broker version or unknown entry is installed: $($entry.FullName). Uninstall it before installing this release."
+        }
+    }
+    if (-not (Test-Path `
+            -LiteralPath $resolvedVersionRoot `
+            -PathType Container)) {
+        throw "Protected broker state exists without this release's canonical version. Uninstall the existing release first: $resolvedBrokerRoot"
+    }
+}
+
 function Test-EverVigilProtectedBrokerRetirementAcl {
     [CmdletBinding()]
     param(

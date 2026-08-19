@@ -1554,8 +1554,13 @@ try {
             throw "A transaction artifact already exists at the generated path: $transactionArtifact"
         }
     }
+    $protectedBrokerPathsBeforeBootstrap =
+        Get-EverVigilProtectedBrokerRetirementPaths
+    Assert-EverVigilProtectedBrokerVersionLayout `
+        -BrokerRoot $protectedBrokerPathsBeforeBootstrap.BrokerRoot `
+        -VersionRoot $protectedBrokerPathsBeforeBootstrap.VersionRoot
     $protectedBrokerPathBeforeBootstrap =
-        Get-EverVigilProtectedBrokerPath
+        $protectedBrokerPathsBeforeBootstrap.CanonicalPath
     $protectedBrokerWasPresentBefore = $false
     if (Test-Path -LiteralPath $protectedBrokerPathBeforeBootstrap) {
         if (-not (Test-Path `

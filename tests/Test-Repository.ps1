@@ -4789,6 +4789,8 @@ foreach ($customInstallGuard in @(
         'Remove-EverVigilNewQuarantineFiles'
         '$script:LegacyCompatibilityDataInstallerPublishDirectoryPrefix'
         'systemConfigurationRequiredWasPresent = $systemConfigurationRequiredWasPresent'
+        'Assert-EverVigilProtectedBrokerVersionLayout `'
+        '$protectedBrokerPathsBeforeBootstrap.CanonicalPath'
         '$PreviousBackupRoot'
         '-AllowCurrentTempTree:$allowPreviousInstallRootInCurrentTemp'
         '-Path $StagingRoot'
@@ -4839,6 +4841,26 @@ foreach ($customInstallGuard in @(
     if (-not $installContent.Contains($customInstallGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Custom install destination guard is missing: $customInstallGuard")
     }
+}
+$protectedVersionLayoutIndex = $installContent.IndexOf(
+    'Assert-EverVigilProtectedBrokerVersionLayout `',
+    [StringComparison]::Ordinal)
+$protectedPresenceSnapshotIndex = $installContent.IndexOf(
+    '$protectedBrokerWasPresentBefore = $false',
+    [StringComparison]::Ordinal)
+if ($protectedVersionLayoutIndex -lt 0 -or
+    $protectedPresenceSnapshotIndex -le $protectedVersionLayoutIndex) {
+    $failures.Add(
+        'Install must reject obsolete protected broker versions before authorizing rollback cleanup.')
+}
+if (-not $uninstallContent.Contains(
+        'A configuration-required install can intentionally have only its local',
+        [StringComparison]::Ordinal) -or
+    [regex]::IsMatch(
+        $uninstallContent,
+        '(?s)\$primaryConfigurationOwned\s*-or\s*\(Test-Path\s+-LiteralPath\s+\$SystemConfigurationRequiredPath\)')) {
+    $failures.Add(
+        'A marker-only configuration-required install must remain uninstallable without a protected broker.')
 }
 if ($installContent.Contains(
         "Invoke-AppCommand -Arguments @('--mark-system-configured')",
