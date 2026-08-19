@@ -26,7 +26,7 @@ Codex実行ファイルを、別途導入済みのEven Terminalから子プロ�
 
 ## v2.0.0のインストール
 
-1. 承認済みGitHub Release
+1. GitHub Release
    <https://github.com/DaichiMatsumoto/evervigil/releases>から
    `EverVigil-2.0.0-Setup.exe`を取得します。
 2. SHA-256を計算し、Releaseに掲載された正確な値と照合します。

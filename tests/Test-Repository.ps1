@@ -314,6 +314,32 @@ if ([regex]::Matches(
         'RELEASE_NOTES.md must contain one replaceable installer hash placeholder and no contradictory pending-hash text.')
 }
 
+foreach ($publicReleaseDocument in @(
+        'README.md'
+        'RELEASE_NOTES.md'
+        'docs\README.en.md'
+        'docs\README.ja.md'
+        'docs\TECHNICAL_OVERVIEW.en.md'
+        'docs\TECHNICAL_OVERVIEW.ja.md'
+    )) {
+    $publicReleaseContent = Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot $publicReleaseDocument) `
+        -Raw `
+        -Encoding UTF8
+    foreach ($approvalImplication in @(
+            'approved GitHub Release'
+            '承認済みGitHub Release'
+            'GitHub Releasesから承認済み'
+        )) {
+        if ($publicReleaseContent.Contains(
+                $approvalImplication,
+                [StringComparison]::OrdinalIgnoreCase)) {
+            $failures.Add(
+                "$publicReleaseDocument implies external approval through public release-download wording: $approvalImplication")
+        }
+    }
+}
+
 foreach ($networkLimitationDocument in @(
         'README.md'
         'RELEASE_NOTES.md'

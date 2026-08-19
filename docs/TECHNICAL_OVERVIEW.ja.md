@@ -161,7 +161,7 @@ credential、既知bridge token、32文字の16進token形式値を秘匿化し�
 
 ## 8. Update mechanism（更新機構）
 
-EverVigilに自動更新機能はありません。GitHub Releasesから承認済み
+EverVigilに自動更新機能はありません。GitHub Releasesから
 `EverVigil-<version>-Setup.exe`を手動取得し、公開SHA-256と照合して既存導入へ
 上書き実行します。コミュニティbinaryは未署名で、Microsoft Defender SmartScreenが
 警告する場合があります。

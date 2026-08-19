@@ -63,8 +63,8 @@
     },
     {
       "path": "RELEASE_NOTES.md",
-      "length": 7003,
-      "sha256": "43c02ec9cb168734fead56be6f3f1c492daf48b86f61bfad51ecf13e7139a8be"
+      "length": 6991,
+      "sha256": "9942246dfe6db094175a283d1dda913599406d9ec6c4c93f199d482bf0ecad88"
     },
     {
       "path": "SECURITY.md",
@@ -93,8 +93,8 @@
     },
     {
       "path": "docs/README.ja.md",
-      "length": 9256,
-      "sha256": "ed24e342bd608ab401a5006a1ccb95604af24306e233499ee5a1e50c509239d7"
+      "length": 9244,
+      "sha256": "31a6238c34f7083ad57defdc06fc0af944b771cd341dab4b3a80967252db97fa"
     },
     {
       "path": "docs/REFERENCE.en.md",
@@ -123,8 +123,8 @@
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.ja.md",
-      "length": 18980,
-      "sha256": "60f0b936a6d0d49c93fef455f7a93fb287917852df3d749fcaedacd7bc9fa962"
+      "length": 18968,
+      "sha256": "6a4ec6b69e5b96e220280165d620d3d6452c31b4e8c172d78f9fc67b7d3faf47"
     },
     {
       "path": "docs/images/evervigil-about-en.png",
@@ -758,8 +758,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 284287,
-      "sha256": "aa6459fdab797174520780cb972f2ffab104818044d757641d5133e01224b89a"
+      "length": 285167,
+      "sha256": "ecd87e22de889a544316a51fac60101aaf9b121adb893c3ac47dff8ba70d268a"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",
