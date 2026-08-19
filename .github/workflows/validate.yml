@@ -82,6 +82,28 @@ jobs:
           -p:RestorePackagesWithLockFile=true
           -p:RestoreLockedMode=true
 
+      - name: Restore NativeAOT broker graph
+        run: >-
+          dotnet restore .\src\EverVigil.Broker\EverVigil.Broker.csproj
+          --configfile .\NuGet.config
+          --packages $env:NUGET_PACKAGES
+          --locked-mode
+          -r win-x64
+          --disable-parallel
+          -m:1
+          -p:Configuration=Release
+          -p:PublishAot=true
+          -p:RestoreBuildInParallel=false
+          -p:ContinuousIntegrationBuild=true
+          -p:RestoreConfigFile=$env:GITHUB_WORKSPACE\NuGet.config
+          -p:RestorePackagesPath=$env:NUGET_PACKAGES
+          -p:RestoreSources=https://api.nuget.org/v3/index.json
+          -p:RestoreFallbackFolders=
+          -p:RestoreAdditionalProjectSources=
+          -p:RestoreAdditionalProjectFallbackFolders=
+          -p:RestorePackagesWithLockFile=true
+          -p:RestoreLockedMode=true
+
       - name: Build
         run: >-
           dotnet build .\EverVigil.sln
