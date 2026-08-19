@@ -726,6 +726,14 @@ foreach ($releaseGuard in @(
         '[StringComparison]::Ordinal'
         'Composed GitHub Release notes are missing required notice/hash evidence or remain contradictory.'
         'Revalidate candidate and production audits without executing repository code'
+        'EXPECTED_CANDIDATE_MANIFEST_SHA256: ${{ needs.validate-private-candidate.outputs.candidate-manifest-sha256 }}'
+        'EXPECTED_INSTALLER_SHA256: ${{ needs.validate-private-candidate.outputs.installer-sha256 }}'
+        'EXPECTED_AMD_REPORT_SHA256: ${{ needs.production-installer-audit-amd.outputs.report-sha256 }}'
+        'EXPECTED_INTEL_REPORT_SHA256: ${{ needs.production-installer-audit-intel.outputs.report-sha256 }}'
+        '$expectedCandidateManifestSha256 = $env:EXPECTED_CANDIDATE_MANIFEST_SHA256'
+        '$expectedInstallerSha256 = $env:EXPECTED_INSTALLER_SHA256'
+        '$expectedAmdReportSha256 = $env:EXPECTED_AMD_REPORT_SHA256'
+        '$expectedIntelReportSha256 = $env:EXPECTED_INTEL_REPORT_SHA256'
         'production-installer-audit-amd:'
         'production-installer-audit-intel:'
         'schema v2 required'
@@ -804,6 +812,29 @@ foreach ($releaseGuard in @(
     )) {
     if (-not $releaseWorkflowContent.Contains($releaseGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Private draft release guard is missing: $releaseGuard")
+    }
+}
+$publishingRevalidationStep = [regex]::Match(
+    $releaseWorkflowContent,
+    '(?ms)^      - name: Revalidate candidate and production audits without executing repository code\r?\n(?<step>.*?)(?=^      - name: Create private draft release after environment approval\r?$)')
+if (-not $publishingRevalidationStep.Success) {
+    $failures.Add('The private publishing revalidation step is not uniquely identifiable.')
+} else {
+    $publishingRevalidationBody = $publishingRevalidationStep.Groups['step'].Value
+    $runMarker = "        run: |`n"
+    $normalizedRevalidationBody = $publishingRevalidationBody.Replace("`r`n", "`n")
+    $runIndex = $normalizedRevalidationBody.IndexOf(
+        $runMarker,
+        [StringComparison]::Ordinal)
+    if ($runIndex -lt 0) {
+        $failures.Add('The private publishing revalidation run block is missing.')
+    } else {
+        $publishingRevalidationRun = $normalizedRevalidationBody.Substring(
+            $runIndex + $runMarker.Length)
+        if ($publishingRevalidationRun.Contains('${{', [StringComparison]::Ordinal)) {
+            $failures.Add(
+                'The large private publishing revalidation run block must receive GitHub outputs through step env to stay below the expression-length limit.')
+        }
     }
 }
 $reviewedBootstrapSources = [ordered]@{
