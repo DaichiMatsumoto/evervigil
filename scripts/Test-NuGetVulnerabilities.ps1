@@ -42,7 +42,6 @@ function Invoke-NuGetAudit {
             'list'
             $resolvedPath
             'package'
-            '--no-restore'
             '--vulnerable'
             '--include-transitive'
             '--format'

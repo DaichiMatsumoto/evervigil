@@ -218,8 +218,8 @@
     },
     {
       "path": "scripts/Test-NuGetVulnerabilities.ps1",
-      "length": 5354,
-      "sha256": "6c2ab3963fbbb3f84e298141d8d21106f36a3688cf27b7de0dc3b0cfedcde523"
+      "length": 5327,
+      "sha256": "dd63ba59607a812f094d6ee831d26c8a2b8b83ffb3ce6bc10d7990e022b2147f"
     },
     {
       "path": "scripts/Test-PublicRelease.ps1",
