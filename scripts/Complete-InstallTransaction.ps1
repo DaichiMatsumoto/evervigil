@@ -910,15 +910,16 @@ function Stop-TransactionSupervisors {
         }
     }
     if (-not [bool]$State.startupWasRegistered) {
-        $startupShortcut = Join-Path `
-            ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) `
-            'EverVigil.lnk'
-        [void](Remove-EverVigilOwnedShortcut `
-                -Path $startupShortcut `
-                -ExpectedTargetPath @(
-                    (Join-Path ([string]$State.installRoot) 'EverVigil.exe')
-                    (Join-Path ([string]$State.previousInstallRoot) 'EverVigil.exe')) `
-                -ExpectedArguments '--background')
+        $startupFolder = Get-EverVigilStartupFolderPath
+        if (-not [string]::IsNullOrWhiteSpace($startupFolder)) {
+            $startupShortcut = Join-Path $startupFolder 'EverVigil.lnk'
+            [void](Remove-EverVigilOwnedShortcut `
+                    -Path $startupShortcut `
+                    -ExpectedTargetPath @(
+                        (Join-Path ([string]$State.installRoot) 'EverVigil.exe')
+                        (Join-Path ([string]$State.previousInstallRoot) 'EverVigil.exe')) `
+                    -ExpectedArguments '--background')
+        }
     }
     $remaining = @(@(foreach ($root in $roots) {
                 Get-SupervisorProcessesAtRoot -Root $root
@@ -1530,8 +1531,12 @@ function Remove-EverVigilLegacyStartMenuShortcuts {
 function Remove-EverVigilLegacyStartupShortcut {
     param([Parameter(Mandatory)]$State)
 
+    $startupFolder = Get-EverVigilStartupFolderPath
+    if ([string]::IsNullOrWhiteSpace($startupFolder)) {
+        return
+    }
     $shortcutPath = Join-Path `
-        ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) `
+        $startupFolder `
         $script:LegacyCompatibilityApplicationStartupShortcutFileName
     if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) {
         return
@@ -2090,15 +2095,16 @@ function Rollback-EverVigilInstallTransaction {
             $errors.Add("previous runtime: $($_.Exception.Message)")
         }
     } else {
-        $startupShortcut = Join-Path `
-            ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) `
-            'EverVigil.lnk'
-        [void](Remove-EverVigilOwnedShortcut `
-                -Path $startupShortcut `
-                -ExpectedTargetPath @(
-                    (Join-Path ([string]$State.installRoot) 'EverVigil.exe')
-                    (Join-Path ([string]$State.previousInstallRoot) 'EverVigil.exe')) `
-                -ExpectedArguments '--background')
+        $startupFolder = Get-EverVigilStartupFolderPath
+        if (-not [string]::IsNullOrWhiteSpace($startupFolder)) {
+            $startupShortcut = Join-Path $startupFolder 'EverVigil.lnk'
+            [void](Remove-EverVigilOwnedShortcut `
+                    -Path $startupShortcut `
+                    -ExpectedTargetPath @(
+                        (Join-Path ([string]$State.installRoot) 'EverVigil.exe')
+                        (Join-Path ([string]$State.previousInstallRoot) 'EverVigil.exe')) `
+                    -ExpectedArguments '--background')
+        }
     }
 
     if ($errors.Count -gt 0) {

@@ -163,8 +163,8 @@
     },
     {
       "path": "scripts/Complete-InstallTransaction.ps1",
-      "length": 94315,
-      "sha256": "868b23ea0b9a425213998d618546dcdfc6715ed8637a9361a3a037ba7b2372e0"
+      "length": 94544,
+      "sha256": "4c2eaa74efd349754cb713b1512514d7ea8c3d1f504eedd0c4d95508c4872800"
     },
     {
       "path": "scripts/Export-InstallerPayload.ps1",
@@ -173,8 +173,8 @@
     },
     {
       "path": "scripts/InstallTransactionData.ps1",
-      "length": 87736,
-      "sha256": "b116a69f7752f58880e1c76b47637be99b87e2cdcc36add54a362cb98272f24a"
+      "length": 87860,
+      "sha256": "f8862503dd2bc155a18099bc1bbda375a90d4005054e79b90bd5313887a41555"
     },
     {
       "path": "scripts/Invoke-InteractiveUserTask.ps1",

@@ -245,8 +245,8 @@ function Get-EverVigilExternalArtifactDefinitions {
         [pscustomobject]@{ Role = 'current-support-resolver-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Resolve-SafeInstallRoot.ps1'); InstallerManaged = $true }
         [pscustomobject]@{ Role = 'current-menu-application'; Path = (Join-Path $currentGroup 'EverVigil.lnk'); InstallerManaged = $true }
         [pscustomobject]@{ Role = 'current-menu-uninstall'; Path = (Join-Path $currentGroup 'Uninstall EverVigil.lnk'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-startup'; Path = (Join-Path $startupRoot 'EverVigil.lnk'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'legacy-startup'; Path = (Join-Path $startupRoot $script:LegacyCompatibilityApplicationStartupShortcutFileName); InstallerManaged = $false }
+        [pscustomobject]@{ Role = 'current-startup'; Path = if ([string]::IsNullOrWhiteSpace($startupRoot)) { '' } else { Join-Path $startupRoot 'EverVigil.lnk' }; InstallerManaged = $true }
+        [pscustomobject]@{ Role = 'legacy-startup'; Path = if ([string]::IsNullOrWhiteSpace($startupRoot)) { '' } else { Join-Path $startupRoot $script:LegacyCompatibilityApplicationStartupShortcutFileName }; InstallerManaged = $false }
         [pscustomobject]@{ Role = 'legacy-menu-application'; Path = (Join-Path $legacyGroup "$($script:LegacyCompatibilityApplicationProductName).lnk"); InstallerManaged = $false }
         [pscustomobject]@{ Role = 'legacy-menu-uninstall'; Path = (Join-Path $legacyGroup "Uninstall $($script:LegacyCompatibilityApplicationProductName).lnk"); InstallerManaged = $false }
         [pscustomobject]@{ Role = 'legacy-support-unins-dat'; Path = (Join-Path $legacySupportRoot 'unins000.dat'); InstallerManaged = $false }
