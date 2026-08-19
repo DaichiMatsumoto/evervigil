@@ -239,7 +239,7 @@ try {
         legacyCleanupAuthorized = $false
         legacyCredentialFound = $false
         legacyTokenPath = ''
-        targetVersion = '2.1.1'
+        targetVersion = '2.0.0'
         existingInstallPresent = $true
         startupWasRegistered = $true
         migrationApplied = $false
@@ -284,7 +284,7 @@ try {
         }
     }
     Set-TestRegistryRecords -Record @(
-        (Get-TestCurrentInnoRegistryRecords -Version '2.1.1' |
+        (Get-TestCurrentInnoRegistryRecords -Version '2.0.0' |
             Select-Object -First 4))
 
     $unexpectedSupport = Join-Path $supportRoot 'unexpected-inno.tmp'
@@ -412,7 +412,7 @@ try {
         -RecoveryRoot $recoveryRoot `
         -TransactionId $transactionId
 
-    $currentRecords = @(Get-TestCurrentInnoRegistryRecords -Version '2.1.1')
+    $currentRecords = @(Get-TestCurrentInnoRegistryRecords -Version '2.0.0')
     for ($recordCount = 0; $recordCount -le $currentRecords.Count; $recordCount++) {
         Set-TestRegistryRecords -Record @($currentRecords | Select-Object -First $recordCount)
         Restore-EverVigilUninstallRegistrySnapshot `
@@ -423,7 +423,7 @@ try {
 
     foreach ($versionCase in @(
             [pscustomobject]@{ Version = '2.0.1'; Major = '2'; Minor = '0' }
-            [pscustomobject]@{ Version = '2.1.1'; Major = '2'; Minor = '1' }
+            [pscustomobject]@{ Version = '2.0.0'; Major = '2'; Minor = '0' }
             [pscustomobject]@{ Version = '3.0.0-rc.1'; Major = '3'; Minor = '0' }
         )) {
         $state.targetVersion = $versionCase.Version
@@ -446,7 +446,7 @@ try {
             throw "A mismatched DisplayVersion was accepted for $($versionCase.Version)."
         }
     }
-    $state.targetVersion = '2.1.1'
+    $state.targetVersion = '2.0.0'
     Set-TestRegistryRecords -Record $currentRecords
     $alreadyCurrentSnapshot = Get-EverVigilUninstallRegistryState
     Assert-EverVigilPartialInnoRegistryOwned `

@@ -1,26 +1,39 @@
-# EverVigil v2.1.1
+# EverVigil v2.0.0
 
-Release status: private release candidate pending verification and approval.
+First public release.
 
 This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.
 
 ## English
 
-### Fixes in v2.1.1
+### First public release
+
+- Introduces EverVigil as a newly rebuilt, independent Windows tray utility
+  with its own product name, repository, executable, installer, and visual
+  identity.
+- Uses factual, non-prominent compatibility references only where needed to
+  explain operation with the separately installed Even Terminal package.
+- Displays the independent-project notice in the README, release material,
+  installer, and application About page.
+
+### Brand and distribution boundaries
+
+- Uses independently created original icon artwork made from neutral geometric
+  shapes. No Even Realities logo, favicon, derived icon, product icon, or other
+  visual brand asset is included.
+- Does not display a recognition, certification, endorsement, or compatibility
+  badge.
+- Ships EverVigil source under GPL-3.0-only without bundling, modifying,
+  patching, forking, or redistributing `@evenrealities/even-terminal` or Codex.
+- Has no automatic updater, analytics endpoint, telemetry service, relay
+  service, or project-operated cloud backend.
+
+### Reliability and user-visible fixes
 
 - Restores Tailnet identity display and copy actions for a standard
   medium-integrity session while preserving the protected broker-state ACL.
 - Keeps the protected shared state directory non-listable and validates only
   the current user's protected identity ledger before exposing its values.
-
-### New product and repository
-
-- Establishes EverVigil as a new product in a new repository with no inherited
-  Git commits, branches, tags, Releases, or artifacts.
-- Continues the useful process-supervision behavior of the legacy v1.2.1
-  application while changing every user-facing product surface to EverVigil.
-- Uses independently created original icon artwork that is not derived from
-  Even Realities artwork. No certification or recognition badge is included.
 
 ### Compatibility and operation
 
@@ -39,7 +52,7 @@ This is an independent community project. It is not an official Even Realities p
 - The user installs `@evenrealities/even-terminal` separately. EverVigil does
   not bundle, fork, patch, or redistribute that package.
 - Installation and update are manual: download
-  `EverVigil-2.1.1-Setup.exe` from the approved GitHub Release, verify the
+  `EverVigil-2.0.0-Setup.exe` from the GitHub Release, verify the
   published SHA-256, and run the installer. There is no automatic updater.
 - The installer is unsigned and may trigger Microsoft Defender SmartScreen.
 - Tailscale Serve is Tailnet-only, depends on Tailnet ACLs, and does not use
@@ -55,21 +68,31 @@ This is an independent community project. It is not an official Even Realities p
 
 ## 日本語
 
-### v2.1.1の修正
+### 初回公開リリース
+
+- 独自の製品名、repository、実行file、installer、visual identityを持つ、
+  新たに再構築した独立Windows tray utilityとしてEverVigilを公開します。
+- 別途導入するEven Terminal packageとの動作関係を説明する必要がある箇所だけで、
+  事実に限定した非顕著な互換性表現を使用します。
+- 独立projectであることを示すnoticeをREADME、Release material、installer、
+  application About pageへ表示します。
+
+### ブランドと配布の境界
+
+- 中立的な幾何形状から独自に制作したoriginal iconを使用します。Even Realitiesの
+  logo、favicon、派生icon、product icon、その他のvisual brand assetは含みません。
+- 認識、認定、推奨、互換性を示すbadgeは表示しません。
+- EverVigil sourceをGPL-3.0-onlyで配布し、`@evenrealities/even-terminal`と
+  Codexをbundle、変更、patch、fork、再配布しません。
+- 自動updater、analytics endpoint、telemetry service、relay service、
+  project独自のcloud backendはありません。
+
+### 信頼性とユーザー向け修正
 
 - 保護broker stateのACLを維持したまま、標準のmedium-integrity sessionで
   Tailnet identityの表示と接続URLのコピーを利用できるようにしました。
 - 共有state directoryを引き続き列挙不可とし、現在のユーザーに属する
   保護identity ledgerだけを検証して値を表示します。
-
-### 新製品と新リポジトリ
-
-- 旧Gitのcommit、branch、tag、Release、artifactを継承せず、EverVigilを
-  新しい製品・新しいリポジトリとして構築します。
-- 旧v1.2.1アプリケーションの有用なプロセス監督機能を継承しつつ、
-  ユーザー向け名称をすべてEverVigilへ変更します。
-- Even Realitiesのアートワークから派生していない、独自生成の正式アイコンを
-  使用します。認定・認識バッジは含みません。
 
 ### 互換性と動作
 
@@ -88,7 +111,7 @@ This is an independent community project. It is not an official Even Realities p
 - `@evenrealities/even-terminal`はユーザーが別途導入します。EverVigilは
   このpackageをbundle、fork、patch、再配布しません。
 - 導入・更新は手動です。承認済みGitHub Releaseから
-  `EverVigil-2.1.1-Setup.exe`を取得し、公開SHA-256を照合してから実行します。
+  `EverVigil-2.0.0-Setup.exe`を取得し、公開SHA-256を照合してから実行します。
   自動更新機能はありません。
 - installerは未署名で、Microsoft Defender SmartScreenが警告する場合があります。
 - Tailscale ServeはTailnet内だけで利用し、Tailnet ACLに依存します。
@@ -102,7 +125,7 @@ This is an independent community project. It is not an official Even Realities p
 
 ## SHA-256
 
-`EverVigil-2.1.1-Setup.exe`
+`EverVigil-2.0.0-Setup.exe`
 
 ```text
 {{EVERVIGIL_INSTALLER_SHA256}}

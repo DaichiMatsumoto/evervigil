@@ -2,7 +2,7 @@
 
 [日本語](TECHNICAL_OVERVIEW.ja.md) | [User guide](README.en.md) | [Technical reference](REFERENCE.en.md) | [Repository](https://github.com/DaichiMatsumoto/evervigil)
 
-This document describes the EverVigil v2.1.1 architecture and security model.
+This document describes the EverVigil v2.0.0 architecture and security model.
 
 ## 1. Architecture
 
@@ -234,9 +234,9 @@ available on its first visible launch.
 
 ## 9. Upgrade from Even Terminal Supervisor
 
-EverVigil v2.1.1 adopts an in-place upgrade from legacy v1.2.1. Keeping the
+EverVigil v2.0.0 adopts an in-place upgrade from legacy v1.2.1. Keeping the
 existing Inno Setup AppId is the preferred design because it lets Windows treat
-v2.1.1 as the replacement installation and preserves same-user settings and the
+v2.0.0 as the replacement installation and preserves same-user settings and the
 DPAPI-protected token. The retained AppId, entropy compatibility, old paths,
 mutexes, task names, and other predecessor identifiers are centralized in the
 implementation's `LegacyCompatibility` boundary. They are not shown as the
@@ -260,7 +260,7 @@ They are compatibility internals, not user-facing branding. If both current and
 predecessor data roots contain persistent state, startup fails closed rather
 than choosing one implicitly.
 
-Release approval requires a real v1.2.1-to-v2.1.1 migration test confirming
+Release approval requires a real v1.2.1-to-v2.0.0 migration test confirming
 that settings and token remain usable and no duplicate owned process, route,
 rule, shortcut, startup entry, or installation directory remains.
 
@@ -312,7 +312,7 @@ ownership check stops cleanup before destructive work.
 
 - The project is a community utility, not a vendor security product or audit.
 - Unsigned binaries may be blocked or warned about by Windows.
-- The v2.1.1 broker bootstrap is unsigned. Its first installation therefore
+- The v2.0.0 broker bootstrap is unsigned. Its first installation therefore
   cannot provide a publisher-authenticated trust anchor; future broker binary
   replacement requires an approved signing or OS-trusted installer design.
 - SHA-256 verifies file identity, not publisher identity or code safety.

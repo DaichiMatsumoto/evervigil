@@ -2,7 +2,7 @@
 
 [日本語](REFERENCE.ja.md) | [User guide](README.en.md) | [Technical overview](TECHNICAL_OVERVIEW.en.md) | [Repository](https://github.com/DaichiMatsumoto/evervigil)
 
-Target release: `2.1.1`
+Target release: `2.0.0`
 
 ## Runtime topology
 
@@ -141,8 +141,8 @@ dotnet run --project .\tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.cspro
 .\tests\Test-InstallTransaction.ps1
 .\scripts\Test-NuGetVulnerabilities.ps1 -SolutionPath .\EverVigil.sln
 .\scripts\New-PlaceholderIcon.ps1 -Check
-.\scripts\Test-ReleaseVersion.ps1 -Version 2.1.1
-.\scripts\Build-Release.ps1 -Version 2.1.1
+.\scripts\Test-ReleaseVersion.ps1 -Version 2.0.0
+.\scripts\Build-Release.ps1 -Version 2.0.0
 ```
 
 Release approval also requires source, staged-file, binary, extracted-installer,

@@ -130,7 +130,7 @@ static bool ParseFailOnSkipArgument(string[] arguments)
 static void FreshBootstrapDispatchesOnlyInstallerApply()
 {
     var readiness = new ProtectedBrokerReadiness(
-        new ProtectedBrokerIdentity(1, "EverVigil.Broker.exe", "2.1.1", 1, new string('a', 64)),
+        new ProtectedBrokerIdentity(1, "EverVigil.Broker.exe", "2.0.0", 1, new string('a', 64)),
         IsCanonicalInvocation: false,
         InstalledNow: true);
     var transactionId = Guid.NewGuid();
@@ -1480,7 +1480,7 @@ static void BootstrapRejectsHardLinkedCanonical()
 
 static void BootstrapRejectsOrphanedInstallationReceipt()
 {
-    const string version = "2.1.1";
+    const string version = "2.0.0";
     var root = NewTestRoot();
     try
     {
@@ -1711,7 +1711,7 @@ static void InstalledTailscaleValidationProbe()
 static RetirementTestFixture NewRetirementFixture()
 {
     const string ownerSid = "S-1-5-21-1-2-3-1001";
-    const string version = "2.1.1";
+    const string version = "2.0.0";
     var root = NewTestRoot();
     var store = BrokerStateStore.ForTests(root, ownerSid);
     var versionRoot = PrivilegedBrokerPaths.GetVersionRoot(root, version);
@@ -1741,7 +1741,7 @@ static RetirementTestFixture NewRetirementFixture()
 
 static BootstrapRecoveryFixture NewBootstrapRecoveryFixture(bool canonicalMatchesSource)
 {
-    const string version = "2.1.1";
+    const string version = "2.0.0";
     var root = NewTestRoot();
     var versionRoot = PrivilegedBrokerPaths.GetVersionRoot(root, version);
     Directory.CreateDirectory(versionRoot);

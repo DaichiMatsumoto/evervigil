@@ -873,7 +873,7 @@ static void ApplicationMetadataContract()
         "This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.",
         "The required independent-project notice changed.");
     Assert(
-        ApplicationMetadata.Version == "2.1.1",
+        ApplicationMetadata.Version == "2.0.0",
         $"Unexpected application version: {ApplicationMetadata.Version}");
     Assert(
         Uri.TryCreate(ApplicationMetadata.GitHubProfileUrl, UriKind.Absolute, out var profileUri) &&

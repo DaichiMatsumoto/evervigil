@@ -22,6 +22,24 @@ redistribute either product.
 - Supports transactional install, manual update, rollback, and ownership-safe removal.
 - Provides English and Japanese UI.
 
+## Screenshots
+
+The screenshots below are rendered from the application UI with isolated
+preview data. They contain no connection URL, QR code, bridge token, account,
+or device credential.
+
+### English
+
+| Overview | Configuration | About |
+|---|---|---|
+| ![EverVigil overview in English](docs/images/evervigil-overview-en.png) | ![EverVigil configuration in English](docs/images/evervigil-config-en.png) | ![EverVigil About page in English](docs/images/evervigil-about-en.png) |
+
+### 日本語
+
+| 概要 | 設定 | 情報 |
+|---|---|---|
+| ![EverVigilの日本語概要画面](docs/images/evervigil-overview-ja.png) | ![EverVigilの日本語設定画面](docs/images/evervigil-config-ja.png) | ![EverVigilの日本語情報画面](docs/images/evervigil-about-ja.png) |
+
 ## Network path
 
 ```text
@@ -46,25 +64,19 @@ release risk rather than being treated as a completed loopback-bind guarantee.
 
 ## Install and update
 
-EverVigil v2.1.1 is installed and updated manually:
+EverVigil v2.0.0 is the first public release:
 
-1. Download `EverVigil-2.1.1-Setup.exe` from the approved GitHub Release.
+1. Download `EverVigil-2.0.0-Setup.exe` from the GitHub Release.
 2. Compare the file's SHA-256 with the value published in that Release.
-3. If EverVigil v2.1.0 is installed, uninstall it first. Choose **Yes** when
-   asked to keep settings and the encrypted connection token, or **No** for a
-   complete removal.
-4. Run the v2.1.1 installer and review the independent-project notice.
+3. Run the installer and review the independent-project notice.
 
 EverVigil has no automatic updater. Community builds are not
 Authenticode-signed and may trigger Microsoft Defender SmartScreen. Verify the
 SHA-256 before running an installer.
 
-EverVigil v2.1.0 to v2.1.1 is an uninstall/reinstall update. The v2.1.1
-installer refuses a remaining v2.1.0 protected Broker instead of modifying
-ambiguous privileged state. Keeping data during v2.1.0 uninstall preserves the
-same-user settings and DPAPI-protected bridge token for v2.1.1; complete
-removal deletes them. The separate migration from the legacy v1.2.1 product
-remains an authenticated in-place migration. See [Upgrade from the legacy
+Future releases will use the same manual download and checksum-verification
+flow. The separate migration from the legacy v1.2.1 product remains an
+authenticated in-place migration. See [Upgrade from the legacy
 application](docs/TECHNICAL_OVERVIEW.en.md#9-upgrade-from-even-terminal-supervisor).
 
 ## Connection credentials
