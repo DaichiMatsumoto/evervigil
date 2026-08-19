@@ -913,8 +913,7 @@ foreach ($brokerGuard in @(
         "'--nonce', `$nonce"
         "'--transaction-id', `$TransactionId.ToString('D')"
         'migrateLegacySystemState = [bool]$MigrateV121SystemState'
-        "[string]`$bootstrapResponse.disposition -cne 'CanonicalReady'"
-        "[string]`$response.disposition -ceq 'CanonicalReady'"
+        'return $bootstrapResponse'
         'public sealed class BootstrapPathLock : IDisposable'
         'FileFlagOpenReparsePoint'
         'FileFlagBackupSemantics'
@@ -1211,26 +1210,29 @@ foreach ($retirementOrderGuard in $retirementFileDeleteOrder) {
     $retirementOrderCursor = $nextRetirementOrderCursor
 }
 if (-not $contents[$installPath].Contains(
-        '-AllowBootstrap:($Mode -eq ''Prepare'')',
+        '-AllowBootstrap:($Mode -eq ''Install'')',
         [StringComparison]::Ordinal) -or
     $resolverContent.Contains('[string]$PackageRoot', [StringComparison]::Ordinal) -or
     $contents[$completePath].Contains('-AllowBootstrap', [StringComparison]::Ordinal) -or
     $contents[$uninstallPath].Contains('-AllowBootstrap', [StringComparison]::Ordinal)) {
-    throw 'Only the unconditional installer Status preflight may bootstrap the protected broker.'
+    throw 'Only installer Apply may bootstrap the protected broker.'
 }
-foreach ($unconditionalBrokerBootstrapGuard in @(
-        "[ValidateSet('Prepare', 'Install', 'Commit', 'Rollback')]"
-        "'Prepare' { 'Status' }"
-        'Invoke-SystemBrokerMaintenance -Mode Prepare'
+foreach ($singlePromptBrokerBootstrapGuard in @(
+        "[ValidateSet('Install', 'Commit', 'Rollback')]"
+        "'Install' { 'Apply' }"
+        '-AllowBootstrap:($Mode -eq ''Install'')'
         '$transactionState.protectedBrokerReady = $true'
-        "[string]`$brokerResponse.disposition -cne 'NoChange'"
-        'remains CONFIGURATION REQUIRED can still perform safe broker-owned cleanup.'
     )) {
     if (-not $contents[$installPath].Contains(
-            $unconditionalBrokerBootstrapGuard,
+            $singlePromptBrokerBootstrapGuard,
             [StringComparison]::Ordinal)) {
-        throw "A configuration-required safe-uninstall broker bootstrap guard is missing: $unconditionalBrokerBootstrapGuard"
+        throw "A single-prompt installer Apply bootstrap guard is missing: $singlePromptBrokerBootstrapGuard"
     }
+}
+if ($contents[$installPath].Contains(
+        'Invoke-SystemBrokerMaintenance -Mode Prepare',
+        [StringComparison]::Ordinal)) {
+    throw 'Installer preparation must not trigger a standalone elevated broker request.'
 }
 foreach ($v121MigrationGuard in @(
         '$migrateV121SystemState = [bool]$legacyCleanupAuthorized -and'
@@ -1286,4 +1288,4 @@ foreach ($brokerPackageGuard in @(
     }
 }
 
-'System broker tests passed: canonical ACL/receipt/hash gate, unconditional configuration-required bootstrap, strict authenticated framing, one-shot nonce/transaction binding, loopback-only token health with redirect isolation, response type guards, and PowerShell elevation/mutation ban.'
+'System broker tests passed: canonical ACL/receipt/hash gate, single-prompt installer Apply bootstrap, strict authenticated framing, one-shot nonce/transaction binding, loopback-only token health with redirect isolation, response type guards, and PowerShell elevation/mutation ban.'

@@ -223,11 +223,14 @@ returns its recovery-required code, keeps the validated new installation
 active, and requires the same installer to resume the exact transaction. Only
 backup and transaction evidence removal remains after the protected commit.
 
-Setup performs a bootstrap-only broker preparation even when runtime
-dependencies are incomplete, so a CONFIGURATION REQUIRED installation still
-has a protected cleanup path. Bootstrap installs and verifies the canonical
-broker but performs no Serve or Firewall mutation. Apply, commit, recovery,
-rollback, and uninstall operations then run only through that canonical broker.
+The application itself is installed per user. A `CONFIGURATION REQUIRED`
+installation does not elevate when runtime dependencies are incomplete. When
+system configuration can be applied, first-time protected-broker installation
+and Apply share one short UAC operation. Commit remains a separate short UAC
+operation after the transaction is sealed; normal supervision is never
+elevated. Setup schedules the tray only after Commit, and the tray waits for
+the Setup process to exit before starting, so protected Tailscale identity is
+available on its first visible launch.
 
 ## 9. Upgrade from Even Terminal Supervisor
 

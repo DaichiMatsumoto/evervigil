@@ -158,6 +158,8 @@ english.LegalNoticeSubCaption=This notice also appears in the application About 
 japanese.LegalNoticeSubCaption=この通知はアプリの情報画面とリリースノートにも掲載されます。
 english.InstallingEverVigil=Installing and validating EverVigil. A Windows permission prompt may appear for Tailscale and Firewall configuration...
 japanese.InstallingEverVigil=EverVigilを導入して検証しています。Tailscale / Firewall設定時にWindowsの許可確認が表示される場合があります...
+english.FinalizingEverVigil=Finalizing protected Tailscale and Firewall configuration...
+japanese.FinalizingEverVigil=保護されたTailscale / Firewall設定を確定しています...
 english.PowerShellMissing=PowerShell 7 was not found at C:\Program Files\PowerShell\7\pwsh.exe. Install PowerShell 7, then run this setup again.
 japanese.PowerShellMissing=PowerShell 7が C:\Program Files\PowerShell\7\pwsh.exe に見つかりません。PowerShell 7を導入してから、もう一度セットアップを実行してください。
 english.InstallFailed=Installation did not complete. The previous working version was restored when possible. Details are in the setup log shown below.
@@ -204,6 +206,10 @@ var
 #endif
   CommitCleanupIncomplete: Boolean;
   CommitCleanupDetail: String;
+  PostSetupLaunchScheduled: Boolean;
+
+function GetCurrentProcessId: DWORD;
+  external 'GetCurrentProcessId@kernel32.dll stdcall';
 
 function QuoteArgument(const Value: String): String;
 begin
@@ -611,18 +617,17 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Detail: String;
+  LaunchParameters: String;
+  LaunchResultCode: Integer;
 begin
   if not InstallTransactionStarted then
     Exit;
   if CurStep = ssPostInstall then
   begin
+    WizardForm.StatusLabel.Caption := CustomMessage('FinalizingEverVigil');
     if FileExists(InstallTransactionPath) and
       (not RunInstallTransaction('Seal', Detail)) then
       RaiseException('Could not seal the install transaction: ' + Detail);
-  end
-  else if CurStep = ssDone then
-  begin
-    SetupReachedDone := True;
     if FileExists(InstallTransactionPath) then
     begin
       if not RunInstallTransaction('Commit', Detail) then
@@ -635,6 +640,32 @@ begin
           mbError,
           MB_OK);
       end;
+    end;
+  end
+  else if CurStep = ssDone then
+  begin
+    SetupReachedDone := True;
+    if (not CommitCleanupIncomplete) and
+      (not FileExists(InstallTransactionPath)) and
+      (not PostSetupLaunchScheduled) then
+    begin
+      LaunchParameters := '--background --force-start-service --wait-for-pid ' +
+        IntToStr(GetCurrentProcessId);
+      if ShellExec(
+          '',
+          ExpandConstant('{app}\EverVigil.exe'),
+          LaunchParameters,
+          ExpandConstant('{app}'),
+          SW_SHOWNORMAL,
+          ewNoWait,
+          LaunchResultCode) then
+      begin
+        PostSetupLaunchScheduled := True;
+        Log('EverVigil launch scheduled after Setup process exit.');
+      end
+      else
+        Log(Format(
+          'EverVigil post-setup launch could not be scheduled (code %d).', [LaunchResultCode]));
     end;
   end;
 end;

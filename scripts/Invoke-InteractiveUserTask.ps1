@@ -112,7 +112,7 @@ function Get-EverVigilAllowedTaskArgumentLines {
     )
 
     switch ($Purpose) {
-        'Command' { return @('--validate-settings') }
+        'Command' { return @('--validate-settings', '--installer-runtime-check') }
         'Launch' { return @('--background', '--background --force-start-service') }
         'RecoveryLaunch' { return @('--background') }
     }

@@ -1233,6 +1233,7 @@ static void HeadlessCommandsSuppressStartupErrorDialogs()
                  "--background",
                  "--bridge-launcher",
                  "--health-check",
+                 "--installer-runtime-check",
                  "--import-token-file",
                  "--initialize-legacy-settings",
                  "--commit-installer-system-config",

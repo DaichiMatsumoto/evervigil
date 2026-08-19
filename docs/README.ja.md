@@ -38,9 +38,8 @@ SHA-256を独立に確認してください。
 
 既定の導入先は`%LOCALAPPDATA%\Programs\EverVigil`です。network path、保護された
 system tree、一時tree、reparse point、SUBST drive、path aliasなど、安全性や実体が
-曖昧な導入先は拒否します。通常権限で動作し、所有するTailscale Serve経路または
-Windows Firewallルールの作成・変更・修復・削除が必要な場合だけUACを要求します。
-通常の監視処理を常時昇格状態で動かしません。
+曖昧な導入先は拒否します。通常権限で動作し、system構成が必要な導入ではApplyと
+検証後Commitの短時間UACを最大2回使用します。通常の監視処理を常時昇格状態で動かしません。
 
 依存実行ファイルを検出できない場合は通知領域画面を開き、正しい実行ファイルや
 project pathを選択して保存し、同じinstallerを再実行してsystem設定を完了します。

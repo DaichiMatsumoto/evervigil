@@ -520,7 +520,7 @@ function Get-InstalledSupervisorProcesses {
 
 function Invoke-SystemBrokerMaintenance {
     param(
-        [ValidateSet('Prepare', 'Install', 'Commit', 'Rollback')][string]$Mode,
+        [ValidateSet('Install', 'Commit', 'Rollback')][string]$Mode,
         [int]$PublicPort = 0,
         [int]$BackendPort = 0,
         [switch]$MigrateV121SystemState
@@ -530,7 +530,6 @@ function Invoke-SystemBrokerMaintenance {
         throw 'The installer system transaction mutex is not held before broker invocation.'
     }
     $operation = switch ($Mode) {
-        'Prepare' { 'Status' }
         'Install' { 'Apply' }
         'Commit' { 'Commit' }
         'Rollback' { 'Rollback' }
@@ -545,7 +544,7 @@ function Invoke-SystemBrokerMaintenance {
             -PublicPort $(if ($Mode -eq 'Install') { $PublicPort } else { 0 }) `
             -BackendPort $(if ($Mode -eq 'Install') { $BackendPort } else { 0 }) `
             -MigrateV121SystemState:($Mode -eq 'Install' -and $MigrateV121SystemState) `
-            -AllowBootstrap:($Mode -eq 'Prepare')
+            -AllowBootstrap:($Mode -eq 'Install')
     } finally {
         try {
             $script:transactionLockTaken = $transactionMutex.WaitOne(
@@ -615,11 +614,7 @@ function Invoke-SystemBrokerMaintenance {
         }
     }
     $pending = Read-InstallerPendingSystemJournal
-    if ($Mode -eq 'Prepare') {
-        if ([string]$brokerResponse.disposition -cne 'NoChange' -or $pending) {
-            throw 'The protected broker bootstrap/status preflight did not finish cleanly.'
-        }
-    } elseif ($Mode -eq 'Install') {
+    if ($Mode -eq 'Install') {
         if ([string]$brokerResponse.disposition -cne 'Completed' -or -not $pending) {
             throw 'The protected broker returned without durable Apply completion.'
         }
@@ -1292,35 +1287,6 @@ function Set-SystemConfigurationRequirement {
         -Encoding UTF8
 }
 
-function Wait-NewSupervisorHealthy {
-    $deadline = (Get-Date).AddMinutes(3)
-    while ((Get-Date) -lt $deadline) {
-        Start-Sleep -Seconds 4
-        try {
-            if ((Invoke-AppCommand -Arguments @('--health-check') -TimeoutSeconds 60) -eq 0) {
-                return $true
-            }
-        } catch {
-            # Startup health can fail transiently while Codex app-server initializes.
-        }
-    }
-    return $false
-}
-
-function Wait-NewSupervisorStarted {
-    $deadline = (Get-Date).AddSeconds(30)
-    while ((Get-Date) -lt $deadline) {
-        Start-Sleep -Seconds 1
-        if (@(Get-InstalledSupervisorProcesses).Count -eq 0) {
-            continue
-        }
-
-        Start-Sleep -Seconds 2
-        return @(Get-InstalledSupervisorProcesses).Count -gt 0
-    }
-    return $false
-}
-
 function Remove-ExactTree {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -1654,7 +1620,7 @@ try {
         # the fixed broker cleanup operation with its separate transaction ID.
         protectedBrokerWasPresentBefore = $protectedBrokerWasPresentBefore
         protectedBrokerCleanupAuthorized = -not $protectedBrokerWasPresentBefore
-        protectedBrokerReady = $false
+        protectedBrokerReady = $protectedBrokerWasPresentBefore
         legacyTokenPath = if ($LegacyTokenPath) { $LegacyTokenPath } else { '' }
         startupWasRegistered = $startupWasRegistered
         existingSupervisorWasRunning = $existingSupervisorWasRunning
@@ -1689,13 +1655,6 @@ try {
     $transactionState.uninstallRegistrySnapshotReady = $true
     $transactionState.externalArtifactSnapshotReady = $true
     $transactionState.externalCommitPhase = 'SnapshotReady'
-    Write-InstallTransactionState -State $transactionState
-
-    # Bootstrap installs only the ACL-protected canonical broker and then runs a
-    # canonical Status request. This is unconditional so an installation that
-    # remains CONFIGURATION REQUIRED can still perform safe broker-owned cleanup.
-    Invoke-SystemBrokerMaintenance -Mode Prepare
-    $transactionState.protectedBrokerReady = $true
     Write-InstallTransactionState -State $transactionState
 
     if (Test-Path -LiteralPath $BundledExecutable -PathType Leaf) {
@@ -1910,6 +1869,7 @@ try {
             }
             $migrationApplied = $true
             $transactionState.migrationApplied = $true
+            $transactionState.protectedBrokerReady = $true
             Write-InstallTransactionState -State $transactionState
             Commit-InstallerSystemConfigurationLocally `
                 -State ([pscustomobject]$transactionState) `
@@ -1928,22 +1888,15 @@ try {
         # resumable post-commit cleanup, so every pre-finalization failure can
         # still restore the exact previous environment.
     }
-    $launchArguments = @('--background')
-    if ($runtimeConfigurationReady -or $existingSupervisorWasRunning) {
-        $launchArguments += '--force-start-service'
-    }
-    Start-EverVigilInteractiveProcess `
-        -TransactionId $TransactionId `
-        -OwnerSid $ownerSid `
-        -ExecutablePath $InstalledExecutable `
-        -Arguments $launchArguments `
-        -WorkingDirectory $InstallRoot
-
-    if ($runtimeConfigurationReady -and -not (Wait-NewSupervisorHealthy)) {
-        throw 'The new tray supervisor did not become healthy within three minutes.'
-    }
-    if (-not $runtimeConfigurationReady -and -not (Wait-NewSupervisorStarted)) {
-        throw 'The new tray supervisor did not remain available for dependency configuration.'
+    if ($runtimeConfigurationReady -and
+        (Invoke-EverVigilInteractiveCommand `
+            -TransactionId $TransactionId `
+            -OwnerSid $ownerSid `
+            -ExecutablePath $InstalledExecutable `
+            -Arguments @('--installer-runtime-check') `
+            -WorkingDirectory $InstallRoot `
+            -TimeoutSeconds 240) -ne 0) {
+        throw 'The installed runtime did not become healthy within three minutes.'
     }
 
     $transactionState.migrationApplied = $migrationApplied

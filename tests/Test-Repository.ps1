@@ -3590,7 +3590,7 @@ foreach ($interactiveTaskGuard in @(
         "`$definition.Principal.RunLevel = `$script:TaskRunLevelLeastPrivilege"
         "`$definition.Settings.ExecutionTimeLimit = 'PT0S'"
         'function Get-EverVigilAllowedTaskArgumentLines'
-        "'Command' { return @('--validate-settings') }"
+        "'Command' { return @('--validate-settings', '--installer-runtime-check') }"
         "'Launch' { return @('--background', '--background --force-start-service') }"
         "'RecoveryLaunch' { return @('--background') }"
         'Refusing to remove an interactive task that is not owned by this transaction'
@@ -3672,6 +3672,12 @@ foreach ($installerGuard in @(
         'function RunInstallTransaction'
         'procedure CurStepChanged(CurStep: TSetupStep);'
         'procedure DeinitializeSetup;'
+        'FinalizingEverVigil'
+        'PostSetupLaunchScheduled'
+        'GetCurrentProcessId'
+        "'--background --force-start-service --wait-for-pid '"
+        'ewNoWait'
+        "Log('EverVigil launch scheduled after Setup process exit.');"
         "' -DeferCommit'"
         "'Rollback'"
         "'Seal'"
@@ -3696,6 +3702,25 @@ foreach ($installerGuard in @(
     if (-not $installerContent.Contains($installerGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Guided setup contract is missing: $installerGuard")
     }
+}
+$postInstallStepIndex = $installerContent.IndexOf(
+    'if CurStep = ssPostInstall then',
+    [StringComparison]::Ordinal)
+$protectedCommitIndex = $installerContent.IndexOf(
+    "RunInstallTransaction('Commit', Detail)",
+    [StringComparison]::Ordinal)
+$doneStepIndex = $installerContent.IndexOf(
+    'else if CurStep = ssDone then',
+    [StringComparison]::Ordinal)
+$postSetupLaunchIndex = $installerContent.IndexOf(
+    "LaunchParameters := '--background --force-start-service --wait-for-pid '",
+    [StringComparison]::Ordinal)
+if ($postInstallStepIndex -lt 0 -or
+    $protectedCommitIndex -le $postInstallStepIndex -or
+    $doneStepIndex -le $protectedCommitIndex -or
+    $postSetupLaunchIndex -le $doneStepIndex) {
+    $failures.Add(
+        'Setup must commit protected configuration before completion, then defer visible startup until Setup exits.')
 }
 if ([regex]::Matches($installerContent, '(?m)^Source: ').Count -ne 10) {
     $failures.Add('The guided setup must embed nine production sources plus one isolated resource-audit payload source; the broker is inside the recursively embedded package source.')
@@ -4723,7 +4748,6 @@ foreach ($customInstallGuard in @(
         '-Path $StagingRoot'
         '-InstallRoot $InstallRoot'
         'Invoke-EverVigilInteractiveCommand'
-        'Start-EverVigilInteractiveProcess'
         'Start-EverVigilRestoredSupervisor'
         'Assert-OwnedInstallRoot'
         'Move-Item -LiteralPath $PreviousInstallRoot -Destination $PreviousBackupRoot'
@@ -4735,7 +4759,7 @@ foreach ($customInstallGuard in @(
         '$InstallTransactionDataHelper'
         '$InteractiveTaskHelper'
         '$LegacyCompatibilityHelper'
-        'protectedBrokerReady = $false'
+        'protectedBrokerReady = $protectedBrokerWasPresentBefore'
         'protectedBrokerWasPresentBefore = $protectedBrokerWasPresentBefore'
         'protectedBrokerCleanupAuthorized = -not $protectedBrokerWasPresentBefore'
         '$transactionState.protectedBrokerReady = $true'
@@ -5270,8 +5294,9 @@ if ($installContent.Contains('function Test-SystemRollbackCompleted', [StringCom
     $failures.Add(
         'Install recovery must use the broker ledger plus durable local pending journal, never a mutable system.log marker.')
 }
-if (-not $installContent.Contains("Invoke-AppCommand -Arguments @('--health-check') -TimeoutSeconds 60", [StringComparison]::Ordinal)) {
-    $failures.Add('Install must allow the health command to complete all bounded provider probes.')
+if (-not $installContent.Contains("-Arguments @('--installer-runtime-check')", [StringComparison]::Ordinal) -or
+    -not $installContent.Contains('-TimeoutSeconds 240', [StringComparison]::Ordinal)) {
+    $failures.Add('Install must run the bounded headless runtime check without launching the tray UI.')
 }
 if (-not $installContent.Contains(
         '($migrationApplied -or',
@@ -5295,20 +5320,29 @@ foreach ($configurationGuard in @(
         '$systemConfigurationCanBePreserved = $false'
         'if (-not $systemConfigurationCanBePreserved -or'
         'whose protected ledger is the sole ownership authority.'
-        'Invoke-SystemBrokerMaintenance -Mode Prepare'
         'if ($runtimeConfigurationReady) {'
-        '$runtimeConfigurationReady -or $existingSupervisorWasRunning'
         '$existingSupervisorWasHealthy -and -not $runtimeConfigurationReady'
         'The replacement supervisor configuration is invalid even though the previous version was healthy.'
-        'function Wait-NewSupervisorStarted'
-        '$runtimeConfigurationReady -and -not (Wait-NewSupervisorHealthy)'
-        '-not $runtimeConfigurationReady -and -not (Wait-NewSupervisorStarted)'
+        "-Arguments @('--installer-runtime-check')"
+        'The installed runtime did not become healthy within three minutes.'
         '$runtimeConfigurationReady -and'
         'preserved until system migration completes'
         "'CONFIGURATION REQUIRED'"
     )) {
     if (-not $installContent.Contains($configurationGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Install must remain available when runtime dependencies need configuration: $configurationGuard")
+    }
+}
+foreach ($obsoleteInstallLaunchGuard in @(
+        'Invoke-SystemBrokerMaintenance -Mode Prepare'
+        'function Wait-NewSupervisorHealthy'
+        'function Wait-NewSupervisorStarted'
+    )) {
+    if ($installContent.Contains(
+            $obsoleteInstallLaunchGuard,
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            "Install must not elevate or launch the visible tray during preparation: $obsoleteInstallLaunchGuard")
     }
 }
 $installTokens = $null

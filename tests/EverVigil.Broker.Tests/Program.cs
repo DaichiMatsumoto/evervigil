@@ -17,6 +17,7 @@ var tests = new (string Name, Action Run)[]
     ("Broker integrity validation has sufficient token rights", BrokerIntegrityValidationHasSufficientTokenRights),
     ("Authenticated pipe factory creates a duplex server", AuthenticatedPipeFactoryCreatesDuplexServer),
     ("Pipe creation failure precedes protected installation", PipeCreationFailurePreventsProtectedInstallation),
+    ("Fresh bootstrap dispatches only installer Apply", FreshBootstrapDispatchesOnlyInstallerApply),
     ("Serve exact root is owned", ServeExactRootIsOwned),
     ("Serve clean preflight accepts no owned backend", ServeCleanPreflightAcceptsNoOwnedBackend),
     ("Serve root removal preserves unrelated handlers", ServeRootRemovalPreservesUnrelatedHandlers),
@@ -124,6 +125,41 @@ static bool ParseFailOnSkipArgument(string[] arguments)
         failOnSkip = true;
     }
     return failOnSkip;
+}
+
+static void FreshBootstrapDispatchesOnlyInstallerApply()
+{
+    var readiness = new ProtectedBrokerReadiness(
+        new ProtectedBrokerIdentity(1, "EverVigil.Broker.exe", "2.1.1", 1, new string('a', 64)),
+        IsCanonicalInvocation: false,
+        InstalledNow: true);
+    var transactionId = Guid.NewGuid();
+    var installerApply = Request(
+        transactionId,
+        PrivilegedBrokerOperation.Apply,
+        publicPort: 3456,
+        backendPort: 3457) with
+    {
+        Initiator = PrivilegedBrokerInitiator.Installer
+    };
+    Assert(
+        EverVigil.Broker.Program.CanDispatchInstalledBootstrap(readiness, installerApply),
+        "A freshly installed bootstrap broker rejected installer Apply.");
+    Assert(
+        !EverVigil.Broker.Program.CanDispatchInstalledBootstrap(
+            readiness,
+            installerApply with { Initiator = PrivilegedBrokerInitiator.Interactive }),
+        "A freshly installed bootstrap broker accepted interactive Apply.");
+    Assert(
+        !EverVigil.Broker.Program.CanDispatchInstalledBootstrap(
+            readiness,
+            installerApply with { Operation = PrivilegedBrokerOperation.Status }),
+        "A freshly installed bootstrap broker accepted a non-Apply operation.");
+    Assert(
+        !EverVigil.Broker.Program.CanDispatchInstalledBootstrap(
+            readiness with { InstalledNow = false },
+            installerApply),
+        "A non-installing bootstrap state accepted installer Apply.");
 }
 
 static int BrokerTestExitCode(int failureCount, int skippedCount, bool failOnSkip)

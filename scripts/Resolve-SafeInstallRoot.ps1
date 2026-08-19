@@ -2491,8 +2491,9 @@ function Invoke-EverVigilSystemBroker {
         $process = $null
         $pipe = $null
         try {
-            # This is the only elevation point. Bootstrap can only install the
-            # canonical image; all mutations require a second canonical launch.
+            # This is the only elevation point for one broker request. A newly
+            # installed bootstrap broker may execute the authenticated
+            # installer Apply request in the same elevated process.
             $process = Start-Process `
                 -FilePath $ExecutablePath `
                 -ArgumentList $arguments `
@@ -2601,7 +2602,8 @@ function Invoke-EverVigilSystemBroker {
         }
         # Open every component from the local volume root through the package
         # broker without following reparse points. Keep all handles without
-        # write/delete sharing until CanonicalReady and protected-copy
+        # write/delete sharing until the requested Apply operation and
+        # protected-copy
         # validation complete. Identity is checked again through the original
         # handles and by reopening the same path before and after UAC. This
         # closes both file replacement and ancestor junction-retarget races. It
@@ -2617,23 +2619,16 @@ function Invoke-EverVigilSystemBroker {
             $bootstrapResponse = Invoke-ProtectedBrokerOnce `
                 -ExecutablePath $bootstrapBrokerPath `
                 -Bootstrap
-            if ([string]$bootstrapResponse.disposition -cne 'CanonicalReady' -or
-                [string]$bootstrapResponse.errorCode -cne 'None') {
-                throw 'The bootstrap broker did not return CanonicalReady.'
-            }
             if (-not (Test-EverVigilProtectedBrokerInstallation `
                     -BrokerPath $protectedBrokerPath)) {
                 throw 'The bootstrap broker did not create a valid canonical installation.'
             }
             $bootstrapPathLock.Validate()
+            return $bootstrapResponse
         } finally {
             $bootstrapPathLock.Dispose()
         }
     }
 
-    $response = Invoke-ProtectedBrokerOnce -ExecutablePath $protectedBrokerPath
-    if ([string]$response.disposition -ceq 'CanonicalReady') {
-        throw 'The canonical broker returned the bootstrap-only disposition.'
-    }
-    return $response
+    return Invoke-ProtectedBrokerOnce -ExecutablePath $protectedBrokerPath
 }

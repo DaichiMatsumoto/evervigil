@@ -39,9 +39,10 @@ running the file.
 The default destination is `%LOCALAPPDATA%\Programs\EverVigil`. Setup rejects
 unsafe or ambiguous destinations, including network paths, protected system
 trees, temporary trees, reparse points, substituted drives, and path aliases.
-It runs without elevation and requests UAC only if an owned Tailscale Serve
-route or Windows Firewall rule must be created, changed, repaired, or removed.
-Normal supervision is never kept permanently elevated.
+It runs without elevation. When installation must create or change the owned
+Tailscale Serve route and Windows Firewall rule, Setup uses at most two short
+UAC operations: Apply, then Commit after validation. Normal supervision is
+never kept permanently elevated.
 
 If a dependency cannot be discovered, open the tray window, choose the correct
 executable or project path, save the settings, and rerun the same installer to

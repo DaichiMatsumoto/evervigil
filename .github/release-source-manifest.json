@@ -38,8 +38,8 @@
     },
     {
       "path": "Install.ps1",
-      "length": 99560,
-      "sha256": "da2c2dab24c378de916aee30332ad2c339a6d9efd98ae81a17310b3990329e98"
+      "length": 97869,
+      "sha256": "84c8e2d3eb2b31fe5f948a9190d2ebba771f0e7c59f4ba4caa65b70272292346"
     },
     {
       "path": "LICENSE",
@@ -88,43 +88,43 @@
     },
     {
       "path": "docs/README.en.md",
-      "length": 8641,
-      "sha256": "8bf6b4051a8d6c4bee61f0601950b28a94e71256cf448e47dad79a06a62803a6"
+      "length": 8694,
+      "sha256": "3fd7523020f33b52d9bc50c1a3441d355faa6d76f2871511e5afe5cbf69aaa74"
     },
     {
       "path": "docs/README.ja.md",
-      "length": 9549,
-      "sha256": "cbdbee50ee9f01c46fb06756041e920a82b70ed931062ee2833a39ed288f48b5"
+      "length": 9502,
+      "sha256": "fe87b5390518e5af5d6dc749380025eb2f7763d2856e5472741e913201d118a8"
     },
     {
       "path": "docs/REFERENCE.en.md",
-      "length": 10704,
-      "sha256": "92e2ad6ef24f66db04c661e3a9194636d989e8e0010f17aad10d2552ebe84a63"
+      "length": 10826,
+      "sha256": "87bd34a212528ad2145943694f20f155422f19d69ce58aca42e081dc5721eb87"
     },
     {
       "path": "docs/REFERENCE.ja.md",
-      "length": 10614,
-      "sha256": "fa1b902961b3b7df73b6c74c9352ca9ad184d53771eb3c16820a6c10f6ddce89"
+      "length": 10740,
+      "sha256": "6da3fc361e99ec1a7df60c914ef0acc58c1f67c382217727ea251ad67fd9f0e9"
     },
     {
       "path": "docs/SECURITY.en.md",
-      "length": 8094,
-      "sha256": "135d29cbb6570ac0b85054382d61d0bc7d750ae6380b3f5438ffbef8f55fb69d"
+      "length": 8381,
+      "sha256": "d62462f377622c409b7ba9938dab5ceeea8ff29e1a45ebcd61cfa542a4dab5a7"
     },
     {
       "path": "docs/SECURITY.ja.md",
-      "length": 8413,
-      "sha256": "e43c4bb8854f9e4ed68a6ef9795adf14359af0b5a48061707cbef77ea7f340b0"
+      "length": 8666,
+      "sha256": "d376c44b39450a0bf691851a38057a0c4cfccb7638ed4a2d8e4562436dc7e7af"
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.en.md",
-      "length": 17957,
-      "sha256": "faca6f63cf7ebfa59e3e7aeb7cc9096c6dd2068616dde01f5011ebce98e9944b"
+      "length": 18150,
+      "sha256": "e007aa418381b3db0726c12c931bdc4fd2fae79a0f1f97fc86e086fba5f5dc45"
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.ja.md",
-      "length": 18771,
-      "sha256": "7f1af2feaa0926b3439ffca23a86c4da3bf9cca650a2838b15078ea6e41b711c"
+      "length": 18980,
+      "sha256": "3b54717b070839fb2ca047c9d15ce1f6a92aaa15ba5d7e8b33ab371c669e52d4"
     },
     {
       "path": "global.json",
@@ -133,8 +133,8 @@
     },
     {
       "path": "installer/EverVigil.iss",
-      "length": 25889,
-      "sha256": "a05fe99b8f7d5386cb9ddb5ab54b099b2dc23a3ff48316edbe32091705ee9936"
+      "length": 27097,
+      "sha256": "9ca4b8b2e85b043fbb9b7a019a42217e54c48503e29e55078987f2582803401f"
     },
     {
       "path": "installer/LegacyCompatibility.generated.iss",
@@ -178,8 +178,8 @@
     },
     {
       "path": "scripts/Invoke-InteractiveUserTask.ps1",
-      "length": 18722,
-      "sha256": "65a43beeafe24492a2322f948faf5eab9ebfd173fded12ac9bf71da578864f0f"
+      "length": 18751,
+      "sha256": "c49df1ecf6554796afc7814cf91d3571e24bff62ad8a6f901ab0231296eaa64b"
     },
     {
       "path": "scripts/Invoke-ReleaseResourceAudit.ps1",
@@ -208,8 +208,8 @@
     },
     {
       "path": "scripts/Resolve-SafeInstallRoot.ps1",
-      "length": 99893,
-      "sha256": "c8e53c4350c0ae69618f6645068ec58c5582cb713f95ca6192742e2dc6b6a27c"
+      "length": 99603,
+      "sha256": "5b518f322db305a2a138906db878ace894a0d59a1ee0b860eddb52fe8b9f54d6"
     },
     {
       "path": "scripts/Sync-LegacyCompatibility.ps1",
@@ -358,8 +358,8 @@
     },
     {
       "path": "src/EverVigil.Broker/Program.cs",
-      "length": 4388,
-      "sha256": "dd991525c09b4301a5b456ca313e5402dbf85ab4d9265f0d30decb4b50cfe3c3"
+      "length": 5758,
+      "sha256": "e07b03f7e9339ac5ad82fad03f0134e1b1d6269f094e11af51f87eedb8882e94"
     },
     {
       "path": "src/EverVigil.Broker/ProtectedBrokerAccess.cs",
@@ -553,8 +553,8 @@
     },
     {
       "path": "src/EverVigil/Program.cs",
-      "length": 13001,
-      "sha256": "f75af0519920323e25277b44c63c125e21f1364f4be6336b5124122ee985e35b"
+      "length": 14620,
+      "sha256": "a9e4c9f9d792d158d3e9e20dda1faf93e5a19963bf67deb5f344a30cc8e4bd4a"
     },
     {
       "path": "src/EverVigil/Properties/AssemblyInfo.cs",
@@ -658,8 +658,8 @@
     },
     {
       "path": "tests/EverVigil.Broker.Tests/Program.cs",
-      "length": 72036,
-      "sha256": "664d20412ea0b9163308a0efb3ca4e9bf685701c6f8416fb84022f4232dc3cc5"
+      "length": 73615,
+      "sha256": "5f2800b97895615f36e9d702a32a82e2a313d2c15304d3dcbdcd1b424934fe91"
     },
     {
       "path": "tests/EverVigil.Broker.Tests/packages.lock.json",
@@ -678,8 +678,8 @@
     },
     {
       "path": "tests/EverVigil.Tests/Program.cs",
-      "length": 115627,
-      "sha256": "f46fc8b33b49223d7d1ef17b78c0c780dbd382b74669a847f0c0ba7c2593180d"
+      "length": 115673,
+      "sha256": "03bd1c58702cfdb56c62adf8c1af3e79545d62eaf405e5338559bd9da7e1978d"
     },
     {
       "path": "tests/EverVigil.Tests/packages.lock.json",
@@ -728,13 +728,13 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 274671,
-      "sha256": "9cc4a84ef23c716d583bd9631ceeadca2a304ef7b631d30f134cf03b694ee48a"
+      "length": 276123,
+      "sha256": "23d60250a56d99a788e1165b1c0e3c284c73cd471ffbbf33d348dd902294539e"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",
-      "length": 53042,
-      "sha256": "5e36a4788c457b48344d5a576fff4ba274b378531ada6692ca01496600f0ee12"
+      "length": 52948,
+      "sha256": "5214b78eed8cefda01aa7568d72db087a97596a72e94ac397240598fe63fd812"
     },
     {
       "path": "tests/Test-UninstallTransactionResidue.ps1",

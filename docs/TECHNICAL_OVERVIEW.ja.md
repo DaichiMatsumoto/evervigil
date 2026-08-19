@@ -183,10 +183,12 @@ startup状態、稼働状態を復元します。rollbackを検証できない�
 activeのまま保持して、同じinstallerによる同一transactionの再開を要求します。保護commit後に
 残るのはbackupとtransaction証拠の削除だけです。
 
-runtime dependencyが不足していても、setupはbootstrap-onlyのbroker準備を実行します。
-この処理はcanonical brokerの導入・検証だけを行い、ServeやFirewallを変更しません。そのため
-CONFIGURATION REQUIREDの導入にも保護されたcleanup経路が残り、Apply、commit、recovery、
-rollback、uninstallは以後canonical brokerだけを通ります。
+アプリ本体はユーザーscopeへ導入します。runtime dependencyが不足している
+`CONFIGURATION REQUIRED`の導入では昇格を行いません。system構成を適用できる場合は、
+初回の保護broker導入とApplyを1回の短時間UAC処理にまとめます。transactionをsealした後の
+Commitだけを別の短時間UAC処理として実行し、通常監視を昇格しません。通知領域アプリは
+Commit完了後に予約され、Setup processが終了してから起動するため、初回表示時点で保護された
+Tailscale identityを読み取れます。
 
 ## 9. Upgrade from Even Terminal Supervisor（旧製品からの移行）
 

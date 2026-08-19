@@ -81,9 +81,10 @@ ACL-protected per-SID applied ledger. A mismatched or ambiguous mapping is
 unowned and is not changed. The Windows Firewall block rule is user-identifiable
 and is removed only after its full identity and protected ownership evidence
 match. A medium-integrity client authenticates to the broker through a
-PID/SID/session/nonce-bound named pipe. Only the canonical broker performs the
-bounded elevated operation; the tray supervisor, PowerShell scripts, and child
-applications remain unelevated.
+PID/SID/session/nonce-bound named pipe. First-time installer Apply may execute
+in the verified package broker that installs the canonical image in the same
+elevated process; later operations execute only in the canonical broker. The
+tray supervisor, PowerShell scripts, and child applications remain unelevated.
 
 ## Token and QR handling
 
