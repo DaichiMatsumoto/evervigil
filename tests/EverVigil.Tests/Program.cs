@@ -1361,9 +1361,12 @@ static void AssertProtectedFileAcl(string path)
         .ToArray();
 
     Assert(security.AreAccessRulesProtected, "The atomic file inherited an access list.");
+    var actualOwner = security.GetOwner(
+        typeof(System.Security.Principal.SecurityIdentifier)) as
+        System.Security.Principal.SecurityIdentifier;
     Assert(
-        currentSid.Equals(security.GetOwner(typeof(System.Security.Principal.SecurityIdentifier))),
-        "The atomic file owner is not the current Windows user.");
+        actualOwner is not null && expectedSids.Contains(actualOwner.Value),
+        "The atomic file owner is not a trusted Windows principal.");
     Assert(
         rules.Length == expectedSids.Count &&
         rules.All(rule =>
@@ -1374,6 +1377,26 @@ static void AssertProtectedFileAcl(string path)
             (rule.FileSystemRights & System.Security.AccessControl.FileSystemRights.FullControl) ==
             System.Security.AccessControl.FileSystemRights.FullControl),
         "The atomic file ACL was not the exact current-user/SYSTEM/Administrators allow-list.");
+}
+
+static AppSettings WithExistingDependencyFixtures(AppSettings settings, string root)
+{
+    var nodePath = Path.Combine(root, "node.exe");
+    var cliPath = Path.Combine(root, "even-terminal-cli.js");
+    var codexPath = Path.Combine(root, "codex.exe");
+    var tailscalePath = Path.Combine(root, "tailscale.exe");
+    foreach (var path in new[] { nodePath, cliPath, codexPath, tailscalePath })
+    {
+        File.WriteAllBytes(path, [0x4d, 0x5a]);
+    }
+
+    return settings with
+    {
+        NodePath = nodePath,
+        EvenTerminalCliPath = cliPath,
+        CodexPath = codexPath,
+        TailscalePath = tailscalePath
+    };
 }
 
 static void StartupWaitsForDependencyConfiguration()
@@ -1911,13 +1934,11 @@ static void InstallerSystemConfigurationRequiresExactTransaction()
     try
     {
         var settingsStore = new EverVigil.Infrastructure.SettingsStore(paths);
-        var target = settingsStore.Current with
+        var target = WithExistingDependencyFixtures(settingsStore.Current with
         {
             PublicPort = 45_678,
-            BackendPort = 45_679,
-            TailscalePath = Path.GetFullPath(Path.Combine(root, "tailscale.exe"))
-        };
-        File.WriteAllBytes(target.TailscalePath, [0x4d, 0x5a]);
+            BackendPort = 45_679
+        }, root);
         settingsStore.Save(target);
         var pendingStore = EverVigil.Infrastructure.PendingSystemConfigurationStore.ForTests(
             paths.PendingSystemConfigurationPath,
@@ -2071,13 +2092,11 @@ static void InstallerPowerShellJournalMatchesProductionContract()
     try
     {
         var settingsStore = new EverVigil.Infrastructure.SettingsStore(paths);
-        var target = settingsStore.Current with
+        var target = WithExistingDependencyFixtures(settingsStore.Current with
         {
             PublicPort = 34_56,
-            BackendPort = 34_57,
-            TailscalePath = Path.GetFullPath(Path.Combine(root, "tailscale.exe"))
-        };
-        File.WriteAllBytes(target.TailscalePath, [0x4d, 0x5a]);
+            BackendPort = 34_57
+        }, root);
         settingsStore.Save(target);
 
         var ownerJson = System.Text.Json.JsonSerializer.Serialize(ownerSid);

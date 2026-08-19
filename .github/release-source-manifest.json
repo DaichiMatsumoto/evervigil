@@ -398,8 +398,8 @@
     },
     {
       "path": "src/EverVigil.Core/AppSettings.cs",
-      "length": 7332,
-      "sha256": "38e3b30cd3b04d730af3fe5ae3e570496a247a2167158c876fd3c3250a187317"
+      "length": 7857,
+      "sha256": "84c7eb0e28afb6132e0309d556a91c465809f1f97f5cdb29e1b8ee50d2bedce5"
     },
     {
       "path": "src/EverVigil.Core/AppSettingsValidator.cs",
@@ -678,8 +678,8 @@
     },
     {
       "path": "tests/EverVigil.Tests/Program.cs",
-      "length": 115072,
-      "sha256": "60798707d8242368b209d90fb7ecdbe8f2aba939fa34222ccde3ad97b5c14539"
+      "length": 115627,
+      "sha256": "4b48717f25ee6169cb10fba97553de351f42499ee7bd4a06a8b38d355b2a391a"
     },
     {
       "path": "tests/EverVigil.Tests/packages.lock.json",

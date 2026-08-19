@@ -55,7 +55,7 @@ public sealed record AppSettings
     {
         var legacyLayout = GetLegacyLayout(legacyInstallationRoot);
         var root = legacyLayout?.ProjectDirectory ??
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            GetKnownFolderPath(Environment.SpecialFolder.UserProfile, "USERPROFILE");
         var tailscalePath = FixedTailscalePath;
 
         var nodePreferredPaths = new List<string>();
@@ -104,7 +104,7 @@ public sealed record AppSettings
         var fallbackCandidates = new List<string>
         {
             Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                GetKnownFolderPath(Environment.SpecialFolder.ApplicationData, "APPDATA"),
                 "npm",
                 relativeCliPath)
         };
@@ -154,7 +154,7 @@ public sealed record AppSettings
     private static string GetDefaultCodexPath()
     {
         var preferred = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            GetKnownFolderPath(Environment.SpecialFolder.LocalApplicationData, "LOCALAPPDATA"),
             "Programs",
             "OpenAI",
             "Codex",
@@ -211,6 +211,22 @@ public sealed record AppSettings
             .Select(path => path.Trim('"'))
             .Where(Directory.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string GetKnownFolderPath(
+        Environment.SpecialFolder folder,
+        string environmentVariable)
+    {
+        var knownFolder = Environment.GetFolderPath(folder);
+        if (!string.IsNullOrWhiteSpace(knownFolder))
+        {
+            return knownFolder;
+        }
+
+        var fallback = Environment.GetEnvironmentVariable(environmentVariable);
+        return string.IsNullOrWhiteSpace(fallback)
+            ? string.Empty
+            : Path.GetFullPath(fallback);
     }
 
 }
