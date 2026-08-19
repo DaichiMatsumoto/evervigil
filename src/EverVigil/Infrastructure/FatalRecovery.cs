@@ -42,7 +42,7 @@ internal static class FatalRecovery
         try
         {
             using var process = Process.GetProcessById(processId);
-            process.WaitForExit(30_000);
+            process.WaitForExit();
         }
         catch (ArgumentException)
         {

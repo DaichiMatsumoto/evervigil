@@ -1,4 +1,4 @@
-# EverVigil v2.1.0
+# EverVigil v2.1.1
 
 Release status: private release candidate pending verification and approval.
 
@@ -6,13 +6,20 @@ This is an independent community project. It is not an official Even Realities p
 
 ## English
 
+### Fixes in v2.1.1
+
+- Restores Tailnet identity display and copy actions for a standard
+  medium-integrity session while preserving the protected broker-state ACL.
+- Keeps the protected shared state directory non-listable and validates only
+  the current user's protected identity ledger before exposing its values.
+
 ### New product and repository
 
 - Establishes EverVigil as a new product in a new repository with no inherited
   Git commits, branches, tags, Releases, or artifacts.
 - Continues the useful process-supervision behavior of the legacy v1.2.1
   application while changing every user-facing product surface to EverVigil.
-- Uses original `temporary-placeholder` icon artwork that is not derived from
+- Uses independently created original icon artwork that is not derived from
   Even Realities artwork. No certification or recognition badge is included.
 
 ### Compatibility and operation
@@ -32,7 +39,7 @@ This is an independent community project. It is not an official Even Realities p
 - The user installs `@evenrealities/even-terminal` separately. EverVigil does
   not bundle, fork, patch, or redistribute that package.
 - Installation and update are manual: download
-  `EverVigil-2.1.0-Setup.exe` from the approved GitHub Release, verify the
+  `EverVigil-2.1.1-Setup.exe` from the approved GitHub Release, verify the
   published SHA-256, and run the installer. There is no automatic updater.
 - The installer is unsigned and may trigger Microsoft Defender SmartScreen.
 - Tailscale Serve is Tailnet-only, depends on Tailnet ACLs, and does not use
@@ -48,14 +55,21 @@ This is an independent community project. It is not an official Even Realities p
 
 ## 日本語
 
+### v2.1.1の修正
+
+- 保護broker stateのACLを維持したまま、標準のmedium-integrity sessionで
+  Tailnet identityの表示と接続URLのコピーを利用できるようにしました。
+- 共有state directoryを引き続き列挙不可とし、現在のユーザーに属する
+  保護identity ledgerだけを検証して値を表示します。
+
 ### 新製品と新リポジトリ
 
 - 旧Gitのcommit、branch、tag、Release、artifactを継承せず、EverVigilを
   新しい製品・新しいリポジトリとして構築します。
 - 旧v1.2.1アプリケーションの有用なプロセス監督機能を継承しつつ、
   ユーザー向け名称をすべてEverVigilへ変更します。
-- Even Realitiesのアートワークから派生していない、独自生成の
-  `temporary-placeholder`アイコンを使用します。認定・認識バッジは含みません。
+- Even Realitiesのアートワークから派生していない、独自生成の正式アイコンを
+  使用します。認定・認識バッジは含みません。
 
 ### 互換性と動作
 
@@ -74,7 +88,7 @@ This is an independent community project. It is not an official Even Realities p
 - `@evenrealities/even-terminal`はユーザーが別途導入します。EverVigilは
   このpackageをbundle、fork、patch、再配布しません。
 - 導入・更新は手動です。承認済みGitHub Releaseから
-  `EverVigil-2.1.0-Setup.exe`を取得し、公開SHA-256を照合してから実行します。
+  `EverVigil-2.1.1-Setup.exe`を取得し、公開SHA-256を照合してから実行します。
   自動更新機能はありません。
 - installerは未署名で、Microsoft Defender SmartScreenが警告する場合があります。
 - Tailscale ServeはTailnet内だけで利用し、Tailnet ACLに依存します。
@@ -88,7 +102,7 @@ This is an independent community project. It is not an official Even Realities p
 
 ## SHA-256
 
-`EverVigil-2.1.0-Setup.exe`
+`EverVigil-2.1.1-Setup.exe`
 
 ```text
 {{EVERVIGIL_INSTALLER_SHA256}}

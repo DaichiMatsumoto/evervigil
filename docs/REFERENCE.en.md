@@ -2,7 +2,7 @@
 
 [日本語](REFERENCE.ja.md) | [User guide](README.en.md) | [Technical overview](TECHNICAL_OVERVIEW.en.md) | [Repository](https://github.com/DaichiMatsumoto/evervigil)
 
-Target release: `2.1.0`
+Target release: `2.1.1`
 
 ## Runtime topology
 
@@ -81,9 +81,10 @@ ACL-protected per-SID applied ledger. A mismatched or ambiguous mapping is
 unowned and is not changed. The Windows Firewall block rule is user-identifiable
 and is removed only after its full identity and protected ownership evidence
 match. A medium-integrity client authenticates to the broker through a
-PID/SID/session/nonce-bound named pipe. Only the canonical broker performs the
-bounded elevated operation; the tray supervisor, PowerShell scripts, and child
-applications remain unelevated.
+PID/SID/session/nonce-bound named pipe. First-time installer Apply may execute
+in the verified package broker that installs the canonical image in the same
+elevated process; later operations execute only in the canonical broker. The
+tray supervisor, PowerShell scripts, and child applications remain unelevated.
 
 ## Token and QR handling
 
@@ -140,8 +141,8 @@ dotnet run --project .\tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.cspro
 .\tests\Test-InstallTransaction.ps1
 .\scripts\Test-NuGetVulnerabilities.ps1 -SolutionPath .\EverVigil.sln
 .\scripts\New-PlaceholderIcon.ps1 -Check
-.\scripts\Test-ReleaseVersion.ps1 -Version 2.1.0
-.\scripts\Build-Release.ps1 -Version 2.1.0
+.\scripts\Test-ReleaseVersion.ps1 -Version 2.1.1
+.\scripts\Build-Release.ps1 -Version 2.1.1
 ```
 
 Release approval also requires source, staged-file, binary, extracted-installer,

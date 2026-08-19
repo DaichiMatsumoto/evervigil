@@ -304,7 +304,8 @@ $noticeContent = Get-Content `
     -Raw `
     -Encoding UTF8
 foreach ($placeholderProvenanceGuard in @(
-        'temporary-placeholder'
+        '## Original icon artwork'
+        "It is the project's adopted icon"
         'It is not derived from, traced from, or based on any Even Realities artwork.'
         'src/EverVigil/Assets/evervigil-placeholder-source.png'
         'src/EverVigil/Assets/evervigil-placeholder.ico'
@@ -313,7 +314,7 @@ foreach ($placeholderProvenanceGuard in @(
     if (-not $noticeContent.Contains(
             $placeholderProvenanceGuard,
             [StringComparison]::Ordinal)) {
-        $failures.Add("Placeholder icon provenance notice is missing: $placeholderProvenanceGuard")
+        $failures.Add("Original icon provenance notice is missing: $placeholderProvenanceGuard")
     }
 }
 
@@ -3141,8 +3142,8 @@ if ($applicationProject.Project.PropertyGroup.OutputType -ne 'WinExe') {
 $applicationManifest = [xml](Get-Content -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\app.manifest') -Raw)
 $manifestIdentity = $applicationManifest.assembly.assemblyIdentity
 $projectVersion = [string]$applicationProject.Project.PropertyGroup.Version
-if ($projectVersion -cne '2.1.0') {
-    $failures.Add("The EverVigil release version must be exactly 2.1.0, not '$projectVersion'.")
+if ($projectVersion -cne '2.1.1') {
+    $failures.Add("The EverVigil release version must be exactly 2.1.1, not '$projectVersion'.")
 }
 $expectedManifestVersion = ConvertTo-WindowsManifestVersion -Version $projectVersion
 if ($manifestIdentity.name -ne 'EverVigil.app' -or
@@ -3156,7 +3157,7 @@ if ($applicationProject.Project.PropertyGroup.PackageLicenseExpression -ne 'GPL-
     $applicationProject.Project.PropertyGroup.Copyright -ne 'Copyright © 2026 Daichi Matsumoto') {
     $failures.Add('Application metadata must identify Daichi Matsumoto and GPL-3.0-only.')
 }
-if ($applicationProject.Project.PropertyGroup.InformationalVersion -ne '2.1.0' -or
+if ($applicationProject.Project.PropertyGroup.InformationalVersion -ne '2.1.1' -or
     $applicationProject.Project.PropertyGroup.IncludeSourceRevisionInInformationalVersion -ne 'false') {
     $failures.Add('Release VersionInfo must not include the temporary pre-initialization Git revision.')
 }
@@ -3178,7 +3179,7 @@ foreach ($win32ResourceGuard in @(
         '1 RT_MANIFEST "app.manifest"'
         '32512 ICON "Assets\\evervigil-placeholder.ico"'
         'VALUE "OriginalFilename", "EverVigil.exe\0"'
-        'VALUE "ProductVersion", "2.1.0\0"'
+        'VALUE "ProductVersion", "2.1.1\0"'
     )) {
     if (-not $win32ResourceSource.Contains($win32ResourceGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Custom Win32 resource guard is missing: $win32ResourceGuard")
@@ -3589,9 +3590,13 @@ foreach ($interactiveTaskGuard in @(
         "`$definition.Principal.RunLevel = `$script:TaskRunLevelLeastPrivilege"
         "`$definition.Settings.ExecutionTimeLimit = 'PT0S'"
         'function Get-EverVigilAllowedTaskArgumentLines'
-        "'Command' { return @('--validate-settings') }"
+        'function Test-EverVigilAllowedTaskArgumentLine'
+        "'Command' { return @('--validate-settings', '--installer-runtime-check') }"
         "'Launch' { return @('--background', '--background --force-start-service') }"
         "'RecoveryLaunch' { return @('--background') }"
+        "'\A--background(?: --force-start-service)? --wait-for-pid (?<pid>[1-9][0-9]{0,9})\z'"
+        '[switch]$PostSetupLaunch'
+        '[ValidateRange(0, 2147483647)][int]$SetupProcessId = 0'
         'Refusing to remove an interactive task that is not owned by this transaction'
         'Refusing to remove an interactive task with an unexpected action'
         '$state -ne $script:TaskStateRunning'
@@ -3618,6 +3623,39 @@ if ($interactiveTaskContent.Contains('.Triggers.Create(', [StringComparison]::Or
     $interactiveTaskContent.Contains("ExecutionTimeLimit = 'PT10M'", [StringComparison]::Ordinal)) {
     $failures.Add(
         'Installer interactive tasks must be demand-only, non-replacing, and unlimited after launch.')
+}
+try {
+    & {
+        . (Join-Path $RepositoryRoot 'scripts\Invoke-InteractiveUserTask.ps1')
+        foreach ($validLine in @(
+                '--background --wait-for-pid 123'
+                '--background --force-start-service --wait-for-pid 123'
+            )) {
+            if (-not (Test-EverVigilAllowedTaskArgumentLine `
+                        -Purpose Launch `
+                        -ArgumentLine $validLine)) {
+                throw "A valid post-setup launch line was rejected: $validLine"
+            }
+        }
+        foreach ($invalidLine in @(
+                '--background --wait-for-pid 0'
+                '--background --wait-for-pid -1'
+                '--background --wait-for-pid 123 --unexpected'
+            )) {
+            if (Test-EverVigilAllowedTaskArgumentLine `
+                    -Purpose Launch `
+                    -ArgumentLine $invalidLine) {
+                throw "An invalid post-setup launch line was accepted: $invalidLine"
+            }
+        }
+        if (Test-EverVigilAllowedTaskArgumentLine `
+                -Purpose Command `
+                -ArgumentLine '--background --wait-for-pid 123') {
+            throw 'A post-setup launch line was accepted for an interactive command task.'
+        }
+    }
+} catch {
+    $failures.Add("Post-setup interactive launch validation failed: $($_.Exception.Message)")
 }
 if ($buildReleaseContent.Contains('Compress-Archive', [StringComparison]::Ordinal) -or
     $buildReleaseContent.Contains('-win-x64.zip', [StringComparison]::Ordinal)) {
@@ -3671,6 +3709,19 @@ foreach ($installerGuard in @(
         'function RunInstallTransaction'
         'procedure CurStepChanged(CurStep: TSetupStep);'
         'procedure DeinitializeSetup;'
+        'FinalizingEverVigil'
+        'PostSetupLaunchScheduled'
+        'GetCurrentProcessId'
+        'function InteractiveTaskScriptPath: String;'
+        'function SchedulePostSetupLaunch(var Detail: String): Boolean;'
+        "' -PostSetupLaunch'"
+        "' -SetupProcessId ' + IntToStr(GetCurrentProcessId)"
+        "' -ForceStartService'"
+        'if SchedulePostSetupLaunch(Detail) then'
+        "Log('EverVigil clean-context launch scheduled after Setup process exit.');"
+        "CustomMessage('PostSetupLaunchFailed')"
+        'Start EverVigil from the Windows Start menu.'
+        'WindowsのスタートメニューからEverVigilを起動してください。'
         "' -DeferCommit'"
         "'Rollback'"
         "'Seal'"
@@ -3694,6 +3745,71 @@ foreach ($installerGuard in @(
     )) {
     if (-not $installerContent.Contains($installerGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Guided setup contract is missing: $installerGuard")
+    }
+}
+$postInstallStepIndex = $installerContent.IndexOf(
+    'if CurStep = ssPostInstall then',
+    [StringComparison]::Ordinal)
+$protectedCommitIndex = $installerContent.IndexOf(
+    "RunInstallTransaction('Commit', Detail)",
+    [StringComparison]::Ordinal)
+$doneStepIndex = $installerContent.IndexOf(
+    'else if CurStep = ssDone then',
+    [StringComparison]::Ordinal)
+$postSetupLaunchIndex = $installerContent.IndexOf(
+    'if SchedulePostSetupLaunch(Detail) then',
+    [StringComparison]::Ordinal)
+if ($postInstallStepIndex -lt 0 -or
+    $protectedCommitIndex -le $postInstallStepIndex -or
+    $doneStepIndex -le $protectedCommitIndex -or
+    $postSetupLaunchIndex -le $doneStepIndex) {
+    $failures.Add(
+        'Setup must commit protected configuration before completion, then defer visible startup until Setup exits.')
+}
+if ($installerContent.Contains('ShellExec(', [StringComparison]::Ordinal) -or
+    $installerContent.Contains('ewNoWait', [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'Setup must not launch EverVigil directly because child processes inherit the installer compatibility context.')
+}
+$updateDocumentContracts = @(
+    [pscustomobject]@{
+        Path = 'README.md'
+        Required = @(
+            'If EverVigil v2.1.0 is installed, uninstall it first.'
+            'EverVigil v2.1.0 to v2.1.1 is an uninstall/reinstall update.'
+            'removal deletes them.'
+        )
+    }
+    [pscustomobject]@{
+        Path = 'docs\README.en.md'
+        Required = @(
+            'To update from EverVigil v2.1.0 to'
+            'uninstall v2.1.0 first.'
+            'or **No** for a'
+            'complete removal.'
+        )
+    }
+    [pscustomobject]@{
+        Path = 'docs\README.ja.md'
+        Required = @(
+            'EverVigil v2.1.0からv2.1.1へ更新する場合は、先にv2.1.0を'
+            'アンインストールしてください。'
+            '完全削除するなら「いいえ」'
+        )
+    }
+)
+foreach ($updateDocumentContract in $updateDocumentContracts) {
+    $updateDocumentContent = Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot $updateDocumentContract.Path) `
+        -Raw `
+        -Encoding UTF8
+    foreach ($requiredUpdateText in $updateDocumentContract.Required) {
+        if (-not $updateDocumentContent.Contains(
+                $requiredUpdateText,
+                [StringComparison]::Ordinal)) {
+            $failures.Add(
+                "$($updateDocumentContract.Path) does not document the mandatory v2.1.0 uninstall flow: $requiredUpdateText")
+        }
     }
 }
 if ([regex]::Matches($installerContent, '(?m)^Source: ').Count -ne 10) {
@@ -4717,12 +4833,13 @@ foreach ($customInstallGuard in @(
         'Remove-EverVigilNewQuarantineFiles'
         '$script:LegacyCompatibilityDataInstallerPublishDirectoryPrefix'
         'systemConfigurationRequiredWasPresent = $systemConfigurationRequiredWasPresent'
+        'Assert-EverVigilProtectedBrokerVersionLayout `'
+        '$protectedBrokerPathsBeforeBootstrap.CanonicalPath'
         '$PreviousBackupRoot'
         '-AllowCurrentTempTree:$allowPreviousInstallRootInCurrentTemp'
         '-Path $StagingRoot'
         '-InstallRoot $InstallRoot'
         'Invoke-EverVigilInteractiveCommand'
-        'Start-EverVigilInteractiveProcess'
         'Start-EverVigilRestoredSupervisor'
         'Assert-OwnedInstallRoot'
         'Move-Item -LiteralPath $PreviousInstallRoot -Destination $PreviousBackupRoot'
@@ -4734,7 +4851,7 @@ foreach ($customInstallGuard in @(
         '$InstallTransactionDataHelper'
         '$InteractiveTaskHelper'
         '$LegacyCompatibilityHelper'
-        'protectedBrokerReady = $false'
+        'protectedBrokerReady = $protectedBrokerWasPresentBefore'
         'protectedBrokerWasPresentBefore = $protectedBrokerWasPresentBefore'
         'protectedBrokerCleanupAuthorized = -not $protectedBrokerWasPresentBefore'
         '$transactionState.protectedBrokerReady = $true'
@@ -4768,6 +4885,26 @@ foreach ($customInstallGuard in @(
     if (-not $installContent.Contains($customInstallGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Custom install destination guard is missing: $customInstallGuard")
     }
+}
+$protectedVersionLayoutIndex = $installContent.IndexOf(
+    'Assert-EverVigilProtectedBrokerVersionLayout `',
+    [StringComparison]::Ordinal)
+$protectedPresenceSnapshotIndex = $installContent.IndexOf(
+    '$protectedBrokerWasPresentBefore = $false',
+    [StringComparison]::Ordinal)
+if ($protectedVersionLayoutIndex -lt 0 -or
+    $protectedPresenceSnapshotIndex -le $protectedVersionLayoutIndex) {
+    $failures.Add(
+        'Install must reject obsolete protected broker versions before authorizing rollback cleanup.')
+}
+if (-not $uninstallContent.Contains(
+        'A configuration-required install can intentionally have only its local',
+        [StringComparison]::Ordinal) -or
+    [regex]::IsMatch(
+        $uninstallContent,
+        '(?s)\$primaryConfigurationOwned\s*-or\s*\(Test-Path\s+-LiteralPath\s+\$SystemConfigurationRequiredPath\)')) {
+    $failures.Add(
+        'A marker-only configuration-required install must remain uninstallable without a protected broker.')
 }
 if ($installContent.Contains(
         "Invoke-AppCommand -Arguments @('--mark-system-configured')",
@@ -5269,8 +5406,9 @@ if ($installContent.Contains('function Test-SystemRollbackCompleted', [StringCom
     $failures.Add(
         'Install recovery must use the broker ledger plus durable local pending journal, never a mutable system.log marker.')
 }
-if (-not $installContent.Contains("Invoke-AppCommand -Arguments @('--health-check') -TimeoutSeconds 60", [StringComparison]::Ordinal)) {
-    $failures.Add('Install must allow the health command to complete all bounded provider probes.')
+if (-not $installContent.Contains("-Arguments @('--installer-runtime-check')", [StringComparison]::Ordinal) -or
+    -not $installContent.Contains('-TimeoutSeconds 240', [StringComparison]::Ordinal)) {
+    $failures.Add('Install must run the bounded headless runtime check without launching the tray UI.')
 }
 if (-not $installContent.Contains(
         '($migrationApplied -or',
@@ -5294,20 +5432,29 @@ foreach ($configurationGuard in @(
         '$systemConfigurationCanBePreserved = $false'
         'if (-not $systemConfigurationCanBePreserved -or'
         'whose protected ledger is the sole ownership authority.'
-        'Invoke-SystemBrokerMaintenance -Mode Prepare'
         'if ($runtimeConfigurationReady) {'
-        '$runtimeConfigurationReady -or $existingSupervisorWasRunning'
         '$existingSupervisorWasHealthy -and -not $runtimeConfigurationReady'
         'The replacement supervisor configuration is invalid even though the previous version was healthy.'
-        'function Wait-NewSupervisorStarted'
-        '$runtimeConfigurationReady -and -not (Wait-NewSupervisorHealthy)'
-        '-not $runtimeConfigurationReady -and -not (Wait-NewSupervisorStarted)'
+        "-Arguments @('--installer-runtime-check')"
+        'The installed runtime did not become healthy within three minutes.'
         '$runtimeConfigurationReady -and'
         'preserved until system migration completes'
         "'CONFIGURATION REQUIRED'"
     )) {
     if (-not $installContent.Contains($configurationGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Install must remain available when runtime dependencies need configuration: $configurationGuard")
+    }
+}
+foreach ($obsoleteInstallLaunchGuard in @(
+        'Invoke-SystemBrokerMaintenance -Mode Prepare'
+        'function Wait-NewSupervisorHealthy'
+        'function Wait-NewSupervisorStarted'
+    )) {
+    if ($installContent.Contains(
+            $obsoleteInstallLaunchGuard,
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            "Install must not elevate or launch the visible tray during preparation: $obsoleteInstallLaunchGuard")
     }
 }
 $installTokens = $null
@@ -5865,6 +6012,7 @@ foreach ($fatalRecoveryGuard in @(
         'Func<bool> serviceIsRunning'
         'if (serviceWasRunning)'
         'startInfo.ArgumentList.Add("--force-start-service")'
+        'process.WaitForExit();'
     )) {
     if (-not $fatalRecoveryContent.Contains($fatalRecoveryGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Fatal recovery running-intent guard is missing: $fatalRecoveryGuard")
@@ -5872,6 +6020,9 @@ foreach ($fatalRecoveryGuard in @(
 }
 if ($fatalRecoveryContent.Contains('HasArgument(arguments, "--force-start-service")', [StringComparison]::Ordinal)) {
     $failures.Add('Fatal recovery must not preserve the installer-only force-start argument after a manual stop.')
+}
+if ($fatalRecoveryContent.Contains('process.WaitForExit(30_000);', [StringComparison]::Ordinal)) {
+    $failures.Add('Post-setup startup must wait until Setup actually exits instead of using a timeout.')
 }
 if (-not $supervisorContent.Contains('ClearManualRestartStateLocked();', [StringComparison]::Ordinal) -or
     -not $supervisorContent.Contains('_restartSignal.TryConsume();', [StringComparison]::Ordinal)) {
@@ -5902,6 +6053,21 @@ $protectedTailscaleIdentityContent = Get-Content `
 $dashboardConnectionContent = Get-Content `
     -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\UI\DashboardForm.cs') `
     -Raw
+if ($protectedTailscaleIdentityContent.Contains(
+        'new[] { productRoot, brokerRoot, stateRoot, ownerRoot }',
+        [StringComparison]::Ordinal) -or
+    -not $protectedTailscaleIdentityContent.Contains(
+        'foreach (var directory in new[] { productRoot, brokerRoot })',
+        [StringComparison]::Ordinal) -or
+    -not $protectedTailscaleIdentityContent.Contains(
+        'EnsureNoReparsePoint(stateRoot);',
+        [StringComparison]::Ordinal) -or
+    -not $protectedTailscaleIdentityContent.Contains(
+        'ValidateProtectedDirectory(new DirectoryInfo(ownerRoot), _ownerSid);',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'Medium-integrity Tailnet identity validation must traverse State without requiring its unreadable ACL.')
+}
 if ($appSettingsContent -match '(?m)^\s*public\s+string\s+PublicHost\b') {
     $failures.Add('AppSettings must not persist a user-controlled public host.')
 }

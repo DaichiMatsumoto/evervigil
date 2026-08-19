@@ -113,13 +113,10 @@ internal static class Program
                         ProtectedBrokerInstallation.GetProductVersion()))
                 : readiness.IsCanonicalInvocation
                 ? BrokerCommandDispatcher.Dispatch
-                : (request, _) => new PrivilegedBrokerResponse(
-                    PrivilegedBrokerProtocol.SchemaVersion,
-                    request.TransactionId,
-                    Success: true,
-                    PrivilegedBrokerDisposition.CanonicalReady,
-                    PrivilegedBrokerErrorCode.None,
-                    "Protected broker installation completed; invoke the canonical broker.");
+                : (request, ownerSid) => DispatchInstalledBootstrap(
+                    readiness,
+                    request,
+                    ownerSid);
         try
         {
             _ = AuthenticatedPipeServer.ServeOnceAsync(
@@ -139,5 +136,47 @@ internal static class Program
         {
             return BrokerExitCodes.InternalFailure;
         }
+    }
+
+    internal static bool CanDispatchInstalledBootstrap(
+        ProtectedBrokerReadiness readiness,
+        PrivilegedBrokerRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(readiness);
+        ArgumentNullException.ThrowIfNull(request);
+        return readiness.InstalledNow &&
+            request.Operation == PrivilegedBrokerOperation.Apply &&
+            request.Initiator == PrivilegedBrokerInitiator.Installer;
+    }
+
+    private static PrivilegedBrokerResponse DispatchInstalledBootstrap(
+        ProtectedBrokerReadiness readiness,
+        PrivilegedBrokerRequest request,
+        string ownerSid)
+    {
+        if (CanDispatchInstalledBootstrap(readiness, request))
+        {
+            return BrokerCommandDispatcher.Dispatch(request, ownerSid);
+        }
+
+        if (readiness.InstalledNow &&
+            request.Operation == PrivilegedBrokerOperation.Status)
+        {
+            return new PrivilegedBrokerResponse(
+                PrivilegedBrokerProtocol.SchemaVersion,
+                request.TransactionId,
+                Success: true,
+                PrivilegedBrokerDisposition.CanonicalReady,
+                PrivilegedBrokerErrorCode.None,
+                "Protected broker installation completed.");
+        }
+
+        return new PrivilegedBrokerResponse(
+            PrivilegedBrokerProtocol.SchemaVersion,
+            request.TransactionId,
+            Success: false,
+            PrivilegedBrokerDisposition.Refused,
+            PrivilegedBrokerErrorCode.UnsupportedOperation,
+            "A newly installed protected broker accepts only the installer Apply request.");
     }
 }

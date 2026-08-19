@@ -719,7 +719,7 @@ foreach ($fixture in $credentialLeakFixtures) {
 }
 
 $productionSetupFixturePath =
-    'C:\EverVigilAudit\candidate\EverVigil-2.1.0-Setup.exe'
+    'C:\EverVigilAudit\candidate\EverVigil-2.1.1-Setup.exe'
 $productionSetupSuccessFixture = @"
 2026-08-18 10:00:00.000   Original Setup EXE: $productionSetupFixturePath
 2026-08-18 10:00:00.001   Setup command line: /VERYSILENT /NORESTART

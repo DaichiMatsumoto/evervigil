@@ -2,7 +2,7 @@
 
 [English](SECURITY.en.md) | [報告ポリシー](../SECURITY.md) | [技術概要](TECHNICAL_OVERVIEW.ja.md)
 
-対象release: EverVigil v2.1.0。Repository:
+対象release: EverVigil v2.1.1。Repository:
 <https://github.com/DaichiMatsumoto/evervigil>。
 
 ## Bridge token
@@ -63,11 +63,13 @@ accessibility software、clipboard manager、same-user processが、意図的に
 - health、表示、copyはさらに、read-onlyの現在Serve statusで保護対象root proxyの完全一致と
   Funnel無効を確認できる場合だけ許可します。
 - 無関係または曖昧な経路・ruleは変更しません。
-- UACが起動するのはcanonical ProgramData brokerだけです。通知領域EXE、PowerShell script、
-  user-writableな導入fileを昇格しません。
+- 初回Applyでは、Setupがpackage brokerのsource path全体をlock・検証してから昇格し、同じprocessで
+  canonical ProgramData brokerの導入と認証済みApplyを完了します。以後の操作で昇格するのは
+  canonical brokerだけです。通知領域EXE、PowerShell script、user-writableな導入fileを昇格しません。
 - brokerはmedium-integrity named-pipe clientのprocess、SID、session、integrity level、nonceを
   認証し、特権所有権証拠を保護済みSID別ProgramData journal/台帳だけへ保存します。
-- bootstrapまたは必要なsystem操作時だけUACを要求し、通常監視を常時昇格しません。
+- 初回のsystem構成が成功する場合のUACは、導入＋Applyと検証後Commitの短時間2回までです。
+  通常監視を常時昇格しません。
 - system設定の欠損・破損・未適用時はbackend起動を禁止します。
 
 Tailnet所属だけではaccess許可になりません。Tailnet administratorはbridge credentialと
@@ -100,7 +102,7 @@ network到達制御はbridge-token認証の代替ではなく、same-host softwa
 
 - 自動更新機能はありません。GitHub Releaseを手動取得し、SHA-256を検証して実行します。
 - コミュニティbinaryは未署名でMicrosoft Defender SmartScreenが警告する場合があります。
-- 未署名v2.1.0 brokerの初回bootstrapはpublisher認証済みtrust anchorではありません。将来の
+- 未署名v2.1.1 brokerの初回bootstrapはpublisher認証済みtrust anchorではありません。将来の
   broker置換には承認済みcode signingまたはOS-trusted installer設計が必要です。
 - SHA-256一致が示すのはfile identityであり、publisher identityや安全性ではありません。
 - installerとchecksumを同じReleaseから取得する場合、SHA-256だけではpublisher真正性を

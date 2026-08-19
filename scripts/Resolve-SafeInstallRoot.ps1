@@ -1730,7 +1730,7 @@ function Get-EverVigilProtectedBrokerPath {
     }
     return [IO.Path]::GetFullPath((Join-Path `
             $commonApplicationData `
-            'EverVigil\Broker\2.1.0\EverVigil.Broker.exe'))
+            'EverVigil\Broker\2.1.1\EverVigil.Broker.exe'))
 }
 
 function Get-EverVigilProtectedBrokerRetirementPaths {
@@ -1749,6 +1749,54 @@ function Get-EverVigilProtectedBrokerRetirementPaths {
         CanonicalPath = $canonicalPath
         InstallationReceiptPath = Join-Path $versionRoot 'installation.json'
         RetirementReceiptPath = Join-Path $versionRoot 'retirement.json'
+    }
+}
+
+function Assert-EverVigilProtectedBrokerVersionLayout {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$BrokerRoot,
+        [Parameter(Mandatory)][string]$VersionRoot
+    )
+
+    $resolvedBrokerRoot = [IO.Path]::GetFullPath($BrokerRoot)
+    $resolvedVersionRoot = [IO.Path]::GetFullPath($VersionRoot)
+    $expectedVersionName = [IO.Path]::GetFileName($resolvedVersionRoot)
+    if ([string]::IsNullOrWhiteSpace($expectedVersionName) -or
+        -not [string]::Equals(
+            [IO.Path]::GetDirectoryName($resolvedVersionRoot),
+            $resolvedBrokerRoot,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The protected broker version root is not a direct child of the broker root.'
+    }
+    if (-not (Test-Path -LiteralPath $resolvedBrokerRoot)) {
+        return
+    }
+
+    $brokerRootItem = Get-Item `
+        -LiteralPath $resolvedBrokerRoot `
+        -Force `
+        -ErrorAction Stop
+    if (-not $brokerRootItem.PSIsContainer -or
+        ($brokerRootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "The protected broker root is not a regular directory: $resolvedBrokerRoot"
+    }
+
+    foreach ($entry in @(Get-ChildItem `
+            -LiteralPath $resolvedBrokerRoot `
+            -Force `
+            -ErrorAction Stop)) {
+        $knownDirectory = $entry.PSIsContainer -and
+            ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0 -and
+            ($entry.Name -ceq 'State' -or $entry.Name -ceq $expectedVersionName)
+        if (-not $knownDirectory) {
+            throw "A different protected broker version or unknown entry is installed: $($entry.FullName). Uninstall it before installing this release."
+        }
+    }
+    if (-not (Test-Path `
+            -LiteralPath $resolvedVersionRoot `
+            -PathType Container)) {
+        throw "Protected broker state exists without this release's canonical version. Uninstall the existing release first: $resolvedBrokerRoot"
     }
 }
 
@@ -1965,7 +2013,7 @@ function Read-EverVigilProtectedBrokerRetirementReceipt {
             $OwnerSid,
             [StringComparison]::Ordinal) -or
         $version -isnot [string] -or
-        [string]$version -cne '2.1.0' -or
+        [string]$version -cne '2.1.1' -or
         $canonicalFileName -isnot [string] -or
         [string]$canonicalFileName -cne 'EverVigil.Broker.exe' -or
         ($length -isnot [int] -and $length -isnot [long]) -or
@@ -2051,7 +2099,7 @@ function Test-EverVigilProtectedBrokerReceipt {
         $fileName -isnot [string] -or
         [string]$fileName -cne 'EverVigil.Broker.exe' -or
         $version -isnot [string] -or
-        [string]$version -cne '2.1.0' -or
+        [string]$version -cne '2.1.1' -or
         $receiptSha256 -isnot [string] -or
         [string]$receiptSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
         $ExecutableSha256 -cnotmatch '\A[0-9a-f]{64}\z') {
@@ -2102,7 +2150,7 @@ function Complete-EverVigilProtectedBrokerRetirementFromReceipt {
     Assert-RetirementDirectory -Path $paths.ProductRoot -AllowedName @('Broker')
     Assert-RetirementDirectory `
         -Path $paths.BrokerRoot `
-        -AllowedName @('State', '2.1.0')
+        -AllowedName @('State', '2.1.1')
     Assert-RetirementDirectory `
         -Path $paths.VersionRoot `
         -AllowedName @(
@@ -2215,7 +2263,7 @@ function Complete-EverVigilProtectedBrokerRetirementFromReceipt {
     # It remains a known entry until that deletion has completed.
     Assert-RetirementDirectory `
         -Path $paths.BrokerRoot `
-        -AllowedName @('State', '2.1.0')
+        -AllowedName @('State', '2.1.1')
     Assert-RetirementDirectory -Path $paths.ProductRoot -AllowedName @('Broker')
     foreach ($retirementDirectory in @(
             $paths.StateRoot,
@@ -2491,8 +2539,9 @@ function Invoke-EverVigilSystemBroker {
         $process = $null
         $pipe = $null
         try {
-            # This is the only elevation point. Bootstrap can only install the
-            # canonical image; all mutations require a second canonical launch.
+            # This is the only elevation point for one broker request. A newly
+            # installed bootstrap broker may execute the authenticated
+            # installer Apply request in the same elevated process.
             $process = Start-Process `
                 -FilePath $ExecutablePath `
                 -ArgumentList $arguments `
@@ -2601,7 +2650,8 @@ function Invoke-EverVigilSystemBroker {
         }
         # Open every component from the local volume root through the package
         # broker without following reparse points. Keep all handles without
-        # write/delete sharing until CanonicalReady and protected-copy
+        # write/delete sharing until the requested Apply operation and
+        # protected-copy
         # validation complete. Identity is checked again through the original
         # handles and by reopening the same path before and after UAC. This
         # closes both file replacement and ancestor junction-retarget races. It
@@ -2617,23 +2667,16 @@ function Invoke-EverVigilSystemBroker {
             $bootstrapResponse = Invoke-ProtectedBrokerOnce `
                 -ExecutablePath $bootstrapBrokerPath `
                 -Bootstrap
-            if ([string]$bootstrapResponse.disposition -cne 'CanonicalReady' -or
-                [string]$bootstrapResponse.errorCode -cne 'None') {
-                throw 'The bootstrap broker did not return CanonicalReady.'
-            }
             if (-not (Test-EverVigilProtectedBrokerInstallation `
                     -BrokerPath $protectedBrokerPath)) {
                 throw 'The bootstrap broker did not create a valid canonical installation.'
             }
             $bootstrapPathLock.Validate()
+            return $bootstrapResponse
         } finally {
             $bootstrapPathLock.Dispose()
         }
     }
 
-    $response = Invoke-ProtectedBrokerOnce -ExecutablePath $protectedBrokerPath
-    if ([string]$response.disposition -ceq 'CanonicalReady') {
-        throw 'The canonical broker returned the bootstrap-only disposition.'
-    }
-    return $response
+    return Invoke-ProtectedBrokerOnce -ExecutablePath $protectedBrokerPath
 }

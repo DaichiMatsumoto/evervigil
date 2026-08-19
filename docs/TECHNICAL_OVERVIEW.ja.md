@@ -2,7 +2,7 @@
 
 [English](TECHNICAL_OVERVIEW.en.md) | [利用ガイド](README.ja.md) | [技術リファレンス](REFERENCE.ja.md) | [リポジトリ](https://github.com/DaichiMatsumoto/evervigil)
 
-本書はEverVigil v2.1.0のarchitectureとsecurity modelを説明します。
+本書はEverVigil v2.1.1のarchitectureとsecurity modelを説明します。
 
 ## 1. Architecture（アーキテクチャ）
 
@@ -183,15 +183,17 @@ startup状態、稼働状態を復元します。rollbackを検証できない�
 activeのまま保持して、同じinstallerによる同一transactionの再開を要求します。保護commit後に
 残るのはbackupとtransaction証拠の削除だけです。
 
-runtime dependencyが不足していても、setupはbootstrap-onlyのbroker準備を実行します。
-この処理はcanonical brokerの導入・検証だけを行い、ServeやFirewallを変更しません。そのため
-CONFIGURATION REQUIREDの導入にも保護されたcleanup経路が残り、Apply、commit、recovery、
-rollback、uninstallは以後canonical brokerだけを通ります。
+アプリ本体はユーザーscopeへ導入します。runtime dependencyが不足している
+`CONFIGURATION REQUIRED`の導入では昇格を行いません。system構成を適用できる場合は、
+初回の保護broker導入とApplyを1回の短時間UAC処理にまとめます。transactionをsealした後の
+Commitだけを別の短時間UAC処理として実行し、通常監視を昇格しません。通知領域アプリは
+Commit完了後に予約され、Setup processが終了してから起動するため、初回表示時点で保護された
+Tailscale identityを読み取れます。
 
 ## 9. Upgrade from Even Terminal Supervisor（旧製品からの移行）
 
-EverVigil v2.1.0は旧v1.2.1からin-place upgradeします。既存Inno Setup AppIdを維持する
-方式により、Windowsがv2.1.0を置換導入として扱い、同じユーザーの設定とDPAPI保護済み
+EverVigil v2.1.1は旧v1.2.1からin-place upgradeします。既存Inno Setup AppIdを維持する
+方式により、Windowsがv2.1.1を置換導入として扱い、同じユーザーの設定とDPAPI保護済み
 tokenを維持できます。保持するAppId、entropy互換性、旧path、mutex、task name、その他の
 旧identifierは実装の`LegacyCompatibility`境界へ集約し、EverVigilの製品名として表示しません。
 
@@ -207,7 +209,7 @@ v1.2.1状態の復号・同期に必要な間は、検証済み旧data root、DP
 継続使用する場合があります。これらは互換内部情報であり、ユーザー向けbrandではありません。
 currentと旧data rootの両方に永続状態がある場合、暗黙に一方を選ばず起動をfail-closedにします。
 
-Release承認前に実機v1.2.1-to-v2.1.0 migration testを行い、設定・tokenが使えること、所有する
+Release承認前に実機v1.2.1-to-v2.1.1 migration testを行い、設定・tokenが使えること、所有する
 process、経路、rule、shortcut、自動起動entry、導入directoryが重複しないことを確認します。
 
 ## 10. Uninstall process（アンインストール処理）
@@ -249,7 +251,7 @@ Firewall rule、未検証directory、ユーザーが独自作成した設定は�
 
 - コミュニティutilityであり、vendor security productやsecurity auditではありません。
 - 未署名binaryはWindowsに警告・遮断される可能性があります。
-- v2.1.0のbroker bootstrapは未署名です。初回導入にはpublisher認証済みtrust anchorがなく、
+- v2.1.1のbroker bootstrapは未署名です。初回導入にはpublisher認証済みtrust anchorがなく、
   将来broker binaryを置換するには承認済みcode signingまたはOS-trusted installer設計が必要です。
 - SHA-256が示すのはfile同一性であり、publisher identityやcode安全性ではありません。
 - Tailnet所属だけでは認可にならず、administratorが適切なACLを維持する必要があります。

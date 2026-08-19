@@ -2,7 +2,7 @@
 
 [English](REFERENCE.en.md) | [利用ガイド](README.ja.md) | [技術概要](TECHNICAL_OVERVIEW.ja.md) | [リポジトリ](https://github.com/DaichiMatsumoto/evervigil)
 
-対象release: `2.1.0`
+対象release: `2.1.1`
 
 ## Runtime topology
 
@@ -78,8 +78,9 @@ tailscale serve --yes --bg --http 3456 http://127.0.0.1:3457
 mappingをACL保護済みSID別applied台帳と照合します。不一致または曖昧なmappingはunownedとして
 変更しません。Windows Firewall block ruleはユーザー識別可能にし、完全identityと保護所有権
 証拠を検証した後だけ削除します。medium-integrity clientはPID/SID/session/nonceを結合した
-named pipeでbrokerへ認証します。上限付き昇格操作を行うのはcanonical brokerだけで、通知領域
-supervisor、PowerShell script、child applicationは通常権限を維持します。
+named pipeでbrokerへ認証します。初回installer Applyだけは、検証済みpackage brokerが同じ昇格
+process内でcanonical imageの導入とApplyを行います。以後の操作はcanonical brokerだけが実行し、
+通知領域supervisor、PowerShell script、child applicationは通常権限を維持します。
 
 ## TokenとQRの取扱い
 
@@ -128,8 +129,8 @@ dotnet run --project .\tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.cspro
 .\tests\Test-InstallTransaction.ps1
 .\scripts\Test-NuGetVulnerabilities.ps1 -SolutionPath .\EverVigil.sln
 .\scripts\New-PlaceholderIcon.ps1 -Check
-.\scripts\Test-ReleaseVersion.ps1 -Version 2.1.0
-.\scripts\Build-Release.ps1 -Version 2.1.0
+.\scripts\Test-ReleaseVersion.ps1 -Version 2.1.1
+.\scripts\Build-Release.ps1 -Version 2.1.1
 ```
 
 Release承認にはsource、staged file、binary、installer展開内容、VersionInfo、icon、notice、

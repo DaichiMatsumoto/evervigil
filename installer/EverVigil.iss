@@ -158,6 +158,8 @@ english.LegalNoticeSubCaption=This notice also appears in the application About 
 japanese.LegalNoticeSubCaption=この通知はアプリの情報画面とリリースノートにも掲載されます。
 english.InstallingEverVigil=Installing and validating EverVigil. A Windows permission prompt may appear for Tailscale and Firewall configuration...
 japanese.InstallingEverVigil=EverVigilを導入して検証しています。Tailscale / Firewall設定時にWindowsの許可確認が表示される場合があります...
+english.FinalizingEverVigil=Finalizing protected Tailscale and Firewall configuration...
+japanese.FinalizingEverVigil=保護されたTailscale / Firewall設定を確定しています...
 english.PowerShellMissing=PowerShell 7 was not found at C:\Program Files\PowerShell\7\pwsh.exe. Install PowerShell 7, then run this setup again.
 japanese.PowerShellMissing=PowerShell 7が C:\Program Files\PowerShell\7\pwsh.exe に見つかりません。PowerShell 7を導入してから、もう一度セットアップを実行してください。
 english.InstallFailed=Installation did not complete. The previous working version was restored when possible. Details are in the setup log shown below.
@@ -168,6 +170,8 @@ english.UninstallFailed=System cleanup did not complete, so uninstallation was s
 japanese.UninstallFailed=システム設定の後片付けを完了できなかったため、アンインストールを中止しました。無関係なTailscale経路やFirewallルールは削除していません。
 english.CommitCleanupIncomplete=The validated EverVigil installation is active, but final commit evidence cleanup is incomplete. Setup will return recovery-required code 20. Do not delete recovery files; run this exact setup again to resume the same transaction.
 japanese.CommitCleanupIncomplete=検証済みEverVigilは有効ですが、最終commit証拠の後片付けが未完了です。Setupは復旧必要code 20を返します。復旧ファイルを削除せず、この同じSetupでもう一度同一transactionを再開してください。
+english.PostSetupLaunchFailed=EverVigil was installed, but it could not be started automatically. Start EverVigil from the Windows Start menu. Details are in the setup log shown below.
+japanese.PostSetupLaunchFailed=EverVigilのインストールは完了しましたが、自動起動できませんでした。WindowsのスタートメニューからEverVigilを起動してください。詳細は下記のセットアップログにあります。
 
 [Files]
 #ifdef ResourceAuditBuild
@@ -204,6 +208,10 @@ var
 #endif
   CommitCleanupIncomplete: Boolean;
   CommitCleanupDetail: String;
+  PostSetupLaunchScheduled: Boolean;
+
+function GetCurrentProcessId: DWORD;
+  external 'GetCurrentProcessId@kernel32.dll stdcall';
 
 function QuoteArgument(const Value: String): String;
 begin
@@ -305,6 +313,45 @@ function InstallTransactionScriptPath: String;
 begin
   Result := ExpandConstant(
     '{tmp}\EverVigil.Package\scripts\Complete-InstallTransaction.ps1');
+end;
+
+function InteractiveTaskScriptPath: String;
+begin
+  Result := ExpandConstant(
+    '{tmp}\EverVigil.Package\scripts\Invoke-InteractiveUserTask.ps1');
+end;
+
+function SchedulePostSetupLaunch(var Detail: String): Boolean;
+var
+  Executed: Boolean;
+  Parameters: String;
+  ResultCode: Integer;
+  Output: TExecOutput;
+begin
+  Detail := '';
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' +
+    QuoteArgument(InteractiveTaskScriptPath) + ' -PostSetupLaunch' +
+    ' -PostSetupExecutablePath ' + QuoteArgument(ExpandConstant('{app}\EverVigil.exe')) +
+    ' -PostSetupWorkingDirectory ' + QuoteArgument(ExpandConstant('{app}')) +
+    ' -SetupProcessId ' + IntToStr(GetCurrentProcessId) +
+    ' -ForceStartService';
+  try
+    Executed := ExecAndCaptureOutput(
+      PowerShellPath,
+      Parameters,
+      ExtractFileDir(InteractiveTaskScriptPath),
+      SW_HIDE,
+      ewWaitUntilTerminated,
+      ResultCode,
+      Output);
+  except
+    Detail := GetExceptionMessage;
+    Result := False;
+    Exit;
+  end;
+  LogCapturedOutput(Output);
+  Detail := LastOutputLine(Output);
+  Result := Executed and (ResultCode = 0);
 end;
 
 procedure InitializeWizard;
@@ -616,13 +663,10 @@ begin
     Exit;
   if CurStep = ssPostInstall then
   begin
+    WizardForm.StatusLabel.Caption := CustomMessage('FinalizingEverVigil');
     if FileExists(InstallTransactionPath) and
       (not RunInstallTransaction('Seal', Detail)) then
       RaiseException('Could not seal the install transaction: ' + Detail);
-  end
-  else if CurStep = ssDone then
-  begin
-    SetupReachedDone := True;
     if FileExists(InstallTransactionPath) then
     begin
       if not RunInstallTransaction('Commit', Detail) then
@@ -634,6 +678,29 @@ begin
           CustomMessage('CommitCleanupIncomplete') + #13#10 + #13#10 + Detail,
           mbError,
           MB_OK);
+      end;
+    end;
+  end
+  else if CurStep = ssDone then
+  begin
+    SetupReachedDone := True;
+    if (not CommitCleanupIncomplete) and
+      (not FileExists(InstallTransactionPath)) and
+      (not PostSetupLaunchScheduled) then
+    begin
+      if SchedulePostSetupLaunch(Detail) then
+      begin
+        PostSetupLaunchScheduled := True;
+        Log('EverVigil clean-context launch scheduled after Setup process exit.');
+      end
+      else
+      begin
+        Log('EverVigil post-setup launch could not be scheduled: ' + Detail);
+        SuppressibleMsgBox(
+          CustomMessage('PostSetupLaunchFailed') + #13#10 + #13#10 + Detail,
+          mbError,
+          MB_OK,
+          IDOK);
       end;
     end;
   end;

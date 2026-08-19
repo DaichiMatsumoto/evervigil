@@ -223,11 +223,17 @@ internal sealed class ProtectedTailscaleIdentityStore
         var ownerRoot = PrivilegedBrokerPaths.GetOwnerStateRoot(
             _commonData,
             _ownerSid.Value);
-        foreach (var directory in new[] { productRoot, brokerRoot, stateRoot, ownerRoot })
+        foreach (var directory in new[] { productRoot, brokerRoot })
         {
             EnsureNoReparsePoint(directory);
             ValidateProtectedDirectory(new DirectoryInfo(directory), _ownerSid);
         }
+        // State deliberately grants standard users traverse without READ_CONTROL
+        // so they cannot enumerate other owners.  Its protected parent prevents
+        // replacement; validate the user-readable owner subtree instead.
+        EnsureNoReparsePoint(stateRoot);
+        EnsureNoReparsePoint(ownerRoot);
+        ValidateProtectedDirectory(new DirectoryInfo(ownerRoot), _ownerSid);
         EnsureNoReparsePoint(_ledgerPath);
     }
 

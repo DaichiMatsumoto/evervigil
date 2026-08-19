@@ -35,12 +35,57 @@ foreach ($path in $productionPaths) {
 . $resolverPath
 
 if ((Get-EverVigilProtectedBrokerPath) -cne
-    'C:\ProgramData\EverVigil\Broker\2.1.0\EverVigil.Broker.exe') {
+    'C:\ProgramData\EverVigil\Broker\2.1.1\EverVigil.Broker.exe') {
     throw 'The canonical broker path is not the fixed ProgramData version root.'
 }
 if (Test-EverVigilProtectedBrokerInstallation `
         -BrokerPath (Join-Path $repositoryRoot 'EverVigil.Broker.exe')) {
     throw 'A user-writable repository broker was accepted as the protected broker.'
+}
+
+$versionLayoutRoot = Join-Path `
+    $repositoryRoot `
+    "artifacts\broker-version-layout-$PID-$([guid]::NewGuid().ToString('N'))"
+$versionLayoutStateRoot = Join-Path $versionLayoutRoot 'State'
+$versionLayoutCurrentRoot = Join-Path $versionLayoutRoot '2.1.1'
+try {
+    Assert-EverVigilProtectedBrokerVersionLayout `
+        -BrokerRoot $versionLayoutRoot `
+        -VersionRoot $versionLayoutCurrentRoot
+    New-Item -ItemType Directory -Path $versionLayoutStateRoot -Force | Out-Null
+    $missingCurrentRejected = $false
+    try {
+        Assert-EverVigilProtectedBrokerVersionLayout `
+            -BrokerRoot $versionLayoutRoot `
+            -VersionRoot $versionLayoutCurrentRoot
+    } catch {
+        $missingCurrentRejected = $true
+    }
+    if (-not $missingCurrentRejected) {
+        throw 'Protected state without the current broker version was accepted.'
+    }
+
+    New-Item -ItemType Directory -Path $versionLayoutCurrentRoot -Force | Out-Null
+    Assert-EverVigilProtectedBrokerVersionLayout `
+        -BrokerRoot $versionLayoutRoot `
+        -VersionRoot $versionLayoutCurrentRoot
+    $obsoleteVersionRoot = Join-Path $versionLayoutRoot '2.1.0'
+    New-Item -ItemType Directory -Path $obsoleteVersionRoot -Force | Out-Null
+    $obsoleteVersionRejected = $false
+    try {
+        Assert-EverVigilProtectedBrokerVersionLayout `
+            -BrokerRoot $versionLayoutRoot `
+            -VersionRoot $versionLayoutCurrentRoot
+    } catch {
+        $obsoleteVersionRejected = $true
+    }
+    if (-not $obsoleteVersionRejected) {
+        throw 'An obsolete protected broker version was accepted for in-place upgrade.'
+    }
+} finally {
+    if (Test-Path -LiteralPath $versionLayoutRoot) {
+        Remove-Item -LiteralPath $versionLayoutRoot -Recurse -Force
+    }
 }
 
 $systemSid = [Security.Principal.SecurityIdentifier]::new(
@@ -289,7 +334,7 @@ $validReceipt = @"
   "length": 12345,
   "schemaVersion": 1,
   "sha256": "$receiptSha256",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "fileName": "EverVigil.Broker.exe"
 }
 "@
@@ -303,7 +348,7 @@ $invalidReceipts = @(
     $validReceipt.Replace('"schemaVersion"', '"SchemaVersion"')
     $validReceipt.Replace('"length": 12345', '"length": "12345"')
     $validReceipt.Replace('"schemaVersion": 1', '"schemaVersion": 1.0')
-    $validReceipt.Replace('"version": "2.1.0"', '"version": "2.1.1"')
+    $validReceipt.Replace('"version": "2.1.1"', '"version": "2.1.2"')
     $validReceipt.Replace($receiptSha256, $receiptSha256.ToUpperInvariant())
     $validReceipt.Replace(
         '"fileName": "EverVigil.Broker.exe"',
@@ -365,7 +410,7 @@ try {
         schemaVersion = 1
         transactionId = $retirementTransactionId.ToString('D')
         ownerSid = $receiptOwnerSid
-        version = '2.1.0'
+        version = '2.1.1'
         canonicalFileName = 'EverVigil.Broker.exe'
         length = 12345
         sha256 = $retirementSha256
@@ -444,7 +489,7 @@ $retirementResumeProductRoot = Join-Path `
     "artifacts\retirement-resume-$PID-$([guid]::NewGuid().ToString('N'))"
 $retirementResumeBrokerRoot = Join-Path $retirementResumeProductRoot 'Broker'
 $retirementResumeStateRoot = Join-Path $retirementResumeBrokerRoot 'State'
-$retirementResumeVersionRoot = Join-Path $retirementResumeBrokerRoot '2.1.0'
+$retirementResumeVersionRoot = Join-Path $retirementResumeBrokerRoot '2.1.1'
 $retirementResumeCanonicalPath = Join-Path `
     $retirementResumeVersionRoot `
     'EverVigil.Broker.exe'
@@ -870,7 +915,7 @@ foreach ($privilegedPowerShellMutation in @(
     }
 }
 foreach ($brokerGuard in @(
-        "'EverVigil\Broker\2.1.0\EverVigil.Broker.exe'"
+        "'EverVigil\Broker\2.1.1\EverVigil.Broker.exe'"
         "'broker\EverVigil.Broker.exe'"
         'Test-EverVigilProtectedBrokerInstallation'
         'Test-EverVigilProtectedBrokerSecurityDescriptor'
@@ -886,7 +931,7 @@ foreach ($brokerGuard in @(
         '(Get-FileHash `'
         '-Algorithm SHA256'
         '$brokerInfo.Length'
-        "[string]`$version -cne '2.1.0'"
+        "[string]`$version -cne '2.1.1'"
         "[string]`$fileName -cne 'EverVigil.Broker.exe'"
         '[string]$receiptSha256 -cnotmatch ''\A[0-9a-f]{64}\z'''
         '[IO.FileAttributes]::ReparsePoint'
@@ -913,8 +958,7 @@ foreach ($brokerGuard in @(
         "'--nonce', `$nonce"
         "'--transaction-id', `$TransactionId.ToString('D')"
         'migrateLegacySystemState = [bool]$MigrateV121SystemState'
-        "[string]`$bootstrapResponse.disposition -cne 'CanonicalReady'"
-        "[string]`$response.disposition -ceq 'CanonicalReady'"
+        'return $bootstrapResponse'
         'public sealed class BootstrapPathLock : IDisposable'
         'FileFlagOpenReparsePoint'
         'FileFlagBackupSemantics'
@@ -1211,26 +1255,29 @@ foreach ($retirementOrderGuard in $retirementFileDeleteOrder) {
     $retirementOrderCursor = $nextRetirementOrderCursor
 }
 if (-not $contents[$installPath].Contains(
-        '-AllowBootstrap:($Mode -eq ''Prepare'')',
+        '-AllowBootstrap:($Mode -eq ''Install'')',
         [StringComparison]::Ordinal) -or
     $resolverContent.Contains('[string]$PackageRoot', [StringComparison]::Ordinal) -or
     $contents[$completePath].Contains('-AllowBootstrap', [StringComparison]::Ordinal) -or
     $contents[$uninstallPath].Contains('-AllowBootstrap', [StringComparison]::Ordinal)) {
-    throw 'Only the unconditional installer Status preflight may bootstrap the protected broker.'
+    throw 'Only installer Apply may bootstrap the protected broker.'
 }
-foreach ($unconditionalBrokerBootstrapGuard in @(
-        "[ValidateSet('Prepare', 'Install', 'Commit', 'Rollback')]"
-        "'Prepare' { 'Status' }"
-        'Invoke-SystemBrokerMaintenance -Mode Prepare'
+foreach ($singlePromptBrokerBootstrapGuard in @(
+        "[ValidateSet('Install', 'Commit', 'Rollback')]"
+        "'Install' { 'Apply' }"
+        '-AllowBootstrap:($Mode -eq ''Install'')'
         '$transactionState.protectedBrokerReady = $true'
-        "[string]`$brokerResponse.disposition -cne 'NoChange'"
-        'remains CONFIGURATION REQUIRED can still perform safe broker-owned cleanup.'
     )) {
     if (-not $contents[$installPath].Contains(
-            $unconditionalBrokerBootstrapGuard,
+            $singlePromptBrokerBootstrapGuard,
             [StringComparison]::Ordinal)) {
-        throw "A configuration-required safe-uninstall broker bootstrap guard is missing: $unconditionalBrokerBootstrapGuard"
+        throw "A single-prompt installer Apply bootstrap guard is missing: $singlePromptBrokerBootstrapGuard"
     }
+}
+if ($contents[$installPath].Contains(
+        'Invoke-SystemBrokerMaintenance -Mode Prepare',
+        [StringComparison]::Ordinal)) {
+    throw 'Installer preparation must not trigger a standalone elevated broker request.'
 }
 foreach ($v121MigrationGuard in @(
         '$migrateV121SystemState = [bool]$legacyCleanupAuthorized -and'
@@ -1286,4 +1333,4 @@ foreach ($brokerPackageGuard in @(
     }
 }
 
-'System broker tests passed: canonical ACL/receipt/hash gate, unconditional configuration-required bootstrap, strict authenticated framing, one-shot nonce/transaction binding, loopback-only token health with redirect isolation, response type guards, and PowerShell elevation/mutation ban.'
+'System broker tests passed: canonical ACL/receipt/hash gate, single-prompt installer Apply bootstrap, strict authenticated framing, one-shot nonce/transaction binding, loopback-only token health with redirect isolation, response type guards, and PowerShell elevation/mutation ban.'

@@ -2,7 +2,7 @@
 
 [日本語](SECURITY.ja.md) | [Reporting policy](../SECURITY.md) | [Technical overview](TECHNICAL_OVERVIEW.en.md)
 
-Target release: EverVigil v2.1.0. Repository:
+Target release: EverVigil v2.1.1. Repository:
 <https://github.com/DaichiMatsumoto/evervigil>.
 
 ## Bridge token
@@ -78,13 +78,17 @@ a deliberately revealed secret.
 - Health, Reveal, and Copy additionally require a fresh read-only Serve status
   check showing the exact protected root proxy and no active Funnel.
 - An unrelated or ambiguous route/rule is left unchanged.
-- UAC launches only the canonical ProgramData broker. The tray executable,
+- On first Apply, Setup elevates the package broker only after locking and
+  verifying its complete source path; that process installs the canonical
+  ProgramData broker and completes the same authenticated Apply request.
+  Subsequent operations elevate only the canonical broker. The tray executable,
   PowerShell scripts, and user-writable installed files are never elevated.
 - The broker authenticates its medium-integrity named-pipe client by process,
   SID, session, integrity level, and nonce; privileged ownership evidence is
   written only to its protected per-SID ProgramData journal and ledger.
-- UAC is requested only for bootstrap or a system operation that requires it;
-  normal supervision is never continuously elevated.
+- A successful first-time system configuration uses at most two short UAC
+  operations: install-plus-Apply, then Commit after validation. Normal
+  supervision is never continuously elevated.
 - Missing, invalid, or unapplied system configuration blocks backend startup.
 
 Tailnet membership does not by itself authorize access. Tailnet administrators
@@ -119,7 +123,7 @@ application content. Inspect and sanitize it manually before sharing.
 - EverVigil has no automatic updater. The user manually downloads a GitHub
   Release, verifies SHA-256, and runs the installer.
 - Community binaries are unsigned and may trigger Microsoft Defender SmartScreen.
-- The unsigned v2.1.0 first broker bootstrap is not a publisher-authenticated
+- The unsigned v2.1.1 first broker bootstrap is not a publisher-authenticated
   trust anchor. A future broker replacement requires an approved signing or
   OS-trusted installer design.
 - A SHA-256 match proves file identity, not publisher identity or safety.

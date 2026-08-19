@@ -24,9 +24,9 @@ separately installed Even Terminal process.
 The setup EXE contains the .NET runtime. A .NET SDK and Inno Setup are required
 only when building from source.
 
-## Install v2.1.0
+## Install v2.1.1
 
-1. Download `EverVigil-2.1.0-Setup.exe` from the approved GitHub Release at
+1. Download `EverVigil-2.1.1-Setup.exe` from the approved GitHub Release at
    <https://github.com/DaichiMatsumoto/evervigil/releases>.
 2. Calculate its SHA-256 and compare it with the exact value in the Release.
 3. Run the installer, read the independent-project notice, review the
@@ -39,9 +39,10 @@ running the file.
 The default destination is `%LOCALAPPDATA%\Programs\EverVigil`. Setup rejects
 unsafe or ambiguous destinations, including network paths, protected system
 trees, temporary trees, reparse points, substituted drives, and path aliases.
-It runs without elevation and requests UAC only if an owned Tailscale Serve
-route or Windows Firewall rule must be created, changed, repaired, or removed.
-Normal supervision is never kept permanently elevated.
+It runs without elevation. When installation must create or change the owned
+Tailscale Serve route and Windows Firewall rule, Setup uses at most two short
+UAC operations: Apply, then Commit after validation. Normal supervision is
+never kept permanently elevated.
 
 If a dependency cannot be discovered, open the tray window, choose the correct
 executable or project path, save the settings, and rerun the same installer to
@@ -119,16 +120,18 @@ suppression.
 ## Manual update
 
 EverVigil has no automatic updater. Download a newer installer from the GitHub
-Release page, verify its SHA-256, and run it over the existing installation.
-The transaction preserves settings, the DPAPI-protected bridge token, and the
-startup preference. It snapshots mutable state and retains the prior working
-program until the replacement and installer both succeed. A failed activation
-restores the verified snapshot and prior program instead of leaving a partial
-installation.
+Release page and verify its SHA-256. To update from EverVigil v2.1.0 to
+v2.1.1, uninstall v2.1.0 first. Choose **Yes** at the uninstall data prompt to
+retain same-user settings and the DPAPI-protected bridge token, or **No** for a
+complete removal. Then run the v2.1.1 installer. The v2.1.1 installer refuses a
+remaining v2.1.0 protected Broker rather than modifying ambiguous privileged
+state. This uninstall/reinstall requirement does not change the separate,
+authenticated in-place migration from the legacy v1.2.1 product described
+below.
 
 ## Upgrade from legacy v1.2.1
 
-EverVigil v2.1.0 uses an in-place upgrade because preserving the established
+EverVigil v2.1.1 uses an in-place upgrade because preserving the established
 installer identity allows the existing settings and DPAPI-protected token to
 remain usable by the same Windows user. The preserved identity is an internal
 migration key, not a user-facing product name.
@@ -189,5 +192,5 @@ See [Security details](SECURITY.en.md) and the
 
 EverVigil source code is licensed under
 [GNU General Public License version 3 only](../LICENSE) (`GPL-3.0-only`). The
-initial icon is independently created `temporary-placeholder` artwork; its
-provenance is documented in [NOTICE.md](../NOTICE.md).
+icon is independently created original artwork; its provenance is documented
+in [NOTICE.md](../NOTICE.md).

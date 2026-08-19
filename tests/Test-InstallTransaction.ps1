@@ -146,7 +146,7 @@ function New-TransactionState {
         $state.uninstallRegistrySnapshotSha256 = ''
         $state.uninstallRegistryMutationMarkerSha256 = ''
         $state.externalCommitPhase = 'None'
-        $state.targetVersion = '2.1.0'
+        $state.targetVersion = '2.1.1'
     }
     return $state
 }

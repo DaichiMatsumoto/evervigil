@@ -130,6 +130,18 @@ internal static class Program
                 return IsInstallerRuntimeHealthy(local, provider) ? 0 : 1;
             }
 
+            if (HasArgument(arguments, "--installer-runtime-check"))
+            {
+                if (settingsStore.RequiresSystemConfiguration)
+                {
+                    return 1;
+                }
+
+                token = tokenStore.GetOrCreate();
+                LogTokenRecovery(tokenStore, logger);
+                return RunInstallerRuntimeCheck(settingsStore, tokenStore, logger);
+            }
+
             using var coordinator = new SingleInstanceCoordinator();
             if (HasArgument(arguments, "--shutdown"))
             {
@@ -233,6 +245,7 @@ internal static class Program
             "--background",
             "--bridge-launcher",
             "--health-check",
+            "--installer-runtime-check",
             "--import-token-file",
             "--initialize-legacy-settings",
             "--commit-installer-system-config",
@@ -247,6 +260,43 @@ internal static class Program
 
     internal static bool IsInstallerRuntimeHealthy(bool local, bool provider) =>
         local && provider;
+
+    private static int RunInstallerRuntimeCheck(
+        SettingsStore settingsStore,
+        TokenStore tokenStore,
+        BoundedLogger logger)
+    {
+        var supervisor = new SupervisorEngine(
+            settingsStore,
+            tokenStore,
+            logger,
+            new HealthProbe());
+        try
+        {
+            supervisor.Start();
+            var deadline = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(3);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                var snapshot = supervisor.Current;
+                if (IsInstallerRuntimeHealthy(
+                        snapshot.LocalEndpointReady,
+                        snapshot.ProviderReady))
+                {
+                    logger.Info("Installer runtime check completed without launching the tray UI.");
+                    return 0;
+                }
+
+                Thread.Sleep(500);
+            }
+
+            logger.Error("Installer runtime check timed out before local/provider readiness.");
+            return 1;
+        }
+        finally
+        {
+            supervisor.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+    }
 
     internal static string FormatHeadlessFailure(Exception exception)
     {

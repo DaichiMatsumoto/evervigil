@@ -24,11 +24,11 @@ Codex実行ファイルを、別途導入済みのEven Terminalから子プロ�
 セットアップEXEは.NETランタイムを含みます。.NET SDKとInno Setupが必要なのは、
 ソースからビルドする場合だけです。
 
-## v2.1.0のインストール
+## v2.1.1のインストール
 
 1. 承認済みGitHub Release
    <https://github.com/DaichiMatsumoto/evervigil/releases>から
-   `EverVigil-2.1.0-Setup.exe`を取得します。
+   `EverVigil-2.1.1-Setup.exe`を取得します。
 2. SHA-256を計算し、Releaseに掲載された正確な値と照合します。
 3. installerを実行し、独立プロジェクトnoticeと導入先を確認して完了します。
 
@@ -38,9 +38,8 @@ SHA-256を独立に確認してください。
 
 既定の導入先は`%LOCALAPPDATA%\Programs\EverVigil`です。network path、保護された
 system tree、一時tree、reparse point、SUBST drive、path aliasなど、安全性や実体が
-曖昧な導入先は拒否します。通常権限で動作し、所有するTailscale Serve経路または
-Windows Firewallルールの作成・変更・修復・削除が必要な場合だけUACを要求します。
-通常の監視処理を常時昇格状態で動かしません。
+曖昧な導入先は拒否します。通常権限で動作し、system構成が必要な導入ではApplyと
+検証後Commitの短時間UACを最大2回使用します。通常の監視処理を常時昇格状態で動かしません。
 
 依存実行ファイルを検出できない場合は通知領域画面を開き、正しい実行ファイルや
 project pathを選択して保存し、同じinstallerを再実行してsystem設定を完了します。
@@ -114,14 +113,16 @@ crash-loop抑制を適用します。
 ## 手動更新
 
 EverVigilに自動更新機能はありません。GitHub Releaseから新版installerを取得し、
-SHA-256を確認して既存導入へ上書き実行します。transactionは設定、DPAPI保護済み
-bridge token、自動起動設定を保持します。可変状態をsnapshotし、新版とinstallerの
-両方が成功するまで旧稼働版を保持します。有効化に失敗した場合は検証済みsnapshotと
-旧programを復元し、partial installを残しません。
+SHA-256を確認します。EverVigil v2.1.0からv2.1.1へ更新する場合は、先にv2.1.0を
+アンインストールしてください。データ確認では、同じユーザーの設定とDPAPI保護済み
+bridge tokenを保持するなら「はい」、完全削除するなら「いいえ」を選び、その後に
+v2.1.1 installerを実行します。v2.1.1 installerは、曖昧な特権状態を変更せず、残存する
+v2.1.0 protected Brokerを拒否します。このuninstall/reinstall要件は、後述する旧v1.2.1
+製品からの認証済みin-place migrationには影響しません。
 
 ## 旧v1.2.1からのupgrade
 
-EverVigil v2.1.0はin-place upgradeを採用します。既存のinstaller identityを内部の
+EverVigil v2.1.1はin-place upgradeを採用します。既存のinstaller identityを内部の
 移行keyとして保持することで、同じWindowsユーザーの設定とDPAPI保護済みtokenを
 安全に継続できます。このidentityはユーザー向け製品名ではありません。
 
@@ -172,5 +173,5 @@ folder・設定・ユーザー作成fileは削除しません。
 ## ライセンス
 
 EverVigil source codeは[GNU General Public License version 3 only](../LICENSE)
-（`GPL-3.0-only`）で提供します。初期iconは独自作成した`temporary-placeholder`
-artworkです。出自は[NOTICE.md](../NOTICE.md)に記載しています。
+（`GPL-3.0-only`）で提供します。iconは独自作成した正式なoriginal artworkです。
+出自は[NOTICE.md](../NOTICE.md)に記載しています。

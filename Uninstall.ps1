@@ -680,7 +680,7 @@ function Get-ValidatedEverVigilProtectedBrokerRetirementState {
             -AllowedName @('Broker')
         Assert-ExactRetirementDirectoryEntries `
             -Path $paths.BrokerRoot `
-            -AllowedName @('State', '2.1.0')
+            -AllowedName @('State', '2.1.1')
         Assert-ExactRetirementDirectoryEntries `
             -Path $paths.VersionRoot `
             -AllowedName @(
@@ -1987,12 +1987,12 @@ if ($protectedBrokerRetirementRequired) {
     # validation above is the authority for medium-integrity continuation.
     $protectedBrokerRetirementRequired = $true
 } elseif ($preCleanupBrokerState.Status -eq 'Absent') {
-    if ($primaryConfigurationOwned -or
-        (Test-Path -LiteralPath $SystemConfigurationRequiredPath)) {
+    if ($primaryConfigurationOwned) {
         throw 'The protected broker is absent while local system ownership state still requires cleanup.'
     }
-    # The fixed product root can be absent only after a prior last-owner
-    # retirement completed. No privileged path remains to invoke.
+    # A configuration-required install can intentionally have only its local
+    # marker and no protected broker. With no applied ownership journal there
+    # is no privileged state to clean; the marker is removed below.
 } else {
     throw "Unknown protected broker retirement state: $($preCleanupBrokerState.Status)"
 }
