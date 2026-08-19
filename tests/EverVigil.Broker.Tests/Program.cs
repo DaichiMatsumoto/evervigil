@@ -1444,7 +1444,7 @@ static void BootstrapRejectsHardLinkedCanonical()
 
 static void BootstrapRejectsOrphanedInstallationReceipt()
 {
-    const string version = "2.1.0";
+    const string version = "2.1.1";
     var root = NewTestRoot();
     try
     {
@@ -1675,7 +1675,7 @@ static void InstalledTailscaleValidationProbe()
 static RetirementTestFixture NewRetirementFixture()
 {
     const string ownerSid = "S-1-5-21-1-2-3-1001";
-    const string version = "2.1.0";
+    const string version = "2.1.1";
     var root = NewTestRoot();
     var store = BrokerStateStore.ForTests(root, ownerSid);
     var versionRoot = PrivilegedBrokerPaths.GetVersionRoot(root, version);
@@ -1705,7 +1705,7 @@ static RetirementTestFixture NewRetirementFixture()
 
 static BootstrapRecoveryFixture NewBootstrapRecoveryFixture(bool canonicalMatchesSource)
 {
-    const string version = "2.1.0";
+    const string version = "2.1.1";
     var root = NewTestRoot();
     var versionRoot = PrivilegedBrokerPaths.GetVersionRoot(root, version);
     Directory.CreateDirectory(versionRoot);

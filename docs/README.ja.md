@@ -24,11 +24,11 @@ Codex実行ファイルを、別途導入済みのEven Terminalから子プロ�
 セットアップEXEは.NETランタイムを含みます。.NET SDKとInno Setupが必要なのは、
 ソースからビルドする場合だけです。
 
-## v2.1.0のインストール
+## v2.1.1のインストール
 
 1. 承認済みGitHub Release
    <https://github.com/DaichiMatsumoto/evervigil/releases>から
-   `EverVigil-2.1.0-Setup.exe`を取得します。
+   `EverVigil-2.1.1-Setup.exe`を取得します。
 2. SHA-256を計算し、Releaseに掲載された正確な値と照合します。
 3. installerを実行し、独立プロジェクトnoticeと導入先を確認して完了します。
 
@@ -121,7 +121,7 @@ bridge token、自動起動設定を保持します。可変状態をsnapshotし
 
 ## 旧v1.2.1からのupgrade
 
-EverVigil v2.1.0はin-place upgradeを採用します。既存のinstaller identityを内部の
+EverVigil v2.1.1はin-place upgradeを採用します。既存のinstaller identityを内部の
 移行keyとして保持することで、同じWindowsユーザーの設定とDPAPI保護済みtokenを
 安全に継続できます。このidentityはユーザー向け製品名ではありません。
 
@@ -172,5 +172,5 @@ folder・設定・ユーザー作成fileは削除しません。
 ## ライセンス
 
 EverVigil source codeは[GNU General Public License version 3 only](../LICENSE)
-（`GPL-3.0-only`）で提供します。初期iconは独自作成した`temporary-placeholder`
-artworkです。出自は[NOTICE.md](../NOTICE.md)に記載しています。
+（`GPL-3.0-only`）で提供します。iconは独自作成した正式なoriginal artworkです。
+出自は[NOTICE.md](../NOTICE.md)に記載しています。

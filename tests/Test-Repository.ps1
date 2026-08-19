@@ -304,7 +304,8 @@ $noticeContent = Get-Content `
     -Raw `
     -Encoding UTF8
 foreach ($placeholderProvenanceGuard in @(
-        'temporary-placeholder'
+        '## Original icon artwork'
+        "It is the project's adopted icon"
         'It is not derived from, traced from, or based on any Even Realities artwork.'
         'src/EverVigil/Assets/evervigil-placeholder-source.png'
         'src/EverVigil/Assets/evervigil-placeholder.ico'
@@ -313,7 +314,7 @@ foreach ($placeholderProvenanceGuard in @(
     if (-not $noticeContent.Contains(
             $placeholderProvenanceGuard,
             [StringComparison]::Ordinal)) {
-        $failures.Add("Placeholder icon provenance notice is missing: $placeholderProvenanceGuard")
+        $failures.Add("Original icon provenance notice is missing: $placeholderProvenanceGuard")
     }
 }
 
@@ -3141,8 +3142,8 @@ if ($applicationProject.Project.PropertyGroup.OutputType -ne 'WinExe') {
 $applicationManifest = [xml](Get-Content -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\app.manifest') -Raw)
 $manifestIdentity = $applicationManifest.assembly.assemblyIdentity
 $projectVersion = [string]$applicationProject.Project.PropertyGroup.Version
-if ($projectVersion -cne '2.1.0') {
-    $failures.Add("The EverVigil release version must be exactly 2.1.0, not '$projectVersion'.")
+if ($projectVersion -cne '2.1.1') {
+    $failures.Add("The EverVigil release version must be exactly 2.1.1, not '$projectVersion'.")
 }
 $expectedManifestVersion = ConvertTo-WindowsManifestVersion -Version $projectVersion
 if ($manifestIdentity.name -ne 'EverVigil.app' -or
@@ -3156,7 +3157,7 @@ if ($applicationProject.Project.PropertyGroup.PackageLicenseExpression -ne 'GPL-
     $applicationProject.Project.PropertyGroup.Copyright -ne 'Copyright © 2026 Daichi Matsumoto') {
     $failures.Add('Application metadata must identify Daichi Matsumoto and GPL-3.0-only.')
 }
-if ($applicationProject.Project.PropertyGroup.InformationalVersion -ne '2.1.0' -or
+if ($applicationProject.Project.PropertyGroup.InformationalVersion -ne '2.1.1' -or
     $applicationProject.Project.PropertyGroup.IncludeSourceRevisionInInformationalVersion -ne 'false') {
     $failures.Add('Release VersionInfo must not include the temporary pre-initialization Git revision.')
 }
@@ -3178,7 +3179,7 @@ foreach ($win32ResourceGuard in @(
         '1 RT_MANIFEST "app.manifest"'
         '32512 ICON "Assets\\evervigil-placeholder.ico"'
         'VALUE "OriginalFilename", "EverVigil.exe\0"'
-        'VALUE "ProductVersion", "2.1.0\0"'
+        'VALUE "ProductVersion", "2.1.1\0"'
     )) {
     if (-not $win32ResourceSource.Contains($win32ResourceGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Custom Win32 resource guard is missing: $win32ResourceGuard")

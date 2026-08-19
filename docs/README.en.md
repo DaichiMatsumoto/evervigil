@@ -24,9 +24,9 @@ separately installed Even Terminal process.
 The setup EXE contains the .NET runtime. A .NET SDK and Inno Setup are required
 only when building from source.
 
-## Install v2.1.0
+## Install v2.1.1
 
-1. Download `EverVigil-2.1.0-Setup.exe` from the approved GitHub Release at
+1. Download `EverVigil-2.1.1-Setup.exe` from the approved GitHub Release at
    <https://github.com/DaichiMatsumoto/evervigil/releases>.
 2. Calculate its SHA-256 and compare it with the exact value in the Release.
 3. Run the installer, read the independent-project notice, review the
@@ -128,7 +128,7 @@ installation.
 
 ## Upgrade from legacy v1.2.1
 
-EverVigil v2.1.0 uses an in-place upgrade because preserving the established
+EverVigil v2.1.1 uses an in-place upgrade because preserving the established
 installer identity allows the existing settings and DPAPI-protected token to
 remain usable by the same Windows user. The preserved identity is an internal
 migration key, not a user-facing product name.
@@ -189,5 +189,5 @@ See [Security details](SECURITY.en.md) and the
 
 EverVigil source code is licensed under
 [GNU General Public License version 3 only](../LICENSE) (`GPL-3.0-only`). The
-initial icon is independently created `temporary-placeholder` artwork; its
-provenance is documented in [NOTICE.md](../NOTICE.md).
+icon is independently created original artwork; its provenance is documented
+in [NOTICE.md](../NOTICE.md).

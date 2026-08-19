@@ -42,12 +42,12 @@ $positive = Assert-EverVigilExecutableResources `
     -Path $applicationPath `
     -ArtifactKind Application `
     -ExpectedIconPath $iconPath `
-    -Version 2.1.0 `
+    -Version 2.1.1 `
     -ExpectedVersionInfo @{
         ProductName = '\AEverVigil\z'
         CompanyName = '\ADaichi Matsumoto\z'
-        FileVersion = '\A2\.1\.0\.0\z'
-        ProductVersion = '\A2\.1\.0\z'
+        FileVersion = '\A2\.1\.1\.0\z'
+        ProductVersion = '\A2\.1\.1\z'
         FileDescription = '\AEverVigil\z'
         OriginalFilename = '\AEverVigil\.exe\z'
     }
@@ -62,13 +62,13 @@ $brokerPositive = Assert-EverVigilExecutableResources `
     -Path $brokerPath `
     -ArtifactKind Broker `
     -ExpectedIconPath $iconPath `
-    -Version 2.1.0 `
+    -Version 2.1.1 `
     -ExpectedExecutionLevel asInvoker `
     -ExpectedVersionInfo @{
         ProductName = '\AEverVigil\z'
         CompanyName = '\ADaichi Matsumoto\z'
-        FileVersion = '\A2\.1\.0\.0\z'
-        ProductVersion = '\A2\.1\.0\z'
+        FileVersion = '\A2\.1\.1\.0\z'
+        ProductVersion = '\A2\.1\.1\z'
         FileDescription = '\AEverVigil fixed-operation privileged broker\.\z'
         OriginalFilename = '\AEverVigil\.Broker\.exe\z'
     }
@@ -87,7 +87,7 @@ try {
         -Path $brokerPath `
         -ArtifactKind Broker `
         -ExpectedIconPath $iconPath `
-        -Version 2.1.0 `
+        -Version 2.1.1 `
         -ExpectedExecutionLevel highestAvailable `
         -ExpectedVersionInfo @{ ProductName = '\AEverVigil\z' } | Out-Null
 } catch {
@@ -106,7 +106,7 @@ try {
         -Path $brokerPath `
         -ArtifactKind Broker `
         -ExpectedIconPath $iconPath `
-        -Version 2.1.0 `
+        -Version 2.1.1 `
         -ExpectedExecutionLevel asInvoker `
         -ExpectedVersionInfo @{ OriginalFilename = '\ANotEverVigil\.exe\z' } | Out-Null
 } catch {
@@ -125,7 +125,7 @@ try {
         -Path $brokerPath `
         -ArtifactKind Broker `
         -ExpectedIconPath $iconPath `
-        -Version 2.1.0 `
+        -Version 2.1.1 `
         -ExpectedExecutionLevel asInvoker `
         -DenySha256 (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash `
         -ExpectedVersionInfo @{ ProductName = '\AEverVigil\z' } | Out-Null
@@ -145,7 +145,7 @@ try {
         -Path $applicationPath `
         -ArtifactKind Application `
         -ExpectedIconPath $iconPath `
-        -Version 2.1.0 `
+        -Version 2.1.1 `
         -ExpectedVersionInfo @{ ProductName = '\ANotEverVigil\z' } | Out-Null
 } catch {
     $metadataNegativeRejected =
@@ -161,7 +161,7 @@ try {
         -Path $applicationPath `
         -ArtifactKind Application `
         -ExpectedIconPath $iconPath `
-        -Version 2.1.0 `
+        -Version 2.1.1 `
         -DenySha256 (Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash `
         -ExpectedVersionInfo @{ ProductName = '\AEverVigil\z' } | Out-Null
 } catch {
@@ -201,7 +201,7 @@ try {
             -Path $applicationPath `
             -ArtifactKind Application `
             -ExpectedIconPath $wrongIconPath `
-        -Version 2.1.0 `
+        -Version 2.1.1 `
             -ExpectedVersionInfo @{ ProductName = '\AEverVigil\z' } | Out-Null
     } catch {
         $wrongIconRejected = $_.Exception.Message.Contains(
@@ -218,7 +218,7 @@ try {
             -Path $brokerPath `
             -ArtifactKind Broker `
             -ExpectedIconPath $wrongIconPath `
-            -Version 2.1.0 `
+            -Version 2.1.1 `
             -ExpectedExecutionLevel asInvoker `
             -ExpectedVersionInfo @{ ProductName = '\AEverVigil\z' } | Out-Null
     } catch {

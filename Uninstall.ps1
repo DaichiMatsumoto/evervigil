@@ -680,7 +680,7 @@ function Get-ValidatedEverVigilProtectedBrokerRetirementState {
             -AllowedName @('Broker')
         Assert-ExactRetirementDirectoryEntries `
             -Path $paths.BrokerRoot `
-            -AllowedName @('State', '2.1.0')
+            -AllowedName @('State', '2.1.1')
         Assert-ExactRetirementDirectoryEntries `
             -Path $paths.VersionRoot `
             -AllowedName @(

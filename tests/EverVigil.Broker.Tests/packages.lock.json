@@ -5,7 +5,7 @@
       "evervigil.broker": {
         "type": "Project",
         "dependencies": {
-          "EverVigil.Broker.Protocol": "[2.1.0, )"
+          "EverVigil.Broker.Protocol": "[2.1.1, )"
         }
       },
       "evervigil.broker.protocol": {

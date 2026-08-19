@@ -11,8 +11,8 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <AssemblyName>EverVigil.Broker.Protocol</AssemblyName>
     <RootNamespace>EverVigil.Broker.Protocol</RootNamespace>
-    <Version>2.1.0</Version>
-    <InformationalVersion>2.1.0</InformationalVersion>
+    <Version>2.1.1</Version>
+    <InformationalVersion>2.1.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
