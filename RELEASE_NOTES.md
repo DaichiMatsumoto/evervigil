@@ -110,7 +110,7 @@ This is an independent community project. It is not an official Even Realities p
 
 - `@evenrealities/even-terminal`はユーザーが別途導入します。EverVigilは
   このpackageをbundle、fork、patch、再配布しません。
-- 導入・更新は手動です。承認済みGitHub Releaseから
+- 導入・更新は手動です。GitHub Releaseから
   `EverVigil-2.0.0-Setup.exe`を取得し、公開SHA-256を照合してから実行します。
   自動更新機能はありません。
 - installerは未署名で、Microsoft Defender SmartScreenが警告する場合があります。
