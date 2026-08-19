@@ -1,0 +1,54 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EverVigil.Core\EverVigil.Core.csproj" />
+    <ProjectReference Include="..\EverVigil.Broker.Protocol\EverVigil.Broker.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\evervigil-placeholder-source.png" />
+    <EmbeddedResource Include="Assets\evervigil-placeholder-source.png"
+                      LogicalName="EverVigil.Assets.evervigil-placeholder-source.png" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <NoWin32Manifest>true</NoWin32Manifest>
+    <EverVigilPowerShellPath Condition="'$(EverVigilPowerShellPath)' == ''">pwsh</EverVigilPowerShellPath>
+    <EverVigilResourceCompilerPath Condition="'$(EverVigilResourceCompilerPath)' == ''"></EverVigilResourceCompilerPath>
+    <EverVigilWin32ResourcePath>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\EverVigil.win32.res</EverVigilWin32ResourcePath>
+    <EverVigilWin32ResourcePath Condition="'$(RuntimeIdentifier)' != ''">$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\EverVigil.win32.res</EverVigilWin32ResourcePath>
+    <Win32Resource>$(EverVigilWin32ResourcePath)</Win32Resource>
+    <AssemblyName>EverVigil</AssemblyName>
+    <RootNamespace>EverVigil</RootNamespace>
+    <Version>2.1.0</Version>
+    <InformationalVersion>2.1.0</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Authors>Daichi Matsumoto</Authors>
+    <Company>Daichi Matsumoto</Company>
+    <Copyright>Copyright © 2026 Daichi Matsumoto</Copyright>
+    <Description>An independent Windows tray utility that keeps Even Terminal running and available.</Description>
+    <Product>EverVigil</Product>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/DaichiMatsumoto/evervigil</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <Target Name="CompileEverVigilWin32Resource"
+          BeforeTargets="CoreCompile"
+          Inputs="$(MSBuildProjectDirectory)\EverVigil.rc;$(MSBuildProjectDirectory)\app.manifest;$(MSBuildProjectDirectory)\Assets\evervigil-placeholder.ico;$(MSBuildProjectDirectory)\..\..\scripts\Compile-WindowsResource.ps1;$(EverVigilResourceCompilerPath)"
+          Outputs="$(EverVigilWin32ResourcePath)">
+    <Exec Command="&quot;$(EverVigilPowerShellPath)&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\Compile-WindowsResource.ps1&quot; -ProjectRoot &quot;$(MSBuildProjectDirectory)&quot; -OutputPath &quot;$(EverVigilWin32ResourcePath)&quot; -CompilerPath &quot;$(EverVigilResourceCompilerPath)&quot;" />
+  </Target>
+
+</Project>

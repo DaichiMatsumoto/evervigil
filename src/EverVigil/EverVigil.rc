@@ -1,0 +1,41 @@
+#pragma code_page(65001)
+
+#define RT_MANIFEST 24
+#define VS_FFI_FILEFLAGSMASK 0x0000003FL
+#define VOS_NT_WINDOWS32 0x00040004L
+#define VFT_APP 0x00000001L
+#define VFT2_UNKNOWN 0x00000000L
+
+LANGUAGE 0x09, 0x01
+
+1 RT_MANIFEST "app.manifest"
+32512 ICON "Assets\\evervigil-placeholder.ico"
+
+1 VERSIONINFO
+FILEVERSION 2,0,0,0
+PRODUCTVERSION 2,0,0,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0x0L
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Daichi Matsumoto\0"
+            VALUE "FileDescription", "EverVigil\0"
+            VALUE "FileVersion", "2.1.0.0\0"
+            VALUE "InternalName", "EverVigil\0"
+            VALUE "LegalCopyright", "Copyright © 2026 Daichi Matsumoto\0"
+            VALUE "OriginalFilename", "EverVigil.exe\0"
+            VALUE "ProductName", "EverVigil\0"
+            VALUE "ProductVersion", "2.1.0\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

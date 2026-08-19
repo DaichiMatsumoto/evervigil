@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EverVigil.Broker.Protocol\EverVigil.Broker.Protocol.csproj" />
+    <Compile Include="..\EverVigil\Compatibility\LegacyCompatibility.g.cs"
+             Link="Compatibility\LegacyCompatibility.g.cs" />
+    <Compile Include="$(IntermediateOutputPath)EverVigil.Broker.BuildInfo.g.cs"
+             AutoGen="True"
+             DesignTime="True"
+             Visible="False" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EverVigil.Broker.Tests" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PublishAot Condition="'$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' == 'win-x64'">true</PublishAot>
+    <NuGetLockFilePath Condition="'$(PublishAot)' == 'true'">$(MSBuildProjectDirectory)\packages.aot.lock.json</NuGetLockFilePath>
+    <StripSymbols Condition="'$(PublishAot)' == 'true'">true</StripSymbols>
+    <IlcOptimizationPreference Condition="'$(PublishAot)' == 'true'">Speed</IlcOptimizationPreference>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AssemblyName>EverVigil.Broker</AssemblyName>
+    <RootNamespace>EverVigil.Broker</RootNamespace>
+    <NoWin32Manifest>true</NoWin32Manifest>
+    <EverVigilPowerShellPath Condition="'$(EverVigilPowerShellPath)' == ''">pwsh</EverVigilPowerShellPath>
+    <EverVigilResourceCompilerPath Condition="'$(EverVigilResourceCompilerPath)' == ''"></EverVigilResourceCompilerPath>
+    <EverVigilBrokerWin32ResourcePath>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\EverVigil.Broker.win32.res</EverVigilBrokerWin32ResourcePath>
+    <EverVigilBrokerWin32ResourcePath Condition="'$(RuntimeIdentifier)' != ''">$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\EverVigil.Broker.win32.res</EverVigilBrokerWin32ResourcePath>
+    <Win32Resource>$(EverVigilBrokerWin32ResourcePath)</Win32Resource>
+    <Version>2.1.0</Version>
+    <InformationalVersion>2.1.0</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Authors>Daichi Matsumoto</Authors>
+    <Company>Daichi Matsumoto</Company>
+    <Copyright>Copyright © 2026 Daichi Matsumoto</Copyright>
+    <Description>EverVigil fixed-operation privileged broker.</Description>
+    <Product>EverVigil</Product>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/DaichiMatsumoto/evervigil</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PublishAot)' == 'true'">
+    <LinkerArg Include="/DEPENDENTLOADFLAG:0x800" />
+  </ItemGroup>
+
+  <Target Name="GenerateEverVigilBrokerBuildInfo"
+          BeforeTargets="CoreCompile">
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <WriteLinesToFile
+        File="$(IntermediateOutputPath)EverVigil.Broker.BuildInfo.g.cs"
+        Lines="namespace EverVigil.Broker%3B internal static class BrokerBuildInfo { internal const string ProductVersion = &quot;$(Version)&quot;%3B }"
+        Overwrite="True"
+        Encoding="UTF-8" />
+  </Target>
+
+  <Target Name="CompileEverVigilBrokerWin32Resource"
+          BeforeTargets="CoreCompile"
+          Inputs="$(MSBuildProjectDirectory)\EverVigil.Broker.rc;$(MSBuildProjectDirectory)\app.manifest;$(MSBuildProjectDirectory)\..\EverVigil\Assets\evervigil-placeholder.ico;$(MSBuildProjectDirectory)\..\..\scripts\Compile-WindowsResource.ps1;$(EverVigilResourceCompilerPath)"
+          Outputs="$(EverVigilBrokerWin32ResourcePath)">
+    <Exec Command="&quot;$(EverVigilPowerShellPath)&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\Compile-WindowsResource.ps1&quot; -ProjectRoot &quot;$(MSBuildProjectDirectory)&quot; -OutputPath &quot;$(EverVigilBrokerWin32ResourcePath)&quot; -ResourceScriptName &quot;EverVigil.Broker.rc&quot; -IconRelativePath &quot;..\EverVigil\Assets\evervigil-placeholder.ico&quot; -CompilerPath &quot;$(EverVigilResourceCompilerPath)&quot;" />
+  </Target>
+
+</Project>

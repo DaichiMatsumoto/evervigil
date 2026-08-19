@@ -1,2 +1,7 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+* text=auto eol=lf
+*.ps1 text eol=lf
+*.psd1 text eol=lf
+*.cmd text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

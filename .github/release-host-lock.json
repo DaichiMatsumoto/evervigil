@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 3,
+  "snapshotId": "evervigil-win11-pro-amd64-2026-08-18",
+  "releaseShell": {
+    "hostPath": "C:\\Program Files\\EverVigil Release Host\\Invoke-ReleaseShell.cmd",
+    "sha256": "30a75e30a3b3ba29b5b2b809c3805929351c95f78de7ddb82bfc37ffbb789a23"
+  },
+  "operatingSystem": {
+    "editionId": "Professional",
+    "displayVersion": "25H2",
+    "buildNumber": "26200",
+    "updateBuildRevision": 9168,
+    "architecture": "X64"
+  },
+  "tailscale": {
+    "executablePath": "C:\\Program Files\\Tailscale\\tailscale.exe",
+    "version": "1.102.2-t6cac91817-g6ff0ddc72",
+    "commandVersion": "1.102.2",
+    "sha256": "9bce6da3e01fa74dfc2aeaed1577c2c3c8901bbdae8222027fa3876e3e09cef5",
+    "publisherOrganization": "Tailscale Inc.",
+    "officialMsiUrl": "https://pkgs.tailscale.com/stable/tailscale-setup-1.102.2-amd64.msi",
+    "officialMsiSha256": "d2eb69e103b08a5b77de9d7cb8555541aa99f7dfc6048850b2286a1048c885f9"
+  },
+  "dotnet": {
+    "hostPath": "C:\\Program Files\\dotnet\\dotnet.exe",
+    "hostVersion": "8.0.30",
+    "hostSha256": "76e6472063f53379b86fe8370203ab6c46c75d27f405b722845f0e495d8f5fd0",
+    "sdkVersion": "8.0.130",
+    "msbuildPath": "C:\\Program Files\\dotnet\\sdk\\8.0.130\\MSBuild.dll",
+    "msbuildSha256": "a7af21c438c713e0be9142579f0779181d597af05b41be7d3bdc83e1981ba25f",
+    "nugetProtocolPath": "C:\\Program Files\\dotnet\\sdk\\8.0.130\\NuGet.Protocol.dll",
+    "nugetProtocolVersion": "6.8.2.3",
+    "nugetProtocolSha256": "2aeb20c4edd7a0f1efd54d499c9cf8009bf9a54520a660a0da0657c579d75c89",
+    "publisherOrganization": "Microsoft Corporation"
+  },
+  "powerShell": {
+    "hostPath": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "version": "7.6.4",
+    "sha256": "db6dd81183fe57d22e03b911ec9a30a2fd7c40542e97743615355a6fb44f458f",
+    "publisherOrganization": "Microsoft Corporation"
+  },
+  "windowsResourceCompiler": {
+    "compilerPath": "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64\\rc.exe",
+    "version": "10.0.26100.7705",
+    "sha256": "43da1503c262c30894c851589bf0155f8365d77e63a5f7bc13982320e3a6b42d",
+    "publisherOrganization": "Microsoft Corporation"
+  },
+  "innoSetup": {
+    "compilerPath": "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe",
+    "version": "6.7.3",
+    "sha256": "0a8757031b33777e4c9cbffee40f11a5062b36d25cbe144c1db73b6102b80ad7",
+    "publisherOrganization": "Pyrsys B.V."
+  }
+}
