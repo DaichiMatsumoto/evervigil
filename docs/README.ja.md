@@ -24,11 +24,11 @@ Codex実行ファイルを、別途導入済みのEven Terminalから子プロ�
 セットアップEXEは.NETランタイムを含みます。.NET SDKとInno Setupが必要なのは、
 ソースからビルドする場合だけです。
 
-## v2.1.1のインストール
+## v2.0.0のインストール
 
 1. 承認済みGitHub Release
    <https://github.com/DaichiMatsumoto/evervigil/releases>から
-   `EverVigil-2.1.1-Setup.exe`を取得します。
+   `EverVigil-2.0.0-Setup.exe`を取得します。
 2. SHA-256を計算し、Releaseに掲載された正確な値と照合します。
 3. installerを実行し、独立プロジェクトnoticeと導入先を確認して完了します。
 
@@ -112,17 +112,12 @@ crash-loop抑制を適用します。
 
 ## 手動更新
 
-EverVigilに自動更新機能はありません。GitHub Releaseから新版installerを取得し、
-SHA-256を確認します。EverVigil v2.1.0からv2.1.1へ更新する場合は、先にv2.1.0を
-アンインストールしてください。データ確認では、同じユーザーの設定とDPAPI保護済み
-bridge tokenを保持するなら「はい」、完全削除するなら「いいえ」を選び、その後に
-v2.1.1 installerを実行します。v2.1.1 installerは、曖昧な特権状態を変更せず、残存する
-v2.1.0 protected Brokerを拒否します。このuninstall/reinstall要件は、後述する旧v1.2.1
-製品からの認証済みin-place migrationには影響しません。
+EverVigilに自動更新機能はありません。将来のReleaseでは、GitHub Releaseから新版installerを
+取得し、実行前にSHA-256を確認してください。Release固有の更新要件は、そのReleaseへ記載します。
 
 ## 旧v1.2.1からのupgrade
 
-EverVigil v2.1.1はin-place upgradeを採用します。既存のinstaller identityを内部の
+EverVigil v2.0.0はin-place upgradeを採用します。既存のinstaller identityを内部の
 移行keyとして保持することで、同じWindowsユーザーの設定とDPAPI保護済みtokenを
 安全に継続できます。このidentityはユーザー向け製品名ではありません。
 

@@ -8,7 +8,7 @@ Security fixes target the latest approved EverVigil v2.x Release. A private
 release candidate is not considered supported until its build, migration,
 uninstall, and security scans have completed.
 
-The first candidate is EverVigil v2.1.1 in
+The first candidate is EverVigil v2.0.0 in
 <https://github.com/DaichiMatsumoto/evervigil>.
 
 EverVigil has no automatic updater. Download updates manually from

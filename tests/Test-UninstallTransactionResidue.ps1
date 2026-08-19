@@ -656,16 +656,16 @@ try {
         ProductRoot = $retirementFixtureRoot
         BrokerRoot = Join-Path $retirementFixtureRoot 'Broker'
         StateRoot = Join-Path $retirementFixtureRoot 'Broker\State'
-        VersionRoot = Join-Path $retirementFixtureRoot 'Broker\2.1.1'
+        VersionRoot = Join-Path $retirementFixtureRoot 'Broker\2.0.0'
         CanonicalPath = Join-Path `
             $retirementFixtureRoot `
-            'Broker\2.1.1\EverVigil.Broker.exe'
+            'Broker\2.0.0\EverVigil.Broker.exe'
         InstallationReceiptPath = Join-Path `
             $retirementFixtureRoot `
-            'Broker\2.1.1\installation.json'
+            'Broker\2.0.0\installation.json'
         RetirementReceiptPath = Join-Path `
             $retirementFixtureRoot `
-            'Broker\2.1.1\retirement.json'
+            'Broker\2.0.0\retirement.json'
     }
     $script:mockDeleteOnlyPaths = [Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase)
@@ -717,7 +717,7 @@ try {
             -Content ([ordered]@{
                 schemaVersion = 1
                 fileName = 'EverVigil.Broker.exe'
-                version = '2.1.1'
+                version = '2.0.0'
                 length = $canonicalInfo.Length
                 sha256 = $canonicalSha256
             } | ConvertTo-Json)
@@ -728,7 +728,7 @@ try {
                 schemaVersion = 1
                 transactionId = $script:mockRetirementTransactionId.ToString('D')
                 ownerSid = $OwnerSid
-                version = '2.1.1'
+                version = '2.0.0'
                 canonicalFileName = 'EverVigil.Broker.exe'
                 length = $canonicalInfo.Length
                 sha256 = $canonicalSha256
