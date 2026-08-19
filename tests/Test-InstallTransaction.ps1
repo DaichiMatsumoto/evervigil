@@ -266,6 +266,7 @@ try {
         -ErrorAction Stop
 
     $transactionPath = Join-Path $testLocalAppData 'EverVigil\install-transaction.json'
+    $phaseDispatchTransactionPath = [IO.Path]::GetFullPath($transactionPath)
     $typeGuardRoot = Join-Path $testRoot 'legacy-cleanup-type-guard'
     $typeGuardState = New-TransactionState `
         -InstallRoot $typeGuardRoot `
@@ -1478,7 +1479,7 @@ try {
             $script:phaseDispatchResult = ''
             Invoke-EverVigilInstallTransaction `
                 -RequestedAction Recover `
-                -Path $transactionPath
+                -Path $phaseDispatchTransactionPath
             if ([string]$script:phaseDispatchResult -cne
                 [string]$phaseDispatchCase.Expected) {
                 throw "Recovery selected '$($script:phaseDispatchResult)' for phase '$($phaseDispatchCase.Phase)' with $($phaseDispatchCase.TemporaryCount) temporary file(s)."

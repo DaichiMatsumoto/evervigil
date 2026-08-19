@@ -708,8 +708,8 @@
     },
     {
       "path": "tests/Test-InstallTransaction.ps1",
-      "length": 98222,
-      "sha256": "9abefa574c171f4faa00fbd97a821e56ec7fc8bc20c2188d4dba93fa6cf9f0af"
+      "length": 98312,
+      "sha256": "15defc99bd30d0061bda8923edc94d3eae678de952031afdf7c8aaed4161e408"
     },
     {
       "path": "tests/Test-ProductionInstallerAuditReport.ps1",
