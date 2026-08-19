@@ -68,7 +68,7 @@ jobs:
           try {
             $releaseCriticalSourceHashes = [ordered]@{
               '.\.github\release-host-lock.json' = '7e19d79efd66e4d3def287bd6795b2d0e41f0ddc2bd8583d33b906b6a619acff'
-              '.\.github\release-source-manifest.json' = 'eb52aa8aa1b40561dc75a6f73c546606bcfb7156e9cafdd0eec2665519c9b63d'
+              '.\.github\release-source-manifest.json' = 'bed30d327c7226507081bc68ea2c2fa262622a8e6375c80270898cda4b1ee1a5'
               '.\tests\ReleasePathIsolation.ps1' = '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35'
               '.\tests\Test-ReleaseHost.ps1' = '819d18a7222ff6827e76757843acfed210ddf748a686308ed12df2b0e1e83d06'
             }
@@ -1922,6 +1922,11 @@ jobs:
       - name: Revalidate candidate and production audits without executing repository code
         id: candidate
         shell: pwsh
+        env:
+          EXPECTED_CANDIDATE_MANIFEST_SHA256: ${{ needs.validate-private-candidate.outputs.candidate-manifest-sha256 }}
+          EXPECTED_INSTALLER_SHA256: ${{ needs.validate-private-candidate.outputs.installer-sha256 }}
+          EXPECTED_AMD_REPORT_SHA256: ${{ needs.production-installer-audit-amd.outputs.report-sha256 }}
+          EXPECTED_INTEL_REPORT_SHA256: ${{ needs.production-installer-audit-intel.outputs.report-sha256 }}
         run: |
           $ErrorActionPreference = 'Stop'
           $eventItem = Get-Item -LiteralPath $env:GITHUB_EVENT_PATH -Force
@@ -1940,14 +1945,10 @@ jobs:
           }
           $requestedVersion = [string]$event.inputs.version
           $expectedSourceSha = $env:GITHUB_SHA
-          $expectedCandidateManifestSha256 =
-            '${{ needs.validate-private-candidate.outputs.candidate-manifest-sha256 }}'
-          $expectedInstallerSha256 =
-            '${{ needs.validate-private-candidate.outputs.installer-sha256 }}'
-          $expectedAmdReportSha256 =
-            '${{ needs.production-installer-audit-amd.outputs.report-sha256 }}'
-          $expectedIntelReportSha256 =
-            '${{ needs.production-installer-audit-intel.outputs.report-sha256 }}'
+          $expectedCandidateManifestSha256 = $env:EXPECTED_CANDIDATE_MANIFEST_SHA256
+          $expectedInstallerSha256 = $env:EXPECTED_INSTALLER_SHA256
+          $expectedAmdReportSha256 = $env:EXPECTED_AMD_REPORT_SHA256
+          $expectedIntelReportSha256 = $env:EXPECTED_INTEL_REPORT_SHA256
           if ($requestedVersion -cnotmatch '\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z' -or
             $expectedSourceSha -cnotmatch '\A[0-9a-f]{40}\z' -or
             $expectedCandidateManifestSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
