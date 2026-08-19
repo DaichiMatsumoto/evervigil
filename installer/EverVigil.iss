@@ -313,6 +313,45 @@ begin
     '{tmp}\EverVigil.Package\scripts\Complete-InstallTransaction.ps1');
 end;
 
+function InteractiveTaskScriptPath: String;
+begin
+  Result := ExpandConstant(
+    '{tmp}\EverVigil.Package\scripts\Invoke-InteractiveUserTask.ps1');
+end;
+
+function SchedulePostSetupLaunch(var Detail: String): Boolean;
+var
+  Executed: Boolean;
+  Parameters: String;
+  ResultCode: Integer;
+  Output: TExecOutput;
+begin
+  Detail := '';
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' +
+    QuoteArgument(InteractiveTaskScriptPath) + ' -PostSetupLaunch' +
+    ' -PostSetupExecutablePath ' + QuoteArgument(ExpandConstant('{app}\EverVigil.exe')) +
+    ' -PostSetupWorkingDirectory ' + QuoteArgument(ExpandConstant('{app}')) +
+    ' -SetupProcessId ' + IntToStr(GetCurrentProcessId) +
+    ' -ForceStartService';
+  try
+    Executed := ExecAndCaptureOutput(
+      PowerShellPath,
+      Parameters,
+      ExtractFileDir(InteractiveTaskScriptPath),
+      SW_HIDE,
+      ewWaitUntilTerminated,
+      ResultCode,
+      Output);
+  except
+    Detail := GetExceptionMessage;
+    Result := False;
+    Exit;
+  end;
+  LogCapturedOutput(Output);
+  Detail := LastOutputLine(Output);
+  Result := Executed and (ResultCode = 0);
+end;
+
 procedure InitializeWizard;
 begin
 #ifndef ResourceAuditBuild
@@ -617,8 +656,6 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Detail: String;
-  LaunchParameters: String;
-  LaunchResultCode: Integer;
 begin
   if not InstallTransactionStarted then
     Exit;
@@ -649,23 +686,13 @@ begin
       (not FileExists(InstallTransactionPath)) and
       (not PostSetupLaunchScheduled) then
     begin
-      LaunchParameters := '--background --force-start-service --wait-for-pid ' +
-        IntToStr(GetCurrentProcessId);
-      if ShellExec(
-          '',
-          ExpandConstant('{app}\EverVigil.exe'),
-          LaunchParameters,
-          ExpandConstant('{app}'),
-          SW_SHOWNORMAL,
-          ewNoWait,
-          LaunchResultCode) then
+      if SchedulePostSetupLaunch(Detail) then
       begin
         PostSetupLaunchScheduled := True;
-        Log('EverVigil launch scheduled after Setup process exit.');
+        Log('EverVigil clean-context launch scheduled after Setup process exit.');
       end
       else
-        Log(Format(
-          'EverVigil post-setup launch could not be scheduled (code %d).', [LaunchResultCode]));
+        Log('EverVigil post-setup launch could not be scheduled: ' + Detail);
     end;
   end;
 end;

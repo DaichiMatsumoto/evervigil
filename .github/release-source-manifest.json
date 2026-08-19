@@ -133,8 +133,8 @@
     },
     {
       "path": "installer/EverVigil.iss",
-      "length": 27097,
-      "sha256": "9ca4b8b2e85b043fbb9b7a019a42217e54c48503e29e55078987f2582803401f"
+      "length": 27864,
+      "sha256": "9dcaf3f3c0e4a9e99ed7fec4939101dc48ba9e191db6477c291313009be16093"
     },
     {
       "path": "installer/LegacyCompatibility.generated.iss",
@@ -178,8 +178,8 @@
     },
     {
       "path": "scripts/Invoke-InteractiveUserTask.ps1",
-      "length": 18751,
-      "sha256": "c49df1ecf6554796afc7814cf91d3571e24bff62ad8a6f901ab0231296eaa64b"
+      "length": 21061,
+      "sha256": "b80745edeeab15d84a86db06441a5a1aec2f250f4d624214c4642156e7aea277"
     },
     {
       "path": "scripts/Invoke-ReleaseResourceAudit.ps1",
@@ -508,8 +508,8 @@
     },
     {
       "path": "src/EverVigil/Infrastructure/FatalRecovery.cs",
-      "length": 3816,
-      "sha256": "1be4c268efe0c922540feca79693d8142c335ecc5d29bb29b5277620ee070c11"
+      "length": 3810,
+      "sha256": "d24f842023ae15823e9c56dfeffa87f5f06d83acf5704078c6c27fce39d61bfa"
     },
     {
       "path": "src/EverVigil/Infrastructure/PendingSystemConfigurationStore.cs",
@@ -728,8 +728,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 276123,
-      "sha256": "23d60250a56d99a788e1165b1c0e3c284c73cd471ffbbf33d348dd902294539e"
+      "length": 278469,
+      "sha256": "f0fb74cba70e6dae90b753f13321e5c5bf6015c8310388f7766f66fe9a279b87"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",

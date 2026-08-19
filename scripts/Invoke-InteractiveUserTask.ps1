@@ -1,3 +1,12 @@
+[CmdletBinding()]
+param(
+    [switch]$PostSetupLaunch,
+    [string]$PostSetupExecutablePath,
+    [string]$PostSetupWorkingDirectory,
+    [ValidateRange(0, 2147483647)][int]$SetupProcessId = 0,
+    [switch]$ForceStartService
+)
+
 Set-StrictMode -Version Latest
 
 $legacyCompatibilityPath = Join-Path $PSScriptRoot 'LegacyCompatibility.generated.ps1'
@@ -118,6 +127,34 @@ function Get-EverVigilAllowedTaskArgumentLines {
     }
 }
 
+function Test-EverVigilAllowedTaskArgumentLine {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('Command', 'Launch', 'RecoveryLaunch')]
+        [string]$Purpose,
+        [Parameter(Mandatory)][string]$ArgumentLine
+    )
+
+    if ($ArgumentLine -in @(Get-EverVigilAllowedTaskArgumentLines -Purpose $Purpose)) {
+        return $true
+    }
+    if ($Purpose -cne 'Launch') {
+        return $false
+    }
+
+    $match = [regex]::Match(
+        $ArgumentLine,
+        '\A--background(?: --force-start-service)? --wait-for-pid (?<pid>[1-9][0-9]{0,9})\z',
+        [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if (-not $match.Success) {
+        return $false
+    }
+
+    $processId = 0
+    return [int]::TryParse($match.Groups['pid'].Value, [ref]$processId) -and
+        $processId -gt 0
+}
+
 function New-EverVigilInteractiveTask {
     param(
         [Parameter(Mandatory)]$Service,
@@ -141,7 +178,9 @@ function New-EverVigilInteractiveTask {
         throw "The interactive task working directory was not found: $resolvedWorkingDirectory"
     }
     $argumentLine = $Arguments -join ' '
-    if ($argumentLine -notin @(Get-EverVigilAllowedTaskArgumentLines -Purpose $Purpose)) {
+    if (-not (Test-EverVigilAllowedTaskArgumentLine `
+                -Purpose $Purpose `
+                -ArgumentLine $argumentLine)) {
         throw "The interactive task arguments are not allowed: $($Arguments -join ' ')"
     }
 
@@ -228,11 +267,12 @@ function Remove-EverVigilInteractiveTaskFromFolder {
         [IO.Path]::GetFullPath([string]$action.WorkingDirectory),
         $expectedWorkingDirectory,
         [StringComparison]::OrdinalIgnoreCase)
-    $allowedArguments = @(Get-EverVigilAllowedTaskArgumentLines -Purpose $Purpose)
     if ([int]$action.Type -ne $script:TaskActionExecute -or
         -not $pathMatches -or
         -not $workingDirectoryMatches -or
-        [string]$action.Arguments -notin $allowedArguments) {
+        -not (Test-EverVigilAllowedTaskArgumentLine `
+                -Purpose $Purpose `
+                -ArgumentLine ([string]$action.Arguments))) {
         throw "Refusing to remove an interactive task with an unexpected action: $TaskName"
     }
     if ($StopInstances) {
@@ -493,4 +533,33 @@ function Remove-EverVigilInteractiveTasksForTransaction {
                 -StopInstances:$StopInstances
         }
     }
+}
+
+if ($PostSetupLaunch) {
+    if ([string]::IsNullOrWhiteSpace($PostSetupExecutablePath) -or
+        [string]::IsNullOrWhiteSpace($PostSetupWorkingDirectory) -or
+        $SetupProcessId -le 0) {
+        throw 'Post-setup launch requires an executable, working directory, and positive Setup process identifier.'
+    }
+
+    $setupProcess = Get-Process -Id $SetupProcessId -ErrorAction Stop
+    $setupProcess.Dispose()
+    $ownerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $arguments = [Collections.Generic.List[string]]::new()
+    $arguments.Add('--background')
+    if ($ForceStartService) {
+        $arguments.Add('--force-start-service')
+    }
+    $arguments.Add('--wait-for-pid')
+    $arguments.Add($SetupProcessId.ToString([Globalization.CultureInfo]::InvariantCulture))
+
+    Start-EverVigilInteractiveProcess `
+        -TransactionId ([guid]::NewGuid().ToString('N')) `
+        -OwnerSid $ownerSid `
+        -ExecutablePath $PostSetupExecutablePath `
+        -Arguments $arguments.ToArray() `
+        -WorkingDirectory $PostSetupWorkingDirectory `
+        -Purpose Launch
+} elseif ($PSBoundParameters.Count -gt 0) {
+    throw 'Script parameters are valid only for a post-setup launch.'
 }

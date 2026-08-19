@@ -3590,9 +3590,13 @@ foreach ($interactiveTaskGuard in @(
         "`$definition.Principal.RunLevel = `$script:TaskRunLevelLeastPrivilege"
         "`$definition.Settings.ExecutionTimeLimit = 'PT0S'"
         'function Get-EverVigilAllowedTaskArgumentLines'
+        'function Test-EverVigilAllowedTaskArgumentLine'
         "'Command' { return @('--validate-settings', '--installer-runtime-check') }"
         "'Launch' { return @('--background', '--background --force-start-service') }"
         "'RecoveryLaunch' { return @('--background') }"
+        "'\A--background(?: --force-start-service)? --wait-for-pid (?<pid>[1-9][0-9]{0,9})\z'"
+        '[switch]$PostSetupLaunch'
+        '[ValidateRange(0, 2147483647)][int]$SetupProcessId = 0'
         'Refusing to remove an interactive task that is not owned by this transaction'
         'Refusing to remove an interactive task with an unexpected action'
         '$state -ne $script:TaskStateRunning'
@@ -3619,6 +3623,39 @@ if ($interactiveTaskContent.Contains('.Triggers.Create(', [StringComparison]::Or
     $interactiveTaskContent.Contains("ExecutionTimeLimit = 'PT10M'", [StringComparison]::Ordinal)) {
     $failures.Add(
         'Installer interactive tasks must be demand-only, non-replacing, and unlimited after launch.')
+}
+try {
+    & {
+        . (Join-Path $RepositoryRoot 'scripts\Invoke-InteractiveUserTask.ps1')
+        foreach ($validLine in @(
+                '--background --wait-for-pid 123'
+                '--background --force-start-service --wait-for-pid 123'
+            )) {
+            if (-not (Test-EverVigilAllowedTaskArgumentLine `
+                        -Purpose Launch `
+                        -ArgumentLine $validLine)) {
+                throw "A valid post-setup launch line was rejected: $validLine"
+            }
+        }
+        foreach ($invalidLine in @(
+                '--background --wait-for-pid 0'
+                '--background --wait-for-pid -1'
+                '--background --wait-for-pid 123 --unexpected'
+            )) {
+            if (Test-EverVigilAllowedTaskArgumentLine `
+                    -Purpose Launch `
+                    -ArgumentLine $invalidLine) {
+                throw "An invalid post-setup launch line was accepted: $invalidLine"
+            }
+        }
+        if (Test-EverVigilAllowedTaskArgumentLine `
+                -Purpose Command `
+                -ArgumentLine '--background --wait-for-pid 123') {
+            throw 'A post-setup launch line was accepted for an interactive command task.'
+        }
+    }
+} catch {
+    $failures.Add("Post-setup interactive launch validation failed: $($_.Exception.Message)")
 }
 if ($buildReleaseContent.Contains('Compress-Archive', [StringComparison]::Ordinal) -or
     $buildReleaseContent.Contains('-win-x64.zip', [StringComparison]::Ordinal)) {
@@ -3675,9 +3712,13 @@ foreach ($installerGuard in @(
         'FinalizingEverVigil'
         'PostSetupLaunchScheduled'
         'GetCurrentProcessId'
-        "'--background --force-start-service --wait-for-pid '"
-        'ewNoWait'
-        "Log('EverVigil launch scheduled after Setup process exit.');"
+        'function InteractiveTaskScriptPath: String;'
+        'function SchedulePostSetupLaunch(var Detail: String): Boolean;'
+        "' -PostSetupLaunch'"
+        "' -SetupProcessId ' + IntToStr(GetCurrentProcessId)"
+        "' -ForceStartService'"
+        'if SchedulePostSetupLaunch(Detail) then'
+        "Log('EverVigil clean-context launch scheduled after Setup process exit.');"
         "' -DeferCommit'"
         "'Rollback'"
         "'Seal'"
@@ -3713,7 +3754,7 @@ $doneStepIndex = $installerContent.IndexOf(
     'else if CurStep = ssDone then',
     [StringComparison]::Ordinal)
 $postSetupLaunchIndex = $installerContent.IndexOf(
-    "LaunchParameters := '--background --force-start-service --wait-for-pid '",
+    'if SchedulePostSetupLaunch(Detail) then',
     [StringComparison]::Ordinal)
 if ($postInstallStepIndex -lt 0 -or
     $protectedCommitIndex -le $postInstallStepIndex -or
@@ -3721,6 +3762,11 @@ if ($postInstallStepIndex -lt 0 -or
     $postSetupLaunchIndex -le $doneStepIndex) {
     $failures.Add(
         'Setup must commit protected configuration before completion, then defer visible startup until Setup exits.')
+}
+if ($installerContent.Contains('ShellExec(', [StringComparison]::Ordinal) -or
+    $installerContent.Contains('ewNoWait', [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'Setup must not launch EverVigil directly because child processes inherit the installer compatibility context.')
 }
 if ([regex]::Matches($installerContent, '(?m)^Source: ').Count -ne 10) {
     $failures.Add('The guided setup must embed nine production sources plus one isolated resource-audit payload source; the broker is inside the recursively embedded package source.')
@@ -5900,6 +5946,7 @@ foreach ($fatalRecoveryGuard in @(
         'Func<bool> serviceIsRunning'
         'if (serviceWasRunning)'
         'startInfo.ArgumentList.Add("--force-start-service")'
+        'process.WaitForExit();'
     )) {
     if (-not $fatalRecoveryContent.Contains($fatalRecoveryGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Fatal recovery running-intent guard is missing: $fatalRecoveryGuard")
@@ -5907,6 +5954,9 @@ foreach ($fatalRecoveryGuard in @(
 }
 if ($fatalRecoveryContent.Contains('HasArgument(arguments, "--force-start-service")', [StringComparison]::Ordinal)) {
     $failures.Add('Fatal recovery must not preserve the installer-only force-start argument after a manual stop.')
+}
+if ($fatalRecoveryContent.Contains('process.WaitForExit(30_000);', [StringComparison]::Ordinal)) {
+    $failures.Add('Post-setup startup must wait until Setup actually exits instead of using a timeout.')
 }
 if (-not $supervisorContent.Contains('ClearManualRestartStateLocked();', [StringComparison]::Ordinal) -or
     -not $supervisorContent.Contains('_restartSignal.TryConsume();', [StringComparison]::Ordinal)) {
