@@ -5902,6 +5902,21 @@ $protectedTailscaleIdentityContent = Get-Content `
 $dashboardConnectionContent = Get-Content `
     -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\UI\DashboardForm.cs') `
     -Raw
+if ($protectedTailscaleIdentityContent.Contains(
+        'new[] { productRoot, brokerRoot, stateRoot, ownerRoot }',
+        [StringComparison]::Ordinal) -or
+    -not $protectedTailscaleIdentityContent.Contains(
+        'foreach (var directory in new[] { productRoot, brokerRoot })',
+        [StringComparison]::Ordinal) -or
+    -not $protectedTailscaleIdentityContent.Contains(
+        'EnsureNoReparsePoint(stateRoot);',
+        [StringComparison]::Ordinal) -or
+    -not $protectedTailscaleIdentityContent.Contains(
+        'ValidateProtectedDirectory(new DirectoryInfo(ownerRoot), _ownerSid);',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'Medium-integrity Tailnet identity validation must traverse State without requiring its unreadable ACL.')
+}
 if ($appSettingsContent -match '(?m)^\s*public\s+string\s+PublicHost\b') {
     $failures.Add('AppSettings must not persist a user-controlled public host.')
 }

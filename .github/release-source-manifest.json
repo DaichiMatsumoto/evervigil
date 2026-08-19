@@ -523,8 +523,8 @@
     },
     {
       "path": "src/EverVigil/Infrastructure/ProtectedTailscaleIdentityStore.cs",
-      "length": 21923,
-      "sha256": "603e35dd0d170248d5980a4300ff9c8c055f41e92ffe9cb524ffa3771948f0ae"
+      "length": 22297,
+      "sha256": "efb626a294b3080c3d247901e6845ad92c7a96cad276ed2ef55da9d92f63a776"
     },
     {
       "path": "src/EverVigil/Infrastructure/SettingsStore.cs",
@@ -728,8 +728,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 273856,
-      "sha256": "261b92e4c5a161e099fa22faea6cb5e60bbfe361c882ff3f47f32127d5c8e9e5"
+      "length": 274628,
+      "sha256": "5a44d9390058ef37a213d746585ef104aba3af767a4d23cc58b1e396d5e6f1c5"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",
