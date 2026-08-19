@@ -1421,6 +1421,9 @@ try {
     Remove-Item -LiteralPath $transactionPath -Force
 
     . $transactionScript
+    # The dot-sourced script declares a case-insensitive TransactionPath
+    # parameter. Restore this test fixture path before dispatching phases.
+    $transactionPath = Join-Path $testLocalAppData 'EverVigil\install-transaction.json'
     $originalAtomicResolver = (Get-Command `
             Resolve-EverVigilInstallTransactionAtomicState `
             -CommandType Function).ScriptBlock
