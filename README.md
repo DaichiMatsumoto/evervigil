@@ -50,19 +50,21 @@ EverVigil v2.1.1 is installed and updated manually:
 
 1. Download `EverVigil-2.1.1-Setup.exe` from the approved GitHub Release.
 2. Compare the file's SHA-256 with the value published in that Release.
-3. Run the installer and review the independent-project notice.
+3. If EverVigil v2.1.0 is installed, uninstall it first. Choose **Yes** when
+   asked to keep settings and the encrypted connection token, or **No** for a
+   complete removal.
+4. Run the v2.1.1 installer and review the independent-project notice.
 
 EverVigil has no automatic updater. Community builds are not
 Authenticode-signed and may trigger Microsoft Defender SmartScreen. Verify the
 SHA-256 before running an installer.
 
-The v2.1.1 installer uses the in-place upgrade path for existing installations.
-It preserves settings, the DPAPI-protected bridge token, and the startup
-preference. A failure before the durable protected-system commit boundary
-restores the prior working installation. If final commit is interrupted after
-that boundary, setup leaves the validated new installation active and requires
-the same installer to resume forward recovery; it never guesses that an
-ambiguous privileged commit can be rolled back. See [Upgrade from the legacy
+EverVigil v2.1.0 to v2.1.1 is an uninstall/reinstall update. The v2.1.1
+installer refuses a remaining v2.1.0 protected Broker instead of modifying
+ambiguous privileged state. Keeping data during v2.1.0 uninstall preserves the
+same-user settings and DPAPI-protected bridge token for v2.1.1; complete
+removal deletes them. The separate migration from the legacy v1.2.1 product
+remains an authenticated in-place migration. See [Upgrade from the legacy
 application](docs/TECHNICAL_OVERVIEW.en.md#9-upgrade-from-even-terminal-supervisor).
 
 ## Connection credentials

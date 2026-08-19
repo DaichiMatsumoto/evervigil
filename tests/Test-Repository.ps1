@@ -3719,6 +3719,9 @@ foreach ($installerGuard in @(
         "' -ForceStartService'"
         'if SchedulePostSetupLaunch(Detail) then'
         "Log('EverVigil clean-context launch scheduled after Setup process exit.');"
+        "CustomMessage('PostSetupLaunchFailed')"
+        'Start EverVigil from the Windows Start menu.'
+        'WindowsのスタートメニューからEverVigilを起動してください。'
         "' -DeferCommit'"
         "'Rollback'"
         "'Seal'"
@@ -3767,6 +3770,47 @@ if ($installerContent.Contains('ShellExec(', [StringComparison]::Ordinal) -or
     $installerContent.Contains('ewNoWait', [StringComparison]::Ordinal)) {
     $failures.Add(
         'Setup must not launch EverVigil directly because child processes inherit the installer compatibility context.')
+}
+$updateDocumentContracts = @(
+    [pscustomobject]@{
+        Path = 'README.md'
+        Required = @(
+            'If EverVigil v2.1.0 is installed, uninstall it first.'
+            'EverVigil v2.1.0 to v2.1.1 is an uninstall/reinstall update.'
+            'removal deletes them.'
+        )
+    }
+    [pscustomobject]@{
+        Path = 'docs\README.en.md'
+        Required = @(
+            'To update from EverVigil v2.1.0 to'
+            'uninstall v2.1.0 first.'
+            'or **No** for a'
+            'complete removal.'
+        )
+    }
+    [pscustomobject]@{
+        Path = 'docs\README.ja.md'
+        Required = @(
+            'EverVigil v2.1.0からv2.1.1へ更新する場合は、先にv2.1.0を'
+            'アンインストールしてください。'
+            '完全削除するなら「いいえ」'
+        )
+    }
+)
+foreach ($updateDocumentContract in $updateDocumentContracts) {
+    $updateDocumentContent = Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot $updateDocumentContract.Path) `
+        -Raw `
+        -Encoding UTF8
+    foreach ($requiredUpdateText in $updateDocumentContract.Required) {
+        if (-not $updateDocumentContent.Contains(
+                $requiredUpdateText,
+                [StringComparison]::Ordinal)) {
+            $failures.Add(
+                "$($updateDocumentContract.Path) does not document the mandatory v2.1.0 uninstall flow: $requiredUpdateText")
+        }
+    }
 }
 if ([regex]::Matches($installerContent, '(?m)^Source: ').Count -ne 10) {
     $failures.Add('The guided setup must embed nine production sources plus one isolated resource-audit payload source; the broker is inside the recursively embedded package source.')

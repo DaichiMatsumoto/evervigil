@@ -170,6 +170,8 @@ english.UninstallFailed=System cleanup did not complete, so uninstallation was s
 japanese.UninstallFailed=システム設定の後片付けを完了できなかったため、アンインストールを中止しました。無関係なTailscale経路やFirewallルールは削除していません。
 english.CommitCleanupIncomplete=The validated EverVigil installation is active, but final commit evidence cleanup is incomplete. Setup will return recovery-required code 20. Do not delete recovery files; run this exact setup again to resume the same transaction.
 japanese.CommitCleanupIncomplete=検証済みEverVigilは有効ですが、最終commit証拠の後片付けが未完了です。Setupは復旧必要code 20を返します。復旧ファイルを削除せず、この同じSetupでもう一度同一transactionを再開してください。
+english.PostSetupLaunchFailed=EverVigil was installed, but it could not be started automatically. Start EverVigil from the Windows Start menu. Details are in the setup log shown below.
+japanese.PostSetupLaunchFailed=EverVigilのインストールは完了しましたが、自動起動できませんでした。WindowsのスタートメニューからEverVigilを起動してください。詳細は下記のセットアップログにあります。
 
 [Files]
 #ifdef ResourceAuditBuild
@@ -692,7 +694,14 @@ begin
         Log('EverVigil clean-context launch scheduled after Setup process exit.');
       end
       else
+      begin
         Log('EverVigil post-setup launch could not be scheduled: ' + Detail);
+        SuppressibleMsgBox(
+          CustomMessage('PostSetupLaunchFailed') + #13#10 + #13#10 + Detail,
+          mbError,
+          MB_OK,
+          IDOK);
+      end;
     end;
   end;
 end;

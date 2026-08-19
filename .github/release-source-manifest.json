@@ -58,8 +58,8 @@
     },
     {
       "path": "README.md",
-      "length": 5505,
-      "sha256": "5ef519fd3cd6c49d6f59342cee82f84e72dd0fbdece781e89eecdb5fada3b994"
+      "length": 5604,
+      "sha256": "ab887d3ca62fef796846a04186c57de7b9889d2020b5772e4aa7821065276822"
     },
     {
       "path": "RELEASE_NOTES.md",
@@ -88,13 +88,13 @@
     },
     {
       "path": "docs/README.en.md",
-      "length": 8694,
-      "sha256": "3fd7523020f33b52d9bc50c1a3441d355faa6d76f2871511e5afe5cbf69aaa74"
+      "length": 8835,
+      "sha256": "56ec904cdfab2dcec797d6df1ad92cbf61b58198df93843ec4e0d74d3f3b4e9e"
     },
     {
       "path": "docs/README.ja.md",
-      "length": 9502,
-      "sha256": "fe87b5390518e5af5d6dc749380025eb2f7763d2856e5472741e913201d118a8"
+      "length": 9728,
+      "sha256": "9416304e87b75f22486cb8a05a2c9d03912d5cc90a6b8e0d5f15d18c42eca64f"
     },
     {
       "path": "docs/REFERENCE.en.md",
@@ -133,8 +133,8 @@
     },
     {
       "path": "installer/EverVigil.iss",
-      "length": 27864,
-      "sha256": "9dcaf3f3c0e4a9e99ed7fec4939101dc48ba9e191db6477c291313009be16093"
+      "length": 28497,
+      "sha256": "b665e3ad4cc4e4b0cd1b7a7f298a47bddb505a378d762bb1b4cb63b4414e43b0"
     },
     {
       "path": "installer/LegacyCompatibility.generated.iss",
@@ -728,8 +728,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 279569,
-      "sha256": "b40ebc33cfd3ee9c007f9a86b4e52b5365a613b45108269fd573626f45e6d0d2"
+      "length": 281205,
+      "sha256": "cd13a9b4a999481a380cd8225cd741c564054e7308874891de325a38514cca1c"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",

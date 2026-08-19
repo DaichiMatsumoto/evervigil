@@ -120,12 +120,14 @@ suppression.
 ## Manual update
 
 EverVigil has no automatic updater. Download a newer installer from the GitHub
-Release page, verify its SHA-256, and run it over the existing installation.
-The transaction preserves settings, the DPAPI-protected bridge token, and the
-startup preference. It snapshots mutable state and retains the prior working
-program until the replacement and installer both succeed. A failed activation
-restores the verified snapshot and prior program instead of leaving a partial
-installation.
+Release page and verify its SHA-256. To update from EverVigil v2.1.0 to
+v2.1.1, uninstall v2.1.0 first. Choose **Yes** at the uninstall data prompt to
+retain same-user settings and the DPAPI-protected bridge token, or **No** for a
+complete removal. Then run the v2.1.1 installer. The v2.1.1 installer refuses a
+remaining v2.1.0 protected Broker rather than modifying ambiguous privileged
+state. This uninstall/reinstall requirement does not change the separate,
+authenticated in-place migration from the legacy v1.2.1 product described
+below.
 
 ## Upgrade from legacy v1.2.1
 

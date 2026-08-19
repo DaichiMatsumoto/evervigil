@@ -113,10 +113,12 @@ crash-loop抑制を適用します。
 ## 手動更新
 
 EverVigilに自動更新機能はありません。GitHub Releaseから新版installerを取得し、
-SHA-256を確認して既存導入へ上書き実行します。transactionは設定、DPAPI保護済み
-bridge token、自動起動設定を保持します。可変状態をsnapshotし、新版とinstallerの
-両方が成功するまで旧稼働版を保持します。有効化に失敗した場合は検証済みsnapshotと
-旧programを復元し、partial installを残しません。
+SHA-256を確認します。EverVigil v2.1.0からv2.1.1へ更新する場合は、先にv2.1.0を
+アンインストールしてください。データ確認では、同じユーザーの設定とDPAPI保護済み
+bridge tokenを保持するなら「はい」、完全削除するなら「いいえ」を選び、その後に
+v2.1.1 installerを実行します。v2.1.1 installerは、曖昧な特権状態を変更せず、残存する
+v2.1.0 protected Brokerを拒否します。このuninstall/reinstall要件は、後述する旧v1.2.1
+製品からの認証済みin-place migrationには影響しません。
 
 ## 旧v1.2.1からのupgrade
 
