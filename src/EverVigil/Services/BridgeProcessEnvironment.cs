@@ -137,8 +137,8 @@ internal static class BridgeProcessEnvironment
 
     private static Dictionary<string, string> BuildBaseEnvironment()
     {
-        var windows = ValidateFullPath(Environment.GetFolderPath(
-            Environment.SpecialFolder.Windows));
+        var windows = ValidateFullPath(GetKnownFolderPath(
+            Environment.SpecialFolder.Windows, "WINDIR", "SystemRoot"));
         var systemDirectory = ValidateFullPath(Environment.SystemDirectory);
         var systemDrive = Path.GetPathRoot(windows)?.TrimEnd(Path.DirectorySeparatorChar) ??
             throw new InvalidOperationException("The Windows system drive is unavailable.");
@@ -147,8 +147,8 @@ internal static class BridgeProcessEnvironment
             throw new InvalidOperationException("The Windows system drive is invalid.");
         }
 
-        var userProfile = ValidateFullPath(Environment.GetFolderPath(
-            Environment.SpecialFolder.UserProfile));
+        var userProfile = ValidateFullPath(GetKnownFolderPath(
+            Environment.SpecialFolder.UserProfile, "USERPROFILE"));
         var profileRoot = Path.GetPathRoot(userProfile) ??
             throw new InvalidOperationException("The Windows user profile root is unavailable.");
         var profileDrive = profileRoot.TrimEnd(Path.DirectorySeparatorChar);
@@ -158,16 +158,16 @@ internal static class BridgeProcessEnvironment
         }
         var homePath = userProfile[(profileRoot.Length - 1)..];
 
-        var localAppData = ValidateFullPath(Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData));
-        var roamingAppData = ValidateFullPath(Environment.GetFolderPath(
-            Environment.SpecialFolder.ApplicationData));
-        var commonAppData = ValidateFullPath(Environment.GetFolderPath(
-            Environment.SpecialFolder.CommonApplicationData));
-        var programFiles = ValidateFullPath(Environment.GetFolderPath(
-            Environment.SpecialFolder.ProgramFiles));
-        var programFilesX86 = Environment.GetFolderPath(
-            Environment.SpecialFolder.ProgramFilesX86);
+        var localAppData = ValidateFullPath(GetKnownFolderPath(
+            Environment.SpecialFolder.LocalApplicationData, "LOCALAPPDATA"));
+        var roamingAppData = ValidateFullPath(GetKnownFolderPath(
+            Environment.SpecialFolder.ApplicationData, "APPDATA"));
+        var commonAppData = ValidateFullPath(GetKnownFolderPath(
+            Environment.SpecialFolder.CommonApplicationData, "ProgramData"));
+        var programFiles = ValidateFullPath(GetKnownFolderPath(
+            Environment.SpecialFolder.ProgramFiles, "ProgramFiles"));
+        var programFilesX86 = GetKnownFolderPath(
+            Environment.SpecialFolder.ProgramFilesX86, "ProgramFiles(x86)");
         var temp = ValidateFullPath(Path.Combine(localAppData, "Temp"));
 
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -227,6 +227,28 @@ internal static class BridgeProcessEnvironment
         var fullPath = ValidateFullPath(executablePath);
         return Path.GetDirectoryName(fullPath) ??
             throw new InvalidOperationException("An executable directory is unavailable.");
+    }
+
+    private static string GetKnownFolderPath(
+        Environment.SpecialFolder folder,
+        params string[] environmentVariables)
+    {
+        var knownFolder = Environment.GetFolderPath(folder);
+        if (!string.IsNullOrWhiteSpace(knownFolder))
+        {
+            return knownFolder;
+        }
+
+        foreach (var environmentVariable in environmentVariables)
+        {
+            var fallback = Environment.GetEnvironmentVariable(environmentVariable);
+            if (!string.IsNullOrWhiteSpace(fallback))
+            {
+                return Path.GetFullPath(fallback);
+            }
+        }
+
+        return string.Empty;
     }
 
     private static void ReplaceEnvironment(

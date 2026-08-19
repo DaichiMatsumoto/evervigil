@@ -568,8 +568,8 @@
     },
     {
       "path": "src/EverVigil/Services/BridgeProcessEnvironment.cs",
-      "length": 11135,
-      "sha256": "29fb8fc7b398c455985d743f282f0b3e39a9fd08ee38fa6b476b57317c52022d"
+      "length": 11851,
+      "sha256": "cc053461e9d96346c68b44cb96bf661f2b24d775884720d58e666d382d6ceb9c"
     },
     {
       "path": "src/EverVigil/Services/HealthProbe.cs",
