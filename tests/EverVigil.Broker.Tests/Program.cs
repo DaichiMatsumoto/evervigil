@@ -492,11 +492,26 @@ static void RetainedClientDetectsExit()
         UseShellExecute = false,
         CreateNoWindow = true
     }) ?? throw new InvalidOperationException("Test client process did not start.");
-    using var retained = AuthenticatedClientProcess.OpenAndValidate((uint)process.Id);
-    retained.RequireOriginalProcessStillActive();
-    process.Kill(entireProcessTree: true);
-    process.WaitForExit();
-    AssertThrows<UnauthorizedAccessException>(retained.RequireOriginalProcessStillActive);
+    AuthenticatedClientProcess retained;
+    try
+    {
+        retained = AuthenticatedClientProcess.OpenAndValidate((uint)process.Id);
+    }
+    catch (UnauthorizedAccessException exception) when (
+        exception.Message.Contains(
+            "must be a Medium integrity process",
+            StringComparison.Ordinal))
+    {
+        throw new TestSkippedException(
+            "The validation runner is already High integrity; a Medium client cannot be created without elevation changes.");
+    }
+    using (retained)
+    {
+        retained.RequireOriginalProcessStillActive();
+        process.Kill(entireProcessTree: true);
+        process.WaitForExit();
+        AssertThrows<UnauthorizedAccessException>(retained.RequireOriginalProcessStillActive);
+    }
 }
 
 static void AppliedWriteCrashConverges() =>

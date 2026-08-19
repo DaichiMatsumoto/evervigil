@@ -658,8 +658,8 @@
     },
     {
       "path": "tests/EverVigil.Broker.Tests/Program.cs",
-      "length": 71572,
-      "sha256": "4632a246c7f40adab0591d52b0b1036df0929d644baf987d2f0c92e35316f9f3"
+      "length": 72036,
+      "sha256": "3b392ddb442f4bd071c62930615d4f51063001cf15ad0572fb84137e5e56354c"
     },
     {
       "path": "tests/EverVigil.Broker.Tests/packages.lock.json",
