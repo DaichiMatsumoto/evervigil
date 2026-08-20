@@ -48,8 +48,8 @@
     },
     {
       "path": "NOTICE.md",
-      "length": 1611,
-      "sha256": "e8e245664c33c3f1080e5c090526b5ccf211319bf48e6b21381967b4a4da8972"
+      "length": 1580,
+      "sha256": "faaa3f3b6e6ca418d97f302b58acaa069ba93a4d499983b2cfd4280d0bff7ab6"
     },
     {
       "path": "NuGet.config",
@@ -63,8 +63,8 @@
     },
     {
       "path": "RELEASE_NOTES.md",
-      "length": 7425,
-      "sha256": "39776846573fb8fbb8ead0ebaf265caa588184d4260ad524348e2d62fd6e1f09"
+      "length": 7340,
+      "sha256": "8ff996643a8fe07be17cc8168c10f69fe36433085d15501c7d83724e62e4f7f1"
     },
     {
       "path": "SECURITY.md",
@@ -118,8 +118,8 @@
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.en.md",
-      "length": 18150,
-      "sha256": "f10952ebd30d397016c5defe2c5e72252e245ef6396740057f24fddad4653566"
+      "length": 18152,
+      "sha256": "4553aa3486459d8bdf9a05eaf5619f3cd7196dc0072afe17de362c47204e49e3"
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.ja.md",
@@ -758,8 +758,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 285167,
-      "sha256": "ecd87e22de889a544316a51fac60101aaf9b121adb893c3ac47dff8ba70d268a"
+      "length": 285326,
+      "sha256": "e2cccf81b45f6d797a1c4a55b901342ea7024b82b94514dc038db1c002e25481"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",

@@ -68,7 +68,7 @@ jobs:
           try {
             $releaseCriticalSourceHashes = [ordered]@{
               '.\.github\release-host-lock.json' = '7e19d79efd66e4d3def287bd6795b2d0e41f0ddc2bd8583d33b906b6a619acff'
-              '.\.github\release-source-manifest.json' = 'deae705a169f13b4f0c597be2f54bc9de4f523544f8d9e51729ebd85c3247c84'
+              '.\.github\release-source-manifest.json' = '90011282f0a3e086759ecacc87780dd917672fa8e37ff4d32cfeb4024a451549'
               '.\tests\ReleasePathIsolation.ps1' = '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35'
               '.\tests\Test-ReleaseHost.ps1' = '819d18a7222ff6827e76757843acfed210ddf748a686308ed12df2b0e1e83d06'
             }
@@ -656,31 +656,46 @@ jobs:
             throw 'The installer bytes do not match SHA256SUMS.txt.'
           }
 
-          $releaseNotesTemplate = Get-Content .\RELEASE_NOTES.md -Raw
-          $checksumPlaceholder = '{{EVERVIGIL_INSTALLER_SHA256}}'
+          $releaseNotesSource = Get-Content .\RELEASE_NOTES.md -Raw
+          $legacyChecksumPlaceholderPattern = '\{\{[^}]*SHA256[^}]*\}\}'
           if ([regex]::Matches(
-              $releaseNotesTemplate,
-              [regex]::Escape($checksumPlaceholder)).Count -ne 1) {
-            throw 'RELEASE_NOTES.md must contain the installer SHA-256 placeholder exactly once.'
+              $releaseNotesSource,
+              $legacyChecksumPlaceholderPattern).Count -ne 0 -or
+            [regex]::Matches($releaseNotesSource, '(?m)^## SHA-256$').Count -ne 0) {
+            throw 'RELEASE_NOTES.md must omit the build-generated SHA-256 section and pending-hash placeholders.'
           }
-          if (-not $releaseNotesTemplate.StartsWith(
+          if (-not $releaseNotesSource.StartsWith(
               "# EverVigil v$version`n",
               [StringComparison]::Ordinal)) {
             throw 'RELEASE_NOTES.md has not been advanced to the requested release version.'
           }
           $mentionedInstallers = @([regex]::Matches(
-              $releaseNotesTemplate,
+              $releaseNotesSource,
               'EverVigil-[0-9]+\.[0-9]+\.[0-9]+-Setup\.exe') |
             ForEach-Object Value | Select-Object -Unique)
           if ($mentionedInstallers.Count -eq 0 -or
             @($mentionedInstallers | Where-Object { $_ -cne $installerName }).Count -ne 0) {
             throw 'RELEASE_NOTES.md contains a stale installer basename.'
           }
-          $releaseNotes = $releaseNotesTemplate.Replace($checksumPlaceholder, $checksum)
+          $releaseNotes = @(
+            $releaseNotesSource.TrimEnd()
+            ''
+            '## SHA-256'
+            ''
+            "``$installerName``"
+            ''
+            '```text'
+            $checksum
+            '```'
+            ''
+          ) -join "`n"
           $requiredLegalNotice = 'This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.'
           if (-not $releaseNotes.Contains($requiredLegalNotice, [StringComparison]::Ordinal) -or
-            $releaseNotes.Contains($checksumPlaceholder, [StringComparison]::Ordinal) -or
+            [regex]::Matches(
+              $releaseNotes,
+              $legacyChecksumPlaceholderPattern).Count -ne 0 -or
             $releaseNotes.Contains('No installer hash is claimed', [StringComparison]::Ordinal) -or
+            [regex]::Matches($releaseNotes, '(?m)^## SHA-256$').Count -ne 1 -or
             [regex]::Matches($releaseNotes, [regex]::Escape($checksum)).Count -ne 1) {
             throw 'Composed GitHub Release notes are missing required notice/hash evidence or remain contradictory.'
           }
@@ -2029,7 +2044,10 @@ jobs:
             [regex]::Matches(
               $releaseNotes,
               [regex]::Escape([string]$manifest.installerSha256)).Count -ne 1 -or
-            $releaseNotes.Contains('{{EVERVIGIL_INSTALLER_SHA256}}', [StringComparison]::Ordinal)) {
+            [regex]::Matches($releaseNotes, '(?m)^## SHA-256$').Count -ne 1 -or
+            [regex]::Matches(
+              $releaseNotes,
+              '\{\{[^}]*SHA256[^}]*\}\}').Count -ne 0) {
             throw 'The downloaded release notes are not the exact validated notice/hash surface.'
           }
 

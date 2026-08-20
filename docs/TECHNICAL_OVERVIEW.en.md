@@ -195,7 +195,7 @@ EverVigil does not log or collect Codex authentication data.
 
 ## 8. Update mechanism
 
-EverVigil has no automatic updater. The user manually downloads an approved
+EverVigil has no automatic updater. The user manually downloads the versioned
 `EverVigil-<version>-Setup.exe` from GitHub Releases, compares its SHA-256 with
 the published value, and runs it over the existing installation. Community
 binaries are unsigned and may trigger Microsoft Defender SmartScreen.

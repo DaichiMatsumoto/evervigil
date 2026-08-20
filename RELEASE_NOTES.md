@@ -128,11 +128,3 @@ This is an independent community project. It is not an official Even Realities p
 - uninstallは所有するプロセスとシステム・アプリ資源だけを撤去し、設定と
   暗号化tokenを保持するか削除するかを選べます。Tailscale、Node.js、Codex、
   別途導入したEven Terminal package、無関係なユーザーデータは削除しません。
-
-## SHA-256
-
-`EverVigil-2.0.0-Setup.exe`
-
-```text
-{{EVERVIGIL_INSTALLER_SHA256}}
-```
