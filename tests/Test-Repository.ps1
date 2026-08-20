@@ -297,13 +297,13 @@ foreach ($noticeSurface in @(
 $releaseNotesContent = Get-Content `
     -LiteralPath (Join-Path $RepositoryRoot 'RELEASE_NOTES.md') `
     -Raw
-$installerHashPlaceholder = '{{EVERVIGIL_INSTALLER_SHA256}}'
+$legacyInstallerHashPlaceholderPattern = '\{\{[^}]*SHA256[^}]*\}\}'
 if ([regex]::Matches(
         $releaseNotesContent,
-        [regex]::Escape($installerHashPlaceholder)).Count -ne 1 -or
+        $legacyInstallerHashPlaceholderPattern).Count -ne 0 -or
     [regex]::Matches(
         $releaseNotesContent,
-        '(?m)^## SHA-256$').Count -ne 1 -or
+        '(?m)^## SHA-256$').Count -ne 0 -or
     $releaseNotesContent.Contains(
         'No installer hash is claimed',
         [StringComparison]::Ordinal) -or
@@ -311,7 +311,7 @@ if ([regex]::Matches(
         'must be inserted',
         [StringComparison]::OrdinalIgnoreCase)) {
     $failures.Add(
-        'RELEASE_NOTES.md must contain one replaceable installer hash placeholder and no contradictory pending-hash text.')
+        'RELEASE_NOTES.md must omit the build-generated SHA-256 section and all pending-hash placeholders.')
 }
 
 foreach ($publicReleaseDocument in @(
@@ -328,6 +328,7 @@ foreach ($publicReleaseDocument in @(
         -Encoding UTF8
     foreach ($approvalImplication in @(
             'approved GitHub Release'
+            'downloads an approved'
             '承認済みGitHub Release'
             'GitHub Releasesから承認済み'
         )) {
@@ -743,8 +744,13 @@ foreach ($releaseGuard in @(
         '''\A(?<hash>[0-9a-f]{64})  (?<name>[^\\/]+)\z'''
         '$checksumMatch.Groups[''name''].Value -cne $installerName'
         'Get-FileHash $installerPath -Algorithm SHA256'
-        '$checksumPlaceholder = ''{{EVERVIGIL_INSTALLER_SHA256}}'''
-        '$releaseNotesTemplate.Replace($checksumPlaceholder, $checksum)'
+        '$legacyChecksumPlaceholderPattern = ''\{\{[^}]*SHA256[^}]*\}\}'''
+        '[regex]::Matches($releaseNotesSource, ''(?m)^## SHA-256$'').Count -ne 0'
+        '$releaseNotes = @('
+        '''## SHA-256'''
+        '''```text'''
+        '$checksum'
+        ') -join "`n"'
         'RELEASE_NOTES.md has not been advanced to the requested release version.'
         'RELEASE_NOTES.md contains a stale installer basename.'
         '$requiredLegalNotice = ''This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.'''
