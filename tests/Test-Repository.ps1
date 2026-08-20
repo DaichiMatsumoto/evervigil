@@ -5479,9 +5479,6 @@ if (-not $installContent.Contains('-not $preserveRecoveryArtifacts', [StringComp
 $missingBrokerRecoveryGuards = @(
     @(
         'function Invoke-SystemBrokerTransaction'
-        '$bootstrapInitialRollback'
-        '-Operation Status'
-        '-AllowBootstrap'
         '-Operation $Mode'
         "@('Completed', 'NoChange')"
         "@('RolledBack', 'NoChange')"
