@@ -1026,43 +1026,9 @@ function Invoke-SystemBrokerTransaction {
         -not $script:InstallTransactionMutex) {
         throw 'The install transaction mutex is not held before broker invocation.'
     }
-    $protectedBrokerPath = Get-EverVigilProtectedBrokerPath
-    $protectedBrokerWasPresentBefore =
-        $State.PSObject.Properties['protectedBrokerWasPresentBefore']
-    $protectedBrokerCleanupAuthorized =
-        $State.PSObject.Properties['protectedBrokerCleanupAuthorized']
-    $protectedBrokerReady =
-        $State.PSObject.Properties['protectedBrokerReady']
-    $bootstrapInitialRollback =
-        $Mode -eq 'Rollback' -and
-        -not (Test-Path -LiteralPath $protectedBrokerPath -PathType Leaf) -and
-        $null -ne $protectedBrokerWasPresentBefore -and
-        $protectedBrokerWasPresentBefore.Value -eq $false -and
-        $null -ne $protectedBrokerCleanupAuthorized -and
-        $protectedBrokerCleanupAuthorized.Value -eq $true -and
-        $null -ne $protectedBrokerReady -and
-        $protectedBrokerReady.Value -eq $false
     $script:InstallTransactionMutex.ReleaseMutex()
     $script:InstallTransactionMutexTaken = $false
     try {
-        if ($bootstrapInitialRollback) {
-            # A process loss can leave the user journal durable before the
-            # initial elevated Apply creates the protected broker. Bootstrap
-            # only the fixed package broker with Status first; the broker's
-            # security boundary intentionally permits no freshly installed
-            # operation other than installer Apply or Status. Rollback then
-            # runs as a separate canonical invocation.
-            $bootstrapResponse = Invoke-EverVigilSystemBroker `
-                -Operation Status `
-                -TransactionId ([guid][string]$State.transactionId) `
-                -Initiator Installer `
-                -AllowBootstrap
-            if ([string]$bootstrapResponse.disposition -cnotin @(
-                    'CanonicalReady',
-                    'NoChange')) {
-                throw "The protected broker recovery bootstrap returned an unexpected disposition: $($bootstrapResponse.disposition)"
-            }
-        }
         $brokerResponse = Invoke-EverVigilSystemBroker `
             -Operation $Mode `
             -TransactionId ([guid][string]$State.transactionId) `
