@@ -38,8 +38,8 @@
     },
     {
       "path": "Install.ps1",
-      "length": 98173,
-      "sha256": "1373267da307f4050eae97da065ae70e9cad7f6cbf0843bebcb6c8565183ca7a"
+      "length": 98435,
+      "sha256": "f355509fef3b0774a39b78004bb0237619758db020baedad11cf7430c6474e64"
     },
     {
       "path": "LICENSE",
@@ -58,13 +58,13 @@
     },
     {
       "path": "README.md",
-      "length": 5938,
-      "sha256": "e111df6cf67dee7865dbd134728251770ff7d7a1bcd4ac4238f1a2a3e2fb5fc5"
+      "length": 6288,
+      "sha256": "d85a1e048a51e21458dfe08f6da1f52c9f6f10607e5a52e8ff73abc9c9aebbb4"
     },
     {
       "path": "RELEASE_NOTES.md",
-      "length": 7340,
-      "sha256": "8ff996643a8fe07be17cc8168c10f69fe36433085d15501c7d83724e62e4f7f1"
+      "length": 8167,
+      "sha256": "9bdf23fbdd0e3dbb935cefe5b4ff41da0167dbec5a501a1e35d74f17be155dbe"
     },
     {
       "path": "SECURITY.md",
@@ -78,8 +78,8 @@
     },
     {
       "path": "Uninstall.ps1",
-      "length": 92146,
-      "sha256": "b7af483e95662b346eae036a80aeda17731d0199dba9c12603332d70ec1f2c05"
+      "length": 94683,
+      "sha256": "e75eff927cf41fff5f067b8d7401a14026d146d4a8ffe928d00dd53d726f7f4f"
     },
     {
       "path": "compatibility/legacy-v1.2.1.json",
@@ -88,43 +88,43 @@
     },
     {
       "path": "docs/README.en.md",
-      "length": 8434,
-      "sha256": "04c24068ec829cd81f02b85d4e84c3fa21286880d59ca9569ec47e009e65e11b"
+      "length": 8823,
+      "sha256": "a9875726b07059ab45a3dffcb01853d391a2dc16bc22d45a91f634b96eaeae65"
     },
     {
       "path": "docs/README.ja.md",
-      "length": 9244,
-      "sha256": "31a6238c34f7083ad57defdc06fc0af944b771cd341dab4b3a80967252db97fa"
+      "length": 9659,
+      "sha256": "e966e70a92b2d7002687879a5ddebf21f6e8c07610774a59c961bd4b5dddf437"
     },
     {
       "path": "docs/REFERENCE.en.md",
-      "length": 10826,
-      "sha256": "cc904b78a1fdb57b068214e98f2f5d7768a545f64daa6f172408c74ff45f970e"
+      "length": 11690,
+      "sha256": "aa2f88781c69d068b42d654a46759646c5e5d6c69cc75ff5ada8cfdd377ee2dc"
     },
     {
       "path": "docs/REFERENCE.ja.md",
-      "length": 10740,
-      "sha256": "430313df4d89e5c679bf5f489a134acf8e4df9366652c50b419f64b450a15a4b"
+      "length": 11676,
+      "sha256": "8bf2120015e180acfba00004b48949c91720f2a04996fbf9a16a25eafa41d041"
     },
     {
       "path": "docs/SECURITY.en.md",
-      "length": 8381,
-      "sha256": "bfed107af91092379205d18d0edb18b82bfcaf58fe6ed85d833a926b34e85828"
+      "length": 8463,
+      "sha256": "eb7fbed86e57f5836e354fc8e5231752c1b4028883da28178b865777cc912a93"
     },
     {
       "path": "docs/SECURITY.ja.md",
-      "length": 8666,
-      "sha256": "931cbc89257fbab4199ce3f76c4452edc6d371cf45defd4d1cc111676c5d4755"
+      "length": 8750,
+      "sha256": "cb9f54526eb247d9ec5ae76676377a3e346da566c87e1ab7c099a2d6bccdb240"
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.en.md",
-      "length": 18152,
-      "sha256": "4553aa3486459d8bdf9a05eaf5619f3cd7196dc0072afe17de362c47204e49e3"
+      "length": 18969,
+      "sha256": "1ccfc232712971380a83b0178e50900cfed07b4e9d5c0bd490477d6aa4bb9364"
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.ja.md",
-      "length": 18968,
-      "sha256": "6a4ec6b69e5b96e220280165d620d3d6452c31b4e8c172d78f9fc67b7d3faf47"
+      "length": 19874,
+      "sha256": "a289f7f2e0a875561cfd0e5ffccc27d520dfd9ee0dea7692f155194446081420"
     },
     {
       "path": "docs/images/evervigil-about-en.png",
@@ -138,13 +138,13 @@
     },
     {
       "path": "docs/images/evervigil-config-en.png",
-      "length": 31202,
-      "sha256": "9af8cb53349bee4df8587d247aa7685133f1dba5164af30940703ac79014b06b"
+      "length": 31199,
+      "sha256": "02a519bf622b0ea58ab222e63b2089756bfa1e0f17583003470efd763d184dd6"
     },
     {
       "path": "docs/images/evervigil-config-ja.png",
-      "length": 28563,
-      "sha256": "acc42613ab7c33cb90e18462fbd8e3267743c855521f48f4d63c78b462f59e9c"
+      "length": 28550,
+      "sha256": "d375285022de1d0fe4d1ba3bbf95809962384e373abd45353c5333b7121476a3"
     },
     {
       "path": "docs/images/evervigil-overview-en.png",
@@ -163,8 +163,8 @@
     },
     {
       "path": "installer/EverVigil.iss",
-      "length": 28497,
-      "sha256": "b665e3ad4cc4e4b0cd1b7a7f298a47bddb505a378d762bb1b4cb63b4414e43b0"
+      "length": 28750,
+      "sha256": "d319dfed59408f886627ebca2cb16bef3f7408ee2d5c7a18f7d7fbd038c888e1"
     },
     {
       "path": "installer/LegacyCompatibility.generated.iss",
@@ -193,8 +193,8 @@
     },
     {
       "path": "scripts/Complete-InstallTransaction.ps1",
-      "length": 94544,
-      "sha256": "4c2eaa74efd349754cb713b1512514d7ea8c3d1f504eedd0c4d95508c4872800"
+      "length": 95194,
+      "sha256": "dd7eff9f1740fa97be8331d6b563d9e8610ccae90d21d63195cc0ca7b1ca7466"
     },
     {
       "path": "scripts/Export-InstallerPayload.ps1",
@@ -203,8 +203,8 @@
     },
     {
       "path": "scripts/InstallTransactionData.ps1",
-      "length": 87860,
-      "sha256": "f8862503dd2bc155a18099bc1bbda375a90d4005054e79b90bd5313887a41555"
+      "length": 89046,
+      "sha256": "e16fe6ee2814bce5f3844c9e4d9c5b8010d6b38317d56e68e268a43c30320019"
     },
     {
       "path": "scripts/Invoke-InteractiveUserTask.ps1",
@@ -428,13 +428,13 @@
     },
     {
       "path": "src/EverVigil.Core/AppSettings.cs",
-      "length": 7857,
-      "sha256": "84c7eb0e28afb6132e0309d556a91c465809f1f97f5cdb29e1b8ee50d2bedce5"
+      "length": 7512,
+      "sha256": "e7f390275ddfe94725d3b3a1f1b27c6ff3f74e0b00695156c547e7b3c80953b6"
     },
     {
       "path": "src/EverVigil.Core/AppSettingsValidator.cs",
-      "length": 5170,
-      "sha256": "ded7ade5a5bfd478efe435d4aad007e0194eeb471a9cc683dcfb5125ee1a144a"
+      "length": 5011,
+      "sha256": "69285f09a326048e1e873b36907341c7393ebec4945bb73229f4bd6664224596"
     },
     {
       "path": "src/EverVigil.Core/ConnectionUrlBuilder.cs",
@@ -458,13 +458,13 @@
     },
     {
       "path": "src/EverVigil.Core/Localization/AppResources.ja.resx",
-      "length": 15724,
-      "sha256": "d0a3e6f04e0ebd8b49028a20cde702b700e15bbce2c485be94868fba68cdc6da"
+      "length": 15619,
+      "sha256": "9555aeb58d110c8d1cc063d2976d288e4e280c1f170d9904d745a543658a41e3"
     },
     {
       "path": "src/EverVigil.Core/Localization/AppResources.resx",
-      "length": 14268,
-      "sha256": "07e05f9aaa27cde7671523abf252e452ac4d8e78d4c5c6320ab01abcc3f65b36"
+      "length": 14178,
+      "sha256": "d1cce8fad37cf98b8f45db7064918ef7fa2e2de714b9131e11c72927fb6aa23b"
     },
     {
       "path": "src/EverVigil.Core/SecretRedactor.cs",
@@ -558,8 +558,8 @@
     },
     {
       "path": "src/EverVigil/Infrastructure/SettingsStore.cs",
-      "length": 14417,
-      "sha256": "56d6aae5935bf98ac71ce553de5d11adb84fd2e9350ab77dee053f088369db71"
+      "length": 14703,
+      "sha256": "e624acade92beaba16bb8fb7cdca01bd19a389d5fcbed775ce2da0015a054436"
     },
     {
       "path": "src/EverVigil/Infrastructure/SingleInstanceCoordinator.cs",
@@ -593,13 +593,13 @@
     },
     {
       "path": "src/EverVigil/Services/BridgeLauncher.cs",
-      "length": 4716,
-      "sha256": "6c493f1a2747e6bb141e89e66b4d3e2c88cb288ce57e342cad12c28b35c06f64"
+      "length": 4490,
+      "sha256": "831fef6051ca2732c3b4a8b7c26510fcfe5f9d7116902a550eeb8691cf99acf6"
     },
     {
       "path": "src/EverVigil/Services/BridgeProcessEnvironment.cs",
-      "length": 11851,
-      "sha256": "cc053461e9d96346c68b44cb96bf661f2b24d775884720d58e666d382d6ceb9c"
+      "length": 11388,
+      "sha256": "a004c823d31f8144821931a502ded40b1bc160ff7ab3dc30688d2914772850d1"
     },
     {
       "path": "src/EverVigil/Services/HealthProbe.cs",
@@ -608,8 +608,8 @@
     },
     {
       "path": "src/EverVigil/Services/ManagedBridgeProcess.cs",
-      "length": 10035,
-      "sha256": "acefa89b5415e234b91fe72575335cbe32ee35b14bb7a49242af16b7b2ef0aba"
+      "length": 11591,
+      "sha256": "85df6cdeb798fe4c1d6a26a188cd3f7efdd6197860a27a2174d0af9262d7f7ca"
     },
     {
       "path": "src/EverVigil/Services/PrivilegedBrokerClient.cs",
@@ -618,8 +618,8 @@
     },
     {
       "path": "src/EverVigil/Services/SupervisorEngine.cs",
-      "length": 20052,
-      "sha256": "b78e64b915838d4e17bf3e537eff4603a6dcb9e70906e1aa1c8edb0769bc4565"
+      "length": 20188,
+      "sha256": "f7bc3d83c5764f30ff8971a3115a00d9a5cb343989a7eb628817ac61d79557b4"
     },
     {
       "path": "src/EverVigil/Services/SystemConfigurationService.cs",
@@ -648,8 +648,8 @@
     },
     {
       "path": "src/EverVigil/UI/DashboardForm.cs",
-      "length": 74488,
-      "sha256": "45d59bc64df895e3910d96a660cf5b526b0eca5226a81fc69429f4aa894ae60b"
+      "length": 73679,
+      "sha256": "1b042eed5b59d80615888770c7f314676d396a3d868ca6a870c8287f2c759501"
     },
     {
       "path": "src/EverVigil/UI/QrCodeRenderer.cs",
@@ -698,8 +698,8 @@
     },
     {
       "path": "tests/EverVigil.Tests/DashboardPreviewRenderer.cs",
-      "length": 5226,
-      "sha256": "c6b47a756d6b72abad35fad40d723ce05ba6297e4e8ccf3e43186c3f77ef8771"
+      "length": 5185,
+      "sha256": "eab3633c86c57835f0220840fd4ee77f68daa9f0eb68914cdde71ad9c951a0af"
     },
     {
       "path": "tests/EverVigil.Tests/EverVigil.Tests.csproj",
@@ -708,8 +708,8 @@
     },
     {
       "path": "tests/EverVigil.Tests/Program.cs",
-      "length": 115673,
-      "sha256": "cd4257ec8a0d3a6fe9b6c8d3a4487365e92b586e02443281e0e2c34ab40212b2"
+      "length": 123659,
+      "sha256": "d1e0f44c757f41ac472907d4bfc494e72cfcf1620d1a0c4ead63955faacd347d"
     },
     {
       "path": "tests/EverVigil.Tests/packages.lock.json",
@@ -738,8 +738,8 @@
     },
     {
       "path": "tests/Test-InstallTransaction.ps1",
-      "length": 98884,
-      "sha256": "ce0a4ab4e8cb329d3d1cef0a5578958185720dac52111eb6ea33cbb744d8cc0c"
+      "length": 103550,
+      "sha256": "c84e6810de333aab605302b09605a912e9c7933782913d1d7af2610e528da61d"
     },
     {
       "path": "tests/Test-ProductionInstallerAuditReport.ps1",
@@ -758,8 +758,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 285326,
-      "sha256": "e2cccf81b45f6d797a1c4a55b901342ea7024b82b94514dc038db1c002e25481"
+      "length": 287754,
+      "sha256": "0f93279b2d51f58f6612de343f52dc947d941a90c9575f951f5829db994c9e36"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",
@@ -768,8 +768,8 @@
     },
     {
       "path": "tests/Test-UninstallTransactionResidue.ps1",
-      "length": 39596,
-      "sha256": "38d73a56900217fd250316dcc140f5ccbfd72ad8d578bb5c8e75a434c5bada6d"
+      "length": 42920,
+      "sha256": "2f90bbb783583ba0f0c9f2e486b1f5f7e7e608f9c7f14f153814dac86bd816fb"
     }
   ]
 }

@@ -1223,30 +1223,47 @@ function Get-EverVigilRuntimeAtomicTemporaryInfo {
         }
     }
 
-    $expectedSettingsProperties = @(
+    $currentSettingsProperties = @(
         'uiLanguage', 'displayName', 'publicPort', 'backendPort',
-        'codexAppServerPort', 'projectDirectory', 'nodePath',
+        'codexAppServerPort', 'nodePath',
         'evenTerminalCliPath', 'codexPath', 'tailscalePath',
         'healthIntervalSeconds', 'providerCheckIntervalSeconds',
         'publicCheckIntervalSeconds', 'startupTimeoutSeconds',
         'stableRunSeconds', 'failureThreshold', 'logFileSizeMb',
         'logFileCopies', 'clipboardClearSeconds', 'diagnosticLogging',
         'autoStartService')
+    $previousSettingsProperties = @(
+        $currentSettingsProperties
+        'projectDirectory'
+    )
+    $legacySettingsProperties = @(
+        $previousSettingsProperties
+        'publicHost'
+    )
     $settingsProperties = @($document.PSObject.Properties)
     $isLegacySettingsSchema =
-        $settingsProperties.Count -eq ($expectedSettingsProperties.Count + 1) -and
+        $settingsProperties.Count -eq $legacySettingsProperties.Count -and
         @($settingsProperties.Name | Where-Object {
-                $_ -cnotin ($expectedSettingsProperties + 'publicHost')
-            }).Count -eq 0 -and
-        @($settingsProperties.Name | Where-Object { $_ -ceq 'publicHost' }).Count -eq 1
+                $_ -cnotin $legacySettingsProperties
+            }).Count -eq 0
+    $isPreviousSettingsSchema =
+        $settingsProperties.Count -eq $previousSettingsProperties.Count -and
+        @($settingsProperties.Name | Where-Object {
+                $_ -cnotin $previousSettingsProperties
+            }).Count -eq 0
     $isCurrentSettingsSchema =
-        $settingsProperties.Count -eq $expectedSettingsProperties.Count -and
+        $settingsProperties.Count -eq $currentSettingsProperties.Count -and
         @($settingsProperties.Name | Where-Object {
-                $_ -cnotin $expectedSettingsProperties
+                $_ -cnotin $currentSettingsProperties
             }).Count -eq 0
     $stringSettings = @(
-        'uiLanguage', 'displayName', 'projectDirectory', 'nodePath',
+        'uiLanguage', 'displayName', 'nodePath',
         'evenTerminalCliPath', 'codexPath', 'tailscalePath')
+    $validatedStringSettings = if ($isLegacySettingsSchema -or $isPreviousSettingsSchema) {
+        @($stringSettings + 'projectDirectory')
+    } else {
+        @($stringSettings)
+    }
     $integerSettings = @(
         'publicPort', 'backendPort', 'codexAppServerPort',
         'healthIntervalSeconds', 'providerCheckIntervalSeconds',
@@ -1280,9 +1297,11 @@ function Get-EverVigilRuntimeAtomicTemporaryInfo {
                     [UriHostNameType]::Unknown
         }
     }
-    if ((-not $isCurrentSettingsSchema -and -not $isLegacySettingsSchema) -or
+    if ((-not $isCurrentSettingsSchema -and
+         -not $isPreviousSettingsSchema -and
+         -not $isLegacySettingsSchema) -or
         -not $legacyPublicHostValid -or
-        @($stringSettings | Where-Object {
+        @($validatedStringSettings | Where-Object {
                 $document.PSObject.Properties[$_].Value -isnot [string]
             }).Count -gt 0 -or
         @($integerSettings | Where-Object {
@@ -1294,7 +1313,7 @@ function Get-EverVigilRuntimeAtomicTemporaryInfo {
         [string]$document.uiLanguage -cnotin @('system', 'en', 'ja') -or
         [string]::IsNullOrWhiteSpace([string]$document.displayName) -or
         ([string]$document.displayName).Length -gt 64 -or
-        @($stringSettings | Where-Object {
+        @($validatedStringSettings | Where-Object {
                 $_ -notin @('uiLanguage', 'displayName') -and
                 -not (Test-EverVigilPathFullyQualified `
                     -Path ([string]$document.$_))
@@ -1589,6 +1608,9 @@ function Assert-EverVigilDataRootRemovable {
             continue
         }
         if ($entry.PSIsContainer) {
+            if ($entry.Name -ceq 'BridgeHost') {
+                continue
+            }
             if ($entry.Name -cne $script:LegacyCompatibilityDataLogDirectoryName) {
                 throw "Refusing to remove an application data directory with an unexpected entry: $($entry.Name)"
             }
@@ -1622,9 +1644,37 @@ function Remove-EverVigilOwnedDataRoot {
     param([Parameter(Mandatory)][string]$Path)
 
     Assert-EverVigilDataRootRemovable -Path $Path
-    if (Test-Path -LiteralPath $Path -PathType Container) {
-        Remove-Item -LiteralPath $Path -Recurse -Force
+    $resolvedRoot = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $resolvedRoot -PathType Container)) {
+        return $null
     }
+
+    $retainedBridgeHostPath = $null
+    foreach ($entry in @(
+            Get-ChildItem -LiteralPath $resolvedRoot -Force -ErrorAction Stop)) {
+        if ($entry.PSIsContainer -and $entry.Name -ceq 'BridgeHost') {
+            if (@(Get-ChildItem -LiteralPath $entry.FullName -Force -ErrorAction Stop).Count -gt 0) {
+                $retainedBridgeHostPath = $entry.FullName
+                continue
+            }
+            try {
+                Remove-Item -LiteralPath $entry.FullName -Force -ErrorAction Stop
+            } catch {
+                if (Test-Path -LiteralPath $entry.FullName -PathType Container) {
+                    $retainedBridgeHostPath = $entry.FullName
+                    continue
+                }
+                throw
+            }
+            continue
+        }
+        Remove-Item -LiteralPath $entry.FullName -Recurse -Force -ErrorAction Stop
+    }
+
+    if (@(Get-ChildItem -LiteralPath $resolvedRoot -Force -ErrorAction Stop).Count -eq 0) {
+        Remove-Item -LiteralPath $resolvedRoot -Force -ErrorAction Stop
+    }
+    return $retainedBridgeHostPath
 }
 
 $pendingAtomicSystemCandidates = [Collections.Generic.List[object]]::new()
@@ -2064,9 +2114,13 @@ if (Test-Path -LiteralPath $InstallRoot) {
     Remove-Item -LiteralPath $resolved -Recurse -Force
 }
 
+$retainedBridgeHostPaths = [Collections.Generic.List[string]]::new()
 if (-not $KeepData) {
     foreach ($recognizedDataRoot in $RecognizedDataRoots) {
-        Remove-EverVigilOwnedDataRoot -Path $recognizedDataRoot
+        $retainedBridgeHostPath = Remove-EverVigilOwnedDataRoot -Path $recognizedDataRoot
+        if (-not [string]::IsNullOrWhiteSpace($retainedBridgeHostPath)) {
+            $retainedBridgeHostPaths.Add($retainedBridgeHostPath)
+        }
     }
 }
 
@@ -2077,13 +2131,19 @@ if ($protectedBrokerRetirementRequired) {
         -ExpectedOwnerSid $OwnerSid
 }
 
-if ($sharedProtectedBrokerRetained) {
+$resultMessage = if ($sharedProtectedBrokerRetained) {
     'EverVigil was uninstalled. The shared protected broker was retained because another Windows user still has protected EverVigil state.'
 } elseif ($KeepData) {
-    'EverVigil was uninstalled, including its last-user protected broker. Settings and the encrypted token were retained as requested.'
+    'EverVigil was uninstalled, including its last-user protected broker. Settings, the encrypted token, and the internal bridge host directory were retained as requested.'
+} elseif ($retainedBridgeHostPaths.Count -gt 0) {
+    "EverVigil was uninstalled, including its last-user protected broker. The internal bridge host directory was retained because it contains files: $($retainedBridgeHostPaths -join ', ')"
 } else {
     'EverVigil was completely removed, including its last-user protected broker.'
 }
+if ($retainedBridgeHostPaths.Count -gt 0 -and $sharedProtectedBrokerRetained) {
+    $resultMessage += " The internal bridge host directory was retained because it contains files: $($retainedBridgeHostPaths -join ', ')"
+}
+$resultMessage
 } finally {
     if ($instanceLockTaken) {
         $instanceMutex.ReleaseMutex()

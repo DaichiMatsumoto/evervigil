@@ -39,6 +39,11 @@ EverVigilはconsoleを表示せずにEven Terminal bridgeとCodex providerを起
 bridge launcherを子孫生成前にWindows Job Objectへ所属させるため、再起動・更新・
 rollback・uninstall時に所有するprocess treeを停止できます。
 
+launcherとNode bridgeは、active data root配下でACLを制限した`BridgeHost`を非公開の
+process current directoryとして使用します。これはproject設定ではありません。
+EverVigilは`PROJECT_DIR`をexportせず、global `--cwd`も指定しません。taskごとの要求済み／
+保存済みworking directoryは、別途導入したproviderが管理します。
+
 token付きhealth requestはloopback backendだけへ送信します。Tailnetの準備状態はさらに、
 保護ブローカー台帳とactiveなport/Tailscale executableの一致、現在この端末へ割り当てられた
 Tailscale address、記録済みTailscale Self名の全DNS応答との一致、現在のServe statusに保護対象の
@@ -135,8 +140,9 @@ backend、外部relayを作りません。
 
 launcherとNode bridgeの環境は、固定Windows/profile path、設定済み実行fileの検索directory、
 非secretなEverVigil runtime値、`BRIDGE_TOKEN`だけから新規構築します。親processの
-`OPENAI_API_KEY`、`GH_TOKEN`、`CODEX_HOME`、proxy設定、継承`PATH`は渡しません。
-環境変数によるCodex認証は意図的に非対応とし、別管理のCodex CLI認証だけを使用します。
+`OPENAI_API_KEY`、`GH_TOKEN`、`CODEX_HOME`、`PROJECT_DIR`、proxy設定、継承`PATH`は
+渡さず、global `--cwd`も指定しません。環境変数によるCodex認証は意図的に非対応とし、
+別管理のCodex CLI認証だけを使用します。
 
 managed bridge稼働中は、そのchild環境内に平文が存在し、same-user process inspectionや
 crash dumpから観測される可能性があります。DPAPIが保護するのは保存時tokenであり、
@@ -193,11 +199,11 @@ Tailscale identityを読み取れます。
 ## 9. Upgrade from Even Terminal Supervisor（旧製品からの移行）
 
 EverVigil v2.0.0は旧v1.2.1からin-place upgradeします。既存Inno Setup AppIdを維持する
-方式により、Windowsがv2.0.0を置換導入として扱い、同じユーザーの設定とDPAPI保護済み
-tokenを維持できます。保持するAppId、entropy互換性、旧path、mutex、task name、その他の
-旧identifierは実装の`LegacyCompatibility`境界へ集約し、EverVigilの製品名として表示しません。
+方式により、Windowsがv2.0.0を置換導入として扱い、同じユーザーの対応する設定と
+DPAPI保護済みtokenを維持できます。保持するAppId、entropy互換性、旧path、mutex、task name、
+その他の旧identifierは実装の`LegacyCompatibility`境界へ集約し、EverVigilの製品名として表示しません。
 
-停止・移動・削除前に旧導入とresource所有権を検証します。設定、token、自動起動選択を
+停止・移動・削除前に旧導入とresource所有権を検証します。対応する設定、token、自動起動選択を
 保持し、ユーザー表示をEverVigilへ変更します。EverVigil正常化後に、所有確認できた旧process、
 Startup entry、shortcut、Firewall rule、Serve mapping、transaction data、support file、
 install fileだけを撤去します。無関係なresourceは保持し、所有が曖昧ならfail-closedにします。
@@ -209,7 +215,7 @@ v1.2.1状態の復号・同期に必要な間は、検証済み旧data root、DP
 継続使用する場合があります。これらは互換内部情報であり、ユーザー向けbrandではありません。
 currentと旧data rootの両方に永続状態がある場合、暗黙に一方を選ばず起動をfail-closedにします。
 
-Release承認前に実機v1.2.1-to-v2.0.0 migration testを行い、設定・tokenが使えること、所有する
+Release承認前に実機v1.2.1-to-v2.0.0 migration testを行い、対応する設定・tokenが使えること、所有する
 process、経路、rule、shortcut、自動起動entry、導入directoryが重複しないことを確認します。
 
 ## 10. Uninstall process（アンインストール処理）
@@ -223,9 +229,10 @@ Windows Installed AppsまたはEverVigilのStart menu shortcutから実行でき
 5. 検証済み導入directory、transaction journal、一時fileを削除します。
 6. ユーザー選択に従い、設定とDPAPI tokenを保持または削除します。
 
-保持を選ぶと、暗号化tokenと設定をEverVigil data directoryへ意図的に残します。所有childを
-停止するとprocess-localな`BRIDGE_TOKEN`環境も消滅します。所有system構成の撤去を検証
-できない場合、complete removalとせずuninstall失敗を報告します。
+保持を選ぶと、暗号化token、設定、`BridgeHost`をEverVigil data directoryへ意図的に
+残します。削除を選んだ場合、空の`BridgeHost`は削除し、非空ならfileを削除せず正確な
+保持pathを報告します。所有childを停止するとprocess-localな`BRIDGE_TOKEN`環境も消滅します。
+所有system構成の撤去を検証できない場合、complete removalとせずuninstall失敗を報告します。
 
 canonical privileged brokerは、Windows SIDごとにmachine-wide resourceの所有証拠を保持します。
 設定・tokenを保持する選択にかかわらず、uninstallはcurrent SIDの保護stateを必ず退役させます。
@@ -250,6 +257,9 @@ Firewall rule、未検証directory、ユーザーが独自作成した設定は�
 ## 11. Security limitations（セキュリティ上の制限）
 
 - コミュニティutilityであり、vendor security productやsecurity auditではありません。
+- 検証対象のEven Terminal 0.8.1では、明示済み／保存済みの利用可能なworking directoryが
+  ないrequestが非公開の`BridgeHost`へfallbackする場合があります。EverVigilはproviderを
+  patchせず、この上流fieldを必須化できません。
 - 未署名binaryはWindowsに警告・遮断される可能性があります。
 - v2.0.0のbroker bootstrapは未署名です。初回導入にはpublisher認証済みtrust anchorがなく、
   将来broker binaryを置換するには承認済みcode signingまたはOS-trusted installer設計が必要です。

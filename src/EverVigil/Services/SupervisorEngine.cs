@@ -234,7 +234,11 @@ internal sealed class SupervisorEngine : IAsyncDisposable
                 {
                     EnsureBackendPortAvailable(settings.BackendPort);
                     Publish(SupervisorState.Starting, restartAttempt: restartAttempt);
-                    var process = ManagedBridgeProcess.Start(settings, token, _logger);
+                    var process = ManagedBridgeProcess.Start(
+                        settings,
+                        token,
+                        _logger,
+                        _settingsStore.InternalBridgeHostPath);
                     var restartWasPending = SetActiveProcess(process);
                     if (restartWasPending)
                     {

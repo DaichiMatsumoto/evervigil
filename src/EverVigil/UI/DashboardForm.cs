@@ -53,7 +53,6 @@ internal sealed class DashboardForm : Form
     private readonly NumericUpDown _publicPortInput = NewPortInput();
     private readonly NumericUpDown _backendPortInput = NewPortInput();
     private readonly NumericUpDown _codexPortInput = NewPortInput();
-    private readonly TextBox _projectDirectoryInput = new();
     private readonly TextBox _nodePathInput = new();
     private readonly TextBox _cliPathInput = new();
     private readonly TextBox _codexPathInput = new();
@@ -532,7 +531,6 @@ internal sealed class DashboardForm : Form
             AppTheme.Neon,
             out var dependencies,
             includeBrowseColumn: true);
-        AddPathRow(dependencies, "FieldProjectDirectory", _projectDirectoryInput, SelectProjectDirectory);
         AddPathRow(dependencies, "FieldNodePath", _nodePathInput, () => SelectExecutable(_nodePathInput, "node.exe"));
         AddPathRow(
             dependencies,
@@ -749,7 +747,6 @@ internal sealed class DashboardForm : Form
         _publicPortInput.Value = settings.PublicPort;
         _backendPortInput.Value = settings.BackendPort;
         _codexPortInput.Value = settings.CodexAppServerPort;
-        _projectDirectoryInput.Text = settings.ProjectDirectory;
         _nodePathInput.Text = settings.NodePath;
         _cliPathInput.Text = settings.EvenTerminalCliPath;
         _codexPathInput.Text = settings.CodexPath;
@@ -794,7 +791,6 @@ internal sealed class DashboardForm : Form
             PublicPort = decimal.ToInt32(_publicPortInput.Value),
             BackendPort = decimal.ToInt32(_backendPortInput.Value),
             CodexAppServerPort = decimal.ToInt32(_codexPortInput.Value),
-            ProjectDirectory = _projectDirectoryInput.Text.Trim(),
             NodePath = _nodePathInput.Text.Trim(),
             EvenTerminalCliPath = _cliPathInput.Text.Trim(),
             CodexPath = _codexPathInput.Text.Trim(),
@@ -1951,21 +1947,6 @@ internal sealed class DashboardForm : Form
     private sealed record LanguageChoice(string Code, string Label)
     {
         public override string ToString() => Label;
-    }
-
-    private void SelectProjectDirectory()
-    {
-        using var dialog = new FolderBrowserDialog
-        {
-            SelectedPath = Directory.Exists(_projectDirectoryInput.Text)
-                ? _projectDirectoryInput.Text
-                : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ShowNewFolderButton = false
-        };
-        if (dialog.ShowDialog(this) == DialogResult.OK)
-        {
-            _projectDirectoryInput.Text = dialog.SelectedPath;
-        }
     }
 
     private void SelectExecutable(TextBox target, string fileName) =>

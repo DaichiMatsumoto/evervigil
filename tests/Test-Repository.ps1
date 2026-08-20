@@ -237,6 +237,31 @@ foreach ($forbiddenBridgeParentCredential in @(
             "Bridge production code must not inherit a parent credential environment entry: $forbiddenBridgeParentCredential")
     }
 }
+foreach ($obsoleteWorkspaceContract in @(
+        'PROJECT_DIR'
+        '--bridge-project-directory'
+        'startInfo.ArgumentList.Add("--cwd")'
+    )) {
+    if (($managedBridgeContent + $bridgeLauncherContent + $bridgeEnvironmentContent).Contains(
+            $obsoleteWorkspaceContract,
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            "Bridge production code retained an obsolete global workspace contract: $obsoleteWorkspaceContract")
+    }
+}
+foreach ($privateBridgeHostGuard in @(
+        'PrepareInternalWorkingDirectory(internalWorkingDirectory)'
+        'WorkingDirectory = internalWorkingDirectory'
+        'WorkingDirectory = Environment.CurrentDirectory'
+        'parent.Attributes & FileAttributes.ReparsePoint'
+        'File.GetAttributes(fullPath) & FileAttributes.ReparsePoint'
+    )) {
+    if (-not ($managedBridgeContent + $bridgeLauncherContent).Contains(
+            $privateBridgeHostGuard,
+            [StringComparison]::Ordinal)) {
+        $failures.Add("Private BridgeHost process contract is missing: $privateBridgeHostGuard")
+    }
+}
 
 $englishResourcePath = Join-Path $RepositoryRoot `
     'src\EverVigil.Core\Localization\AppResources.resx'
@@ -259,6 +284,10 @@ if ((Test-Path -LiteralPath $englishResourcePath) -and
         -DifferenceObject @($japaneseValues.Keys)
     if ($resourceDifference) {
         $failures.Add('English and Japanese application resource keys must match exactly.')
+    }
+    if ($englishValues.ContainsKey('FieldProjectDirectory') -or
+        $japaneseValues.ContainsKey('FieldProjectDirectory')) {
+        $failures.Add('Localization resources retained the obsolete global workspace field.')
     }
     if ($englishValues.Count -lt 120 -or
         @($englishValues.Values).Where({ [string]::IsNullOrWhiteSpace($_) }).Count -gt 0 -or
@@ -3838,6 +3867,8 @@ foreach ($installerGuard in @(
         "' -PreviousInstallRoot '"
         'function InitializeUninstall: Boolean;'
         'MB_YESNOCANCEL'
+        'An empty internal bridge host directory is removed; files in a non-empty one are always retained.'
+        '空の内部bridge host directoryは削除し、fileを含む場合は常に保持'
         "Parameters := Parameters + ' -KeepData'"
         'SuppressibleMsgBox('
         'Abort;'
@@ -5115,6 +5146,7 @@ if ($installRecoveryLaunchCount -ne 4) {
 foreach ($transactionDataGuard in @(
         'function Get-EverVigilInstallTransactionTemporaryFiles'
         'function Remove-EverVigilNewApplicationDataFiles'
+        'function Remove-EverVigilNewBridgeHostDirectory'
         'function Remove-EverVigilEmptyApplicationDataContainers'
         'function Copy-EverVigilFileDurably'
         '[IO.FileOptions]::WriteThrough'
@@ -5167,6 +5199,12 @@ foreach ($rollbackCleanupCaller in @($installContent, $installTransactionContent
         $failures.Add(
             'Every install rollback entrypoint must retire newly created empty data containers.')
     }
+    if (-not $rollbackCleanupCaller.Contains(
+            'Remove-EverVigilNewBridgeHostDirectory',
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            'Every install rollback entrypoint must preserve or retire BridgeHost by its pre-transaction state.')
+    }
 }
 $immediateJournalRemoval =
     'Remove-Item -LiteralPath $TransactionPath -Force -ErrorAction Stop'
@@ -5191,6 +5229,9 @@ $recoveryFileCleanupMatch = [regex]::Match(
 if (-not $recoveryFileCleanupMatch.Success -or
     -not $recoveryFileCleanupMatch.Groups['body'].Value.Contains(
         'Remove-EverVigilEmptyApplicationDataContainers',
+        [StringComparison]::Ordinal) -or
+    $recoveryFileCleanupMatch.Groups['body'].Value.Contains(
+        'Remove-EverVigilNewBridgeHostDirectory',
         [StringComparison]::Ordinal) -or
     $recoveryFileCleanupMatch.Groups['body'].Value.Contains(
         'Remove-Item -LiteralPath $transactionsRoot',
@@ -5937,6 +5978,15 @@ $pendingSystemContent = Get-Content `
 $appSettingsContent = Get-Content `
     -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil.Core\AppSettings.cs') `
     -Raw
+if (($appSettingsContent + $dashboardContent).Contains(
+        'ProjectDirectory',
+        [StringComparison]::Ordinal) -or
+    -not $settingsStoreContent.Contains(
+        'var canonicalJson = JsonSerializer.Serialize(settings, SerializerOptions);',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'The obsolete global workspace setting must be absent and loaded settings must be canonicalized.')
+}
 foreach ($legacySettingsGuard in @(
         '--initialize-legacy-settings'
         '--legacy-token-file'
@@ -5944,7 +5994,7 @@ foreach ($legacySettingsGuard in @(
         'CreateLegacyMigrationDefaults'
         'TryReplaceNewlyCreatedDefaults'
         'AppSettings.CreateDefault(fullLegacyRoot)'
-        'legacyLayout.Value.AppsDirectory'
+        'GetLegacyAppsDirectory'
         'legacyAppsDirectory'
     )) {
     if (-not ($programContent + $settingsStoreContent + $appSettingsContent).Contains(

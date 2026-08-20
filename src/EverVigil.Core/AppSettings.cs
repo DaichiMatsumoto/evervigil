@@ -12,8 +12,6 @@ public sealed record AppSettings
 
     public int CodexAppServerPort { get; set; } = 8765;
 
-    public string ProjectDirectory { get; set; } = string.Empty;
-
     public string NodePath { get; set; } = string.Empty;
 
     public string EvenTerminalCliPath { get; set; } = string.Empty;
@@ -53,15 +51,13 @@ public sealed record AppSettings
 
     public static AppSettings CreateDefault(string? legacyInstallationRoot)
     {
-        var legacyLayout = GetLegacyLayout(legacyInstallationRoot);
-        var root = legacyLayout?.ProjectDirectory ??
-            GetKnownFolderPath(Environment.SpecialFolder.UserProfile, "USERPROFILE");
+        var legacyAppsDirectory = GetLegacyAppsDirectory(legacyInstallationRoot);
         var tailscalePath = FixedTailscalePath;
 
         var nodePreferredPaths = new List<string>();
-        if (legacyLayout is not null)
+        if (legacyAppsDirectory is not null)
         {
-            var legacyNodePath = Path.Combine(legacyLayout.Value.AppsDirectory, "nodejs", "node.exe");
+            var legacyNodePath = Path.Combine(legacyAppsDirectory, "nodejs", "node.exe");
             if (File.Exists(legacyNodePath))
             {
                 nodePreferredPaths.Add(legacyNodePath);
@@ -75,9 +71,8 @@ public sealed record AppSettings
         return new AppSettings
         {
             DisplayName = Environment.MachineName,
-            ProjectDirectory = root,
             NodePath = ResolveExecutable("node.exe", nodePreferredPaths.ToArray()),
-            EvenTerminalCliPath = GetDefaultEvenTerminalCliPath(legacyLayout?.AppsDirectory),
+            EvenTerminalCliPath = GetDefaultEvenTerminalCliPath(legacyAppsDirectory),
             CodexPath = GetDefaultCodexPath(),
             TailscalePath = tailscalePath
         };
@@ -127,7 +122,7 @@ public sealed record AppSettings
         return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
     }
 
-    private static (string ProjectDirectory, string AppsDirectory)? GetLegacyLayout(
+    private static string? GetLegacyAppsDirectory(
         string? legacyInstallationRoot)
     {
         if (string.IsNullOrWhiteSpace(legacyInstallationRoot))
@@ -143,12 +138,12 @@ public sealed record AppSettings
                 StringComparison.OrdinalIgnoreCase) ||
             installationDirectory.Parent is not { } appsDirectory ||
             !string.Equals(appsDirectory.Name, "Apps", StringComparison.OrdinalIgnoreCase) ||
-            appsDirectory.Parent is not { Exists: true } projectDirectory)
+            !appsDirectory.Exists)
         {
             return null;
         }
 
-        return (projectDirectory.FullName, appsDirectory.FullName);
+        return appsDirectory.FullName;
     }
 
     private static string GetDefaultCodexPath()

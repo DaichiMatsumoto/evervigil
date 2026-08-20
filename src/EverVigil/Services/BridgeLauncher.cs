@@ -19,7 +19,6 @@ internal static class BridgeLauncher
             var cliPath = GetRequiredArgument(arguments, "--bridge-cli-path");
             var backendPort = GetRequiredArgument(arguments, "--bridge-backend-port");
             var displayName = GetRequiredArgument(arguments, "--bridge-display-name");
-            var projectDirectory = GetRequiredArgument(arguments, "--bridge-project-directory");
 
             using var gate = EventWaitHandle.OpenExisting(gateName);
             if (!gate.WaitOne(GateTimeout))
@@ -31,7 +30,7 @@ internal static class BridgeLauncher
             var startInfo = new ProcessStartInfo
             {
                 FileName = nodePath,
-                WorkingDirectory = projectDirectory,
+                WorkingDirectory = Environment.CurrentDirectory,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
@@ -41,15 +40,12 @@ internal static class BridgeLauncher
             BridgeProcessEnvironment.ConfigureBridgeChild(
                 startInfo,
                 backendPort,
-                displayName,
-                projectDirectory);
+                displayName);
             startInfo.ArgumentList.Add(cliPath);
             startInfo.ArgumentList.Add("--port");
             startInfo.ArgumentList.Add(backendPort);
             startInfo.ArgumentList.Add("--name");
             startInfo.ArgumentList.Add(displayName);
-            startInfo.ArgumentList.Add("--cwd");
-            startInfo.ArgumentList.Add(projectDirectory);
             startInfo.ArgumentList.Add("--provider");
             startInfo.ArgumentList.Add("codex");
             startInfo.ArgumentList.Add("--tailscale");

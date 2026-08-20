@@ -141,7 +141,8 @@ application content. Inspect and sanitize it manually before sharing.
   and the verified install directory.
 - The user chooses whether settings and the DPAPI token are retained or deleted.
 - Retention intentionally leaves the encrypted token and settings in the data
-  directory. Complete removal deletes them after ownership checks.
+  directory. Removing them still preserves a non-empty internal `BridgeHost`
+  and reports its path; an empty one is removed after ownership checks.
 - Tailscale, Node.js, Codex, `@evenrealities/even-terminal`, unrelated routes or
   rules, and independently created user data are never removed.
 

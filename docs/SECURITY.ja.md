@@ -115,8 +115,8 @@ network到達制御はbridge-token認証の代替ではなく、same-host softwa
 - uninstallは所有processを停止し、所有確認済み経路、rule、Startup entry、shortcut、
   support data、transaction、一時data、検証済み導入directoryだけを削除します。
 - 設定とDPAPI tokenを保持・削除するかをユーザーが選択します。
-- 保持を選ぶと暗号化tokenと設定をdata directoryへ意図的に残し、complete removalでは
-  所有確認後に削除します。
+- 保持を選ぶと暗号化tokenと設定をdata directoryへ意図的に残します。削除を選んでも
+  非空の内部`BridgeHost`はpathを報告して保持し、空の場合だけ所有確認後に削除します。
 - Tailscale、Node.js、Codex、`@evenrealities/even-terminal`、無関係な経路・rule、
   独自作成されたuser dataは削除しません。
 

@@ -121,6 +121,7 @@ try {
         'Get-EverVigilSiblingTransactionResiduePaths'
         'Remove-EverVigilSiblingTransactionResidue'
         'Assert-EverVigilDataRootRemovable'
+        'Remove-EverVigilOwnedDataRoot'
     )
     foreach ($functionName in $requiredFunctions) {
         $definition = @($uninstallAst.FindAll(
@@ -168,6 +169,56 @@ try {
         throw 'Residue cleanup removed preserved application data before root removal.'
     }
     Assert-EverVigilDataRootRemovable -Path $dataRoot
+
+    Reset-TestDirectory -Path $dataRoot
+    Write-TestFile -Path (Join-Path $dataRoot 'settings.json') -Content 'owned settings'
+    Write-TestFile -Path (Join-Path $dataRoot 'Logs\evervigil.log') -Content 'owned log'
+    $bridgeHostPath = Join-Path $dataRoot 'BridgeHost'
+    $bridgeHostFile = Join-Path $bridgeHostPath 'user-work.txt'
+    Write-TestFile -Path $bridgeHostFile -Content 'must remain'
+    Assert-EverVigilDataRootRemovable -Path $dataRoot
+    $retainedBridgeHost = Remove-EverVigilOwnedDataRoot -Path $dataRoot
+    if (-not [string]::Equals(
+            $retainedBridgeHost,
+            $bridgeHostPath,
+            [StringComparison]::OrdinalIgnoreCase) -or
+        -not (Test-Path -LiteralPath $bridgeHostFile -PathType Leaf) -or
+        (Test-Path -LiteralPath (Join-Path $dataRoot 'settings.json')) -or
+        (Test-Path -LiteralPath (Join-Path $dataRoot 'Logs'))) {
+        throw 'Complete removal did not preserve only the non-empty internal bridge host directory.'
+    }
+
+    Reset-TestDirectory -Path $dataRoot
+    Write-TestFile -Path (Join-Path $dataRoot 'settings.json') -Content 'owned settings'
+    New-Item -ItemType Directory -Path (Join-Path $dataRoot 'BridgeHost') -Force | Out-Null
+    $retainedEmptyBridgeHost = Remove-EverVigilOwnedDataRoot -Path $dataRoot
+    if ($null -ne $retainedEmptyBridgeHost -or (Test-Path -LiteralPath $dataRoot)) {
+        throw 'Complete removal retained an empty internal bridge host directory.'
+    }
+
+    Reset-TestDirectory -Path $dataRoot
+    $bridgeHostReparseTarget = Join-Path $testRoot 'bridge-host-reparse-target'
+    $bridgeHostReparseSentinel = Join-Path $bridgeHostReparseTarget 'must-remain.txt'
+    Reset-TestDirectory -Path $bridgeHostReparseTarget
+    Write-TestFile -Path $bridgeHostReparseSentinel -Content 'preserve'
+    $bridgeHostReparsePath = Join-Path $dataRoot 'BridgeHost'
+    New-Item `
+        -ItemType Junction `
+        -Path $bridgeHostReparsePath `
+        -Target $bridgeHostReparseTarget | Out-Null
+    $bridgeHostReparseRejected = $false
+    try {
+        Assert-EverVigilDataRootRemovable -Path $dataRoot
+    } catch {
+        $bridgeHostReparseRejected = $_.Exception.Message -match 'reparse point'
+    }
+    if (-not $bridgeHostReparseRejected -or
+        -not (Test-Path -LiteralPath $bridgeHostReparsePath -PathType Container) -or
+        -not (Test-Path -LiteralPath $bridgeHostReparseSentinel -PathType Leaf)) {
+        throw 'Uninstall did not preserve a redirected internal bridge host fail-closed.'
+    }
+    Remove-Item -LiteralPath $bridgeHostReparsePath -Force
+    Remove-Item -LiteralPath $bridgeHostReparseTarget -Recurse -Force
 
     Reset-TestDirectory -Path $dataRoot
     Write-TestFile -Path (Join-Path $dataRoot 'settings.json') -Content 'same bytes'
@@ -304,7 +355,6 @@ try {
         publicPort = 3456
         backendPort = 3457
         codexAppServerPort = 8765
-        projectDirectory = $testRoot
         nodePath = $fixedExecutable
         evenTerminalCliPath = $fixedExecutable
         codexPath = $fixedExecutable
@@ -324,7 +374,19 @@ try {
     Write-TestFile -Path $settingsTemporary -Content $settingsJson
     Protect-TestFileForCurrentOwner -Path $settingsTemporary
 
-    $legacySettingsDocument = $settingsJson | ConvertFrom-Json
+    $previousSettingsDocument = $settingsJson | ConvertFrom-Json
+    $previousSettingsDocument | Add-Member `
+        -MemberType NoteProperty `
+        -Name projectDirectory `
+        -Value $testRoot
+    $previousSettingsJson = $previousSettingsDocument | ConvertTo-Json
+    $previousSettingsTemporary = Join-Path `
+        $dataRoot `
+        "settings.json.$([guid]::NewGuid().ToString('N')).tmp"
+    Write-TestFile -Path $previousSettingsTemporary -Content $previousSettingsJson
+    Protect-TestFileForCurrentOwner -Path $previousSettingsTemporary
+
+    $legacySettingsDocument = $previousSettingsJson | ConvertFrom-Json
     $legacySettingsDocument | Add-Member `
         -MemberType NoteProperty `
         -Name publicHost `
@@ -360,6 +422,7 @@ try {
 
     foreach ($runtimeTemporary in @(
             $settingsTemporary,
+            $previousSettingsTemporary,
             $legacySettingsTemporary,
             $appliedTemporary,
             $tokenTemporary)) {
@@ -369,6 +432,7 @@ try {
     }
     Remove-EverVigilTransactionResidue -Path $dataRoot -PreserveData
     if ((Test-Path -LiteralPath $settingsTemporary) -or
+        (Test-Path -LiteralPath $previousSettingsTemporary) -or
         (Test-Path -LiteralPath $legacySettingsTemporary) -or
         (Test-Path -LiteralPath $appliedTemporary) -or
         (Test-Path -LiteralPath $tokenTemporary)) {
@@ -443,7 +507,7 @@ try {
         Remove-Item -LiteralPath $invalidPath -Force
     }
 
-    $invalidHostDocument = $settingsJson | ConvertFrom-Json
+    $invalidHostDocument = $previousSettingsJson | ConvertFrom-Json
     $invalidHostDocument | Add-Member `
         -MemberType NoteProperty `
         -Name publicHost `

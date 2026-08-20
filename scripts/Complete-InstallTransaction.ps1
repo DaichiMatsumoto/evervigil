@@ -334,6 +334,7 @@ function Read-EverVigilInstallTransaction {
     $optionalProperties = @(
         'legacyCleanupAuthorized'
         'previousOwnedInstallPresent'
+        'bridgeHostWasPresent'
         'migrateV121SystemState'
         'protectedBrokerWasPresentBefore'
         'protectedBrokerCleanupAuthorized'
@@ -400,6 +401,7 @@ function Read-EverVigilInstallTransaction {
     }
     foreach ($optionalBooleanProperty in @(
             'previousOwnedInstallPresent'
+            'bridgeHostWasPresent'
             'migrateV121SystemState'
             'protectedBrokerWasPresentBefore'
             'protectedBrokerCleanupAuthorized'
@@ -1350,12 +1352,27 @@ function Remove-RollbackWorkTrees {
         -Kind $kind
 }
 
+function Get-BridgeHostWasPresentBeforeTransaction {
+    param([Parameter(Mandatory)]$State)
+
+    $property = $State.PSObject.Properties['bridgeHostWasPresent']
+    if ($null -eq $property) {
+        # Transactions from builds that predate BridgeHost could not have
+        # created it. Preserve any such directory during recovery.
+        return $true
+    }
+    return [bool]$property.Value
+}
+
 function Remove-NewApplicationData {
     param([Parameter(Mandatory)]$State)
 
     Remove-EverVigilNewApplicationDataFiles `
         -DataRoot $script:InstallTransactionDataRoot `
         -State $State
+    Remove-EverVigilNewBridgeHostDirectory `
+        -DataRoot $script:InstallTransactionDataRoot `
+        -BridgeHostWasPresent (Get-BridgeHostWasPresentBeforeTransaction -State $State)
     $logRoot = Join-Path `
         $script:InstallTransactionDataRoot `
         $script:LegacyCompatibilityDataLogDirectoryName

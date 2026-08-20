@@ -41,6 +41,11 @@ visible console. The bridge launcher is assigned to a Windows Job Object before
 it creates descendants. This lets EverVigil stop the owned process tree during
 a restart, update, rollback, or uninstall.
 
+The launcher and Node bridge use the ACL-restricted `BridgeHost` below the active
+data root as a private process current directory. This is not a project setting.
+EverVigil does not export `PROJECT_DIR` or pass a global `--cwd`; the separately
+installed provider owns requested and saved per-task working-directory semantics.
+
 Authenticated health requests are sent only to the loopback backend. Tailnet
 readiness additionally requires the protected broker ledger to match the active
 ports and Tailscale executable, a currently assigned local Tailscale address,
@@ -163,9 +168,10 @@ connection URL and QR code are treated as equivalent credentials.
 The launcher and Node bridge receive a newly constructed environment containing
 only fixed Windows/profile paths, the configured executable search directories,
 non-secret EverVigil runtime values, and `BRIDGE_TOKEN`. Parent entries such as
-`OPENAI_API_KEY`, `GH_TOKEN`, `CODEX_HOME`, proxy settings, and an inherited
-`PATH` are not forwarded. Environment-based Codex credentials are deliberately
-unsupported; Codex authentication must remain in the separately managed CLI.
+`OPENAI_API_KEY`, `GH_TOKEN`, `CODEX_HOME`, `PROJECT_DIR`, proxy settings, and an
+inherited `PATH` are not forwarded. No global `--cwd` is passed. Environment-based
+Codex credentials are deliberately unsupported; Codex authentication must remain
+in the separately managed CLI.
 
 While the managed bridge is running, plaintext necessarily exists in that
 child's environment and may appear in a same-user process inspection or crash
@@ -236,15 +242,15 @@ available on its first visible launch.
 
 EverVigil v2.0.0 adopts an in-place upgrade from legacy v1.2.1. Keeping the
 existing Inno Setup AppId is the preferred design because it lets Windows treat
-v2.0.0 as the replacement installation and preserves same-user settings and the
-DPAPI-protected token. The retained AppId, entropy compatibility, old paths,
-mutexes, task names, and other predecessor identifiers are centralized in the
+v2.0.0 as the replacement installation and preserves supported same-user
+settings and the DPAPI-protected token. The retained AppId, entropy compatibility,
+old paths, mutexes, task names, and other predecessor identifiers are centralized in the
 implementation's `LegacyCompatibility` boundary. They are not shown as the
 EverVigil product name.
 
 Migration validates the predecessor installation and resource ownership before
-any stop, move, or deletion. It preserves settings, token, and startup choice;
-changes user-visible names to EverVigil; and removes only owned predecessor
+any stop, move, or deletion. It preserves supported settings, the token, and
+startup choice; changes user-visible names to EverVigil; and removes only owned predecessor
 processes, startup entries, shortcuts, Firewall rules, Serve mappings,
 transaction data, support files, and install files after EverVigil is healthy.
 Unrelated resources are retained. Ambiguous ownership fails closed.
@@ -261,8 +267,8 @@ predecessor data roots contain persistent state, startup fails closed rather
 than choosing one implicitly.
 
 Release approval requires a real v1.2.1-to-v2.0.0 migration test confirming
-that settings and token remain usable and no duplicate owned process, route,
-rule, shortcut, startup entry, or installation directory remains.
+that supported settings and the token remain usable and no duplicate owned
+process, route, rule, shortcut, startup entry, or installation directory remains.
 
 ## 10. Uninstall process
 
@@ -276,9 +282,11 @@ menu shortcut. It:
 5. removes the verified install directory, transaction journal, and temporary files; and
 6. retains or deletes settings and the DPAPI token according to the user's choice.
 
-Choosing retention intentionally leaves the encrypted token and settings in
-the EverVigil data directory. Stopping the owned child removes its process-local
-`BRIDGE_TOKEN` environment. If owned system cleanup cannot be verified,
+Choosing retention intentionally leaves the encrypted token, settings, and
+`BridgeHost` in the EverVigil data directory. When removal is chosen, an empty
+`BridgeHost` is removed; a non-empty one is retained and its exact path is
+reported so files created there are not deleted. Stopping the owned child removes
+its process-local `BRIDGE_TOKEN` environment. If owned system cleanup cannot be verified,
 uninstall reports failure instead of claiming complete removal.
 
 The canonical privileged broker keeps machine-wide ownership evidence per
@@ -311,6 +319,9 @@ ownership check stops cleanup before destructive work.
 ## 11. Security limitations
 
 - The project is a community utility, not a vendor security product or audit.
+- With the tested Even Terminal 0.8.1, a request with neither an explicit nor a
+  saved usable working directory may fall back to the private `BridgeHost`.
+  EverVigil does not patch the provider and cannot require that upstream field.
 - Unsigned binaries may be blocked or warned about by Windows.
 - The v2.0.0 broker bootstrap is unsigned. Its first installation therefore
   cannot provide a publisher-authenticated trust anchor; future broker binary

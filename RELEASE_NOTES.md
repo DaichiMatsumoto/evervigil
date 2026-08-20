@@ -37,10 +37,16 @@ This is an independent community project. It is not an official Even Realities p
 - Recognizes the packaged English/Japanese screenshot assets as part of the
   exact owned installation layout, so clean installation succeeds while
   unknown files and directories remain fail-closed.
+- Removes the application-wide workspace field and stops exporting `PROJECT_DIR`
+  or passing a global `--cwd`, leaving requested and saved task working
+  directories to the separately installed provider.
+- Uses an ACL-restricted internal `BridgeHost` as the bridge process host instead
+  of a configured workspace, and preserves it during rollback or uninstall
+  whenever it contains files.
 
 ### Compatibility and operation
 
-- Uses an in-place v1.2.1 upgrade path to preserve settings, the
+- Uses an in-place v1.2.1 upgrade path to preserve supported settings, the
   DPAPI-protected bridge token, installation ownership, and startup preference.
 - Removes or replaces only validated legacy resources owned by the prior
   installation so old processes, startup entries, shortcuts, Firewall rules,
@@ -99,10 +105,15 @@ This is an independent community project. It is not an official Even Realities p
 - packageに含まれる日英screenshot assetを厳密な所有導入layoutとして認識し、
   未知のfileやdirectoryは引き続きfail-closedで拒否しながら、clean installを
   完了できるようにしました。
+- アプリ全体のworkspace fieldを撤去し、`PROJECT_DIR`のexportとglobal `--cwd`の
+  指定を停止しました。各taskの要求済み／保存済みworking directoryは、別途導入した
+  providerへ委ねます。
+- ACLを制限した内部`BridgeHost`を設定workspaceではなくbridge processのhostとして
+  使用し、fileを含む場合はrollback／uninstallでも保持します。
 
 ### 互換性と動作
 
-- v1.2.1からのin-place upgradeにより、設定、DPAPI保護済みbridge token、
+- v1.2.1からのin-place upgradeにより、対応する設定、DPAPI保護済みbridge token、
   導入所有情報、自動起動設定を保持します。
 - 旧プロセス、自動起動、ショートカット、Firewallルール、Serve経路、
   導入ファイルは、旧導入による所有を検証できたものだけを置換・撤去し、

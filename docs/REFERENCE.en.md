@@ -27,6 +27,7 @@ ACLs. EverVigil does not read or store Codex credentials.
 | Startup block marker | `%LOCALAPPDATA%\EverVigil\system-configuration-required` |
 | DPAPI token | `%LOCALAPPDATA%\EverVigil\token.dat` |
 | Logs | `%LOCALAPPDATA%\EverVigil\Logs\evervigil.log` |
+| Internal bridge host | `BridgeHost` below the active data root; normally `%LOCALAPPDATA%\EverVigil\BridgeHost`, or the validated predecessor data root while an in-place upgrade remains active. It is an ACL-restricted process current directory, not a configured project/task directory |
 | Startup shortcut | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\EverVigil.lnk` |
 
 Settings, tokens, logs, transaction state, and machine-local configuration are
@@ -43,7 +44,6 @@ never release assets.
 | Serve port | `3456` |
 | Even Terminal backend | `127.0.0.1:3457` |
 | Codex app-server | `127.0.0.1:8765` |
-| Project directory | Current user profile |
 | Health interval | 30 seconds |
 | Provider / Tailnet check | 300 seconds |
 | Startup timeout | 120 seconds |
@@ -52,6 +52,13 @@ never release assets.
 | Log limit | 5 MB x 3 generations |
 | Secret reveal | Approximately 60 seconds |
 | Clipboard clear | 60 seconds by default |
+
+EverVigil exports neither `PROJECT_DIR` nor a global `--cwd`. Existing Codex
+threads normally retain their saved working directory, and an explicitly
+requested directory remains provider-owned. With the tested separately installed
+Even Terminal 0.8.1, a request with neither an explicit nor a saved usable working
+directory may fall back to the private `BridgeHost` process directory; EverVigil
+cannot make that upstream request field mandatory.
 
 ## Command line
 
@@ -108,8 +115,8 @@ may trigger SmartScreen.
 For the v1.2.1 in-place upgrade only, the installer retains the predecessor's
 AppId and necessary cryptographic/path compatibility through the dedicated
 `LegacyCompatibility` boundary. These values are not user-facing names. The
-transaction preserves settings, encrypted token bytes, and startup preference,
-then removes only ownership-verified predecessor resources after EverVigil is
+transaction preserves supported settings, encrypted token bytes, and startup
+preference, then removes only ownership-verified predecessor resources after EverVigil is
 healthy. Rollback restores verified snapshots and the previous runnable state.
 
 New installations use the EverVigil paths listed above. A validated v1.2.1
@@ -122,9 +129,11 @@ closed.
 
 The uninstaller stops owned processes; removes owned Serve, Firewall, startup,
 shortcut, support, transaction, temporary, and verified program resources; and
-lets the user retain or delete settings and token. It does not remove Tailscale,
-Node.js, Codex, `@evenrealities/even-terminal`, unrelated routes/rules, or an
-unverified directory.
+lets the user retain or delete settings and token. Retention also keeps
+`BridgeHost`. When removal is chosen, an empty `BridgeHost` is removed; a
+non-empty one is retained and reported so its files are not deleted. It does
+not remove Tailscale, Node.js, Codex, `@evenrealities/even-terminal`,
+unrelated routes/rules, or an unverified directory.
 
 ## Source validation
 
