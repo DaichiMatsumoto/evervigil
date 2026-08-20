@@ -1258,9 +1258,26 @@ if (-not $contents[$installPath].Contains(
         '-AllowBootstrap:($Mode -eq ''Install'')',
         [StringComparison]::Ordinal) -or
     $resolverContent.Contains('[string]$PackageRoot', [StringComparison]::Ordinal) -or
-    $contents[$completePath].Contains('-AllowBootstrap', [StringComparison]::Ordinal) -or
-    $contents[$uninstallPath].Contains('-AllowBootstrap', [StringComparison]::Ordinal)) {
-    throw 'Only installer Apply may bootstrap the protected broker.'
+    $contents[$uninstallPath].Contains('-AllowBootstrap', [StringComparison]::Ordinal) -or
+    [regex]::Matches(
+        $contents[$completePath],
+        '(?m)-AllowBootstrap\s*$').Count -ne 1) {
+    throw 'Only installer Apply and the authorized initial-rollback Status recovery may bootstrap the protected broker.'
+}
+foreach ($rollbackBootstrapGuard in @(
+        '$bootstrapInitialRollback'
+        '$Mode -eq ''Rollback'''
+        '-Operation Status'
+        '-Initiator Installer'
+        '-AllowBootstrap'
+        "'CanonicalReady'"
+        "'NoChange'"
+    )) {
+    if (-not $contents[$completePath].Contains(
+            $rollbackBootstrapGuard,
+            [StringComparison]::Ordinal)) {
+        throw "An authorized initial-rollback Status bootstrap guard is missing: $rollbackBootstrapGuard"
+    }
 }
 foreach ($singlePromptBrokerBootstrapGuard in @(
         "[ValidateSet('Install', 'Commit', 'Rollback')]"

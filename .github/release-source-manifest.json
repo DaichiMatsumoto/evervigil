@@ -193,8 +193,8 @@
     },
     {
       "path": "scripts/Complete-InstallTransaction.ps1",
-      "length": 94544,
-      "sha256": "4c2eaa74efd349754cb713b1512514d7ea8c3d1f504eedd0c4d95508c4872800"
+      "length": 96400,
+      "sha256": "d0ed6665f0224ee8e2d68aa6d2ecb365489989201f122b6287c25f1c3bc93cde"
     },
     {
       "path": "scripts/Export-InstallerPayload.ps1",
@@ -738,8 +738,8 @@
     },
     {
       "path": "tests/Test-InstallTransaction.ps1",
-      "length": 98884,
-      "sha256": "ce0a4ab4e8cb329d3d1cef0a5578958185720dac52111eb6ea33cbb744d8cc0c"
+      "length": 106896,
+      "sha256": "6da9b684228a1e41185c3c32d0661a30fbc2b35a6718d13f29ff4b97cccdce9f"
     },
     {
       "path": "tests/Test-ProductionInstallerAuditReport.ps1",
@@ -758,13 +758,13 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 285326,
-      "sha256": "e2cccf81b45f6d797a1c4a55b901342ea7024b82b94514dc038db1c002e25481"
+      "length": 285416,
+      "sha256": "57b232d57e3570c134691fb66848e9628db937a3e9a285e1d237f5bb75ece93d"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",
-      "length": 54722,
-      "sha256": "bc8087a8b5e5318d5acfe62213d6be2ce0761f8bc6691dc453cae42f09a95f2b"
+      "length": 55284,
+      "sha256": "c9dc6f0355c45b3991667a4c164b42733bf64e9dc0fde9f99b913daeed64e59d"
     },
     {
       "path": "tests/Test-UninstallTransactionResidue.ps1",

@@ -1436,6 +1436,179 @@ try {
     Remove-Item -LiteralPath $transactionPath -Force
 
     . $transactionScript
+    & {
+        $fixtureRoot = Join-Path $testRoot 'recovery-broker-bootstrap'
+        $script:recoveryBootstrapBrokerPath = Join-Path `
+            $fixtureRoot `
+            'EverVigil.Broker.exe'
+        $originalPendingSystemJournalPath =
+            $script:PendingSystemJournalPath
+        $script:PendingSystemJournalPath = Join-Path `
+            $fixtureRoot `
+            'pending-system-configuration.json'
+        function Get-EverVigilProtectedBrokerPath {
+            return $script:recoveryBootstrapBrokerPath
+        }
+        function Get-OwnedInstallerSystemJournalTemporaries {
+            param([string]$TransactionId)
+            return @()
+        }
+        function Resolve-EverVigilInstallTransactionAtomicState {
+            param([string]$Path)
+            return $script:recoveryBootstrapState
+        }
+        function Assert-NoForeignPendingSystemJournal {}
+        function Remove-OwnedInstallerSystemJournalTemporariesAfterRollback {}
+        function Invoke-EverVigilSystemBroker {
+            param(
+                [string]$Operation,
+                [guid]$TransactionId,
+                [string]$Initiator,
+                [switch]$AllowBootstrap
+            )
+
+            $script:recoveryBootstrapCalls.Add([pscustomobject]@{
+                    Operation = $Operation
+                    TransactionId = $TransactionId.ToString('N')
+                    Initiator = $Initiator
+                    AllowBootstrap = [bool]$AllowBootstrap
+                })
+            if ($Operation -eq 'Status' -and $AllowBootstrap) {
+                [IO.File]::WriteAllText(
+                    $script:recoveryBootstrapBrokerPath,
+                    'bootstrapped canonical broker fixture',
+                    [Text.UTF8Encoding]::new($false))
+            } elseif ($Operation -eq 'Rollback' -and
+                -not (Test-Path `
+                    -LiteralPath $script:recoveryBootstrapBrokerPath `
+                    -PathType Leaf)) {
+                throw 'The protected broker is not installed.'
+            }
+            return [pscustomobject]@{
+                success = $true
+                disposition = if ($Operation -eq 'Status') {
+                    'CanonicalReady'
+                } else {
+                    'RolledBack'
+                }
+                errorCode = 'None'
+                transactionId = $TransactionId.ToString('D')
+            }
+        }
+        try {
+            foreach ($recoveryBootstrapCase in @(
+                    [pscustomobject]@{
+                        Name = 'authorized initial rollback without protected broker'
+                        BrokerExists = $false
+                        BrokerWasPresentBefore = $false
+                        CleanupAuthorized = $true
+                        BrokerReady = $false
+                        ExpectedOperations = 'Status:True,Rollback:False'
+                        ExpectFailure = $false
+                    }
+                    [pscustomobject]@{
+                        Name = 'canonical broker already exists'
+                        BrokerExists = $true
+                        BrokerWasPresentBefore = $false
+                        CleanupAuthorized = $true
+                        BrokerReady = $false
+                        ExpectedOperations = 'Rollback:False'
+                        ExpectFailure = $false
+                    }
+                    [pscustomobject]@{
+                        Name = 'missing previously protected broker fails closed'
+                        BrokerExists = $false
+                        BrokerWasPresentBefore = $true
+                        CleanupAuthorized = $true
+                        BrokerReady = $false
+                        ExpectedOperations = 'Rollback:False'
+                        ExpectFailure = $true
+                    }
+                )) {
+                if (Test-Path -LiteralPath $fixtureRoot) {
+                    Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
+                }
+                New-Item -ItemType Directory -Path $fixtureRoot -Force |
+                    Out-Null
+                if ($recoveryBootstrapCase.BrokerExists) {
+                    [IO.File]::WriteAllText(
+                        $script:recoveryBootstrapBrokerPath,
+                        'canonical broker fixture',
+                        [Text.UTF8Encoding]::new($false))
+                }
+                [IO.File]::WriteAllText(
+                    $script:PendingSystemJournalPath,
+                    '{}',
+                    [Text.UTF8Encoding]::new($false))
+                $script:recoveryBootstrapState = [pscustomobject]@{
+                    transactionId = $transactionId
+                    migrationApplied = $false
+                    protectedBrokerWasPresentBefore =
+                        [bool]$recoveryBootstrapCase.BrokerWasPresentBefore
+                    protectedBrokerCleanupAuthorized =
+                        [bool]$recoveryBootstrapCase.CleanupAuthorized
+                    protectedBrokerReady =
+                        [bool]$recoveryBootstrapCase.BrokerReady
+                }
+                $script:recoveryBootstrapCalls =
+                    [Collections.Generic.List[object]]::new()
+                $observedError = $null
+                $fixtureMutex = [Threading.Mutex]::new($false)
+                $fixtureMutexTaken = $false
+                try {
+                    $fixtureMutexTaken = $fixtureMutex.WaitOne(
+                        [TimeSpan]::FromSeconds(10))
+                    if (-not $fixtureMutexTaken) {
+                        throw 'The recovery-bootstrap fixture could not acquire its mutex.'
+                    }
+                    $script:InstallTransactionMutex = $fixtureMutex
+                    $script:InstallTransactionMutexTaken = $true
+                    try {
+                        Invoke-SystemBrokerTransaction `
+                            -State $script:recoveryBootstrapState `
+                            -Mode Rollback
+                    } catch {
+                        $observedError = $_.Exception
+                    }
+                    $fixtureMutexTaken = $script:InstallTransactionMutexTaken
+                } finally {
+                    if ($fixtureMutexTaken) {
+                        $fixtureMutex.ReleaseMutex()
+                    }
+                    $script:InstallTransactionMutexTaken = $false
+                    $script:InstallTransactionMutex = $null
+                    $fixtureMutex.Dispose()
+                }
+                $observedOperations = @(
+                    $script:recoveryBootstrapCalls |
+                        ForEach-Object {
+                            "$($_.Operation):$($_.AllowBootstrap)"
+                        }) -join ','
+                if ($observedOperations -cne
+                        $recoveryBootstrapCase.ExpectedOperations -or
+                    [bool]($null -ne $observedError) -ne
+                        [bool]$recoveryBootstrapCase.ExpectFailure -or
+                    @($script:recoveryBootstrapCalls | Where-Object {
+                            $_.TransactionId -cne $transactionId -or
+                            $_.Initiator -cne 'Installer'
+                        }).Count -gt 0 -or
+                    [bool](Test-Path `
+                            -LiteralPath $script:PendingSystemJournalPath `
+                            -PathType Leaf) -ne
+                        [bool]$recoveryBootstrapCase.ExpectFailure) {
+                    throw "Recovery broker bootstrap did not preserve its security contract for $($recoveryBootstrapCase.Name)."
+                }
+            }
+        } finally {
+            $script:PendingSystemJournalPath =
+                $originalPendingSystemJournalPath
+            $script:InstallTransactionMutexTaken = $false
+            $script:InstallTransactionMutex = $null
+            if (Test-Path -LiteralPath $fixtureRoot) {
+                Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
+            }
+        }
+    }
     # The dot-sourced script declares a case-insensitive TransactionPath
     # parameter. Restore this test fixture path before dispatching phases.
     $transactionPath = Join-Path $testLocalAppData 'EverVigil\install-transaction.json'
