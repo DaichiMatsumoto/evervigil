@@ -34,6 +34,9 @@ This is an independent community project. It is not an official Even Realities p
   medium-integrity session while preserving the protected broker-state ACL.
 - Keeps the protected shared state directory non-listable and validates only
   the current user's protected identity ledger before exposing its values.
+- Recognizes the packaged English/Japanese screenshot assets as part of the
+  exact owned installation layout, so clean installation succeeds while
+  unknown files and directories remain fail-closed.
 
 ### Compatibility and operation
 
@@ -93,6 +96,9 @@ This is an independent community project. It is not an official Even Realities p
   Tailnet identityの表示と接続URLのコピーを利用できるようにしました。
 - 共有state directoryを引き続き列挙不可とし、現在のユーザーに属する
   保護identity ledgerだけを検証して値を表示します。
+- packageに含まれる日英screenshot assetを厳密な所有導入layoutとして認識し、
+  未知のfileやdirectoryは引き続きfail-closedで拒否しながら、clean installを
+  完了できるようにしました。
 
 ### 互換性と動作
 

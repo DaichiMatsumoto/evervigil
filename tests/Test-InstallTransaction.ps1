@@ -168,6 +168,20 @@ try {
     . $resolverScript
     . $transactionDataScript
 
+    $knownInstallPaths = @(Get-EverVigilKnownRelativePaths)
+    $unknownDocumentationPaths = @(Get-ChildItem `
+            -LiteralPath (Join-Path $repositoryRoot 'docs') `
+            -File `
+            -Recurse `
+            -Force |
+        ForEach-Object {
+            [IO.Path]::GetRelativePath($repositoryRoot, $_.FullName)
+        } |
+        Where-Object { $_ -notin $knownInstallPaths })
+    if ($unknownDocumentationPaths.Count -ne 0) {
+        throw "Packaged documentation is outside the owned install layout: $($unknownDocumentationPaths -join ', ')"
+    }
+
     $freshDataRoot = Join-Path $testLocalAppData 'fresh-install-data-root'
     $freshInstallTemporaries = @(
         Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $freshDataRoot)

@@ -907,6 +907,12 @@ function Get-EverVigilKnownRelativePaths {
         'docs\SECURITY.ja.md'
         'docs\TECHNICAL_OVERVIEW.en.md'
         'docs\TECHNICAL_OVERVIEW.ja.md'
+        'docs\images\evervigil-overview-en.png'
+        'docs\images\evervigil-config-en.png'
+        'docs\images\evervigil-about-en.png'
+        'docs\images\evervigil-overview-ja.png'
+        'docs\images\evervigil-config-ja.png'
+        'docs\images\evervigil-about-ja.png'
         'licenses\DOTNET-LICENSE.txt'
         'licenses\DOTNET-THIRD-PARTY-NOTICES.txt'
         'licenses\INNO-SETUP-LICENSE.txt'
@@ -938,6 +944,12 @@ function Get-EverVigilRequiredCurrentPaths {
         'docs\SECURITY.ja.md'
         'docs\TECHNICAL_OVERVIEW.en.md'
         'docs\TECHNICAL_OVERVIEW.ja.md'
+        'docs\images\evervigil-overview-en.png'
+        'docs\images\evervigil-config-en.png'
+        'docs\images\evervigil-about-en.png'
+        'docs\images\evervigil-overview-ja.png'
+        'docs\images\evervigil-config-ja.png'
+        'docs\images\evervigil-about-ja.png'
         'licenses\QRCODER-LICENSE.txt'
         'scripts\Complete-InstallTransaction.ps1'
         'scripts\InstallTransactionData.ps1'
@@ -1008,7 +1020,7 @@ function Test-EverVigilKnownLayout {
     }
 
     $allowedPaths = @(Get-EverVigilKnownRelativePaths)
-    $allowedDirectories = @('docs', 'licenses', 'scripts')
+    $allowedDirectories = @('docs', 'docs\images', 'licenses', 'scripts')
     $directories = @(Get-ChildItem -LiteralPath $resolvedPath -Directory -Recurse -Force -ErrorAction Stop)
     foreach ($directory in $directories) {
         if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {

@@ -68,7 +68,7 @@ jobs:
           try {
             $releaseCriticalSourceHashes = [ordered]@{
               '.\.github\release-host-lock.json' = '7e19d79efd66e4d3def287bd6795b2d0e41f0ddc2bd8583d33b906b6a619acff'
-              '.\.github\release-source-manifest.json' = 'd2916dbe56b3f142f1d4d945ab2f3679d73513ce3d42b7254a9b754e96710a34'
+              '.\.github\release-source-manifest.json' = 'deae705a169f13b4f0c597be2f54bc9de4f523544f8d9e51729ebd85c3247c84'
               '.\tests\ReleasePathIsolation.ps1' = '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35'
               '.\tests\Test-ReleaseHost.ps1' = '819d18a7222ff6827e76757843acfed210ddf748a686308ed12df2b0e1e83d06'
             }

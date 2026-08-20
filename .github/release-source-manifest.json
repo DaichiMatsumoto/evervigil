@@ -63,8 +63,8 @@
     },
     {
       "path": "RELEASE_NOTES.md",
-      "length": 6991,
-      "sha256": "9942246dfe6db094175a283d1dda913599406d9ec6c4c93f199d482bf0ecad88"
+      "length": 7425,
+      "sha256": "39776846573fb8fbb8ead0ebaf265caa588184d4260ad524348e2d62fd6e1f09"
     },
     {
       "path": "SECURITY.md",
@@ -238,8 +238,8 @@
     },
     {
       "path": "scripts/Resolve-SafeInstallRoot.ps1",
-      "length": 101602,
-      "sha256": "af080da95b7de69fa474cf3edc7bddbf52363b95ffd18ea50e005f0ae8e7bed9"
+      "length": 102173,
+      "sha256": "146337b5e16ace7f9ca7bcb27f3d5ca9fd5add41a11444f0a953949bcae2bab3"
     },
     {
       "path": "scripts/Sync-LegacyCompatibility.ps1",
@@ -738,8 +738,8 @@
     },
     {
       "path": "tests/Test-InstallTransaction.ps1",
-      "length": 98312,
-      "sha256": "b73660177c583f4f7b9d130e7d7816468b8e5018a336f1db10fb540ad1d3bedc"
+      "length": 98884,
+      "sha256": "ce0a4ab4e8cb329d3d1cef0a5578958185720dac52111eb6ea33cbb744d8cc0c"
     },
     {
       "path": "tests/Test-ProductionInstallerAuditReport.ps1",
