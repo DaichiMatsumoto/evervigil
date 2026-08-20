@@ -8,8 +8,8 @@
     },
     {
       "path": ".gitattributes",
-      "length": 128,
-      "sha256": "153402e4b4383c3e37dda2f12051b14974ed91cf443272598fc4ddbbdf9d50c1"
+      "length": 177,
+      "sha256": "2d9afff6b82f3b61c9c2b8a9145450af09e630169cb4a248b287955e5dae43aa"
     },
     {
       "path": ".github/release-host-lock.json",
