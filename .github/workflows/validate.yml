@@ -17,6 +17,28 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Capture persistent PATH baseline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pathSnapshotPath = Join-Path `
+            ([IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')) `
+            "evervigil-path-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT.json"
+          $pathSnapshot = [ordered]@{
+            user = [Environment]::GetEnvironmentVariable(
+              'Path',
+              [EnvironmentVariableTarget]::User)
+            machine = [Environment]::GetEnvironmentVariable(
+              'Path',
+              [EnvironmentVariableTarget]::Machine)
+          }
+          [IO.File]::WriteAllText(
+            $pathSnapshotPath,
+            (($pathSnapshot | ConvertTo-Json -Compress) + "`n"),
+            [Text.UTF8Encoding]::new($false))
+          "EVERVIGIL_PATH_SNAPSHOT=$pathSnapshotPath" >> $env:GITHUB_ENV
+          'DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=0' >> $env:GITHUB_ENV
+
       - name: Setup .NET
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
@@ -151,3 +173,41 @@ jobs:
           name: EverVigil-${{ steps.release.outputs.version }}-Setup
           path: artifacts/release/EverVigil-${{ steps.release.outputs.version }}-Setup.exe
           if-no-files-found: error
+
+      - name: Verify persistent PATH remained unchanged
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:EVERVIGIL_PATH_SNAPSHOT) -or
+            -not (Test-Path -LiteralPath $env:EVERVIGIL_PATH_SNAPSHOT -PathType Leaf)) {
+            throw 'The persistent PATH baseline is missing.'
+          }
+          $snapshot = Get-Content `
+            -LiteralPath $env:EVERVIGIL_PATH_SNAPSHOT `
+            -Raw | ConvertFrom-Json
+          $currentUserPath = [Environment]::GetEnvironmentVariable(
+            'Path',
+            [EnvironmentVariableTarget]::User)
+          $currentMachinePath = [Environment]::GetEnvironmentVariable(
+            'Path',
+            [EnvironmentVariableTarget]::Machine)
+          $userPathMatches = if ($null -eq $snapshot.user) {
+            $null -eq $currentUserPath
+          } else {
+            [string]::Equals(
+              [string]$snapshot.user,
+              $currentUserPath,
+              [StringComparison]::Ordinal)
+          }
+          $machinePathMatches = if ($null -eq $snapshot.machine) {
+            $null -eq $currentMachinePath
+          } else {
+            [string]::Equals(
+              [string]$snapshot.machine,
+              $currentMachinePath,
+              [StringComparison]::Ordinal)
+          }
+          if (-not $userPathMatches -or -not $machinePathMatches) {
+            throw 'A validation step changed a persistent Windows PATH.'
+          }

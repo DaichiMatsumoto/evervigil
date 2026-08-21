@@ -65,10 +65,19 @@ jobs:
           $dependencyRootIdentity = $null
           $dependencyRootCreated = $false
           $releaseFailure = $null
+          $releaseUserPathBaseline =
+            [Environment]::GetEnvironmentVariable(
+              'Path',
+              [EnvironmentVariableTarget]::User)
+          $releaseMachinePathBaseline =
+            [Environment]::GetEnvironmentVariable(
+              'Path',
+              [EnvironmentVariableTarget]::Machine)
+          $env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = '0'
           try {
             $releaseCriticalSourceHashes = [ordered]@{
               '.\.github\release-host-lock.json' = '7e19d79efd66e4d3def287bd6795b2d0e41f0ddc2bd8583d33b906b6a619acff'
-              '.\.github\release-source-manifest.json' = '7cb016d669a3f9068cc586ff5bed7449c057acf237e546d4a25ff4e67f5270ee'
+              '.\.github\release-source-manifest.json' = '74f0b5f165b8cc48028a4cfef2f1c8b5fd358f086123426184d15b1efe04af0c'
               '.\tests\ReleasePathIsolation.ps1' = '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35'
               '.\tests\Test-ReleaseHost.ps1' = '819d18a7222ff6827e76757843acfed210ddf748a686308ed12df2b0e1e83d06'
             }
@@ -386,6 +395,27 @@ jobs:
             }
           }
           function Assert-EverVigilReleaseIsolationState {
+            if ([Environment]::GetEnvironmentVariable(
+                'DOTNET_ADD_GLOBAL_TOOLS_TO_PATH',
+                [EnvironmentVariableTarget]::Process) -cne '0') {
+              throw 'The .NET global-tools PATH opt-out changed after release isolation.'
+            }
+            $currentUserPath = [Environment]::GetEnvironmentVariable(
+              'Path',
+              [EnvironmentVariableTarget]::User)
+            $currentMachinePath = [Environment]::GetEnvironmentVariable(
+              'Path',
+              [EnvironmentVariableTarget]::Machine)
+            if (-not [string]::Equals(
+                $currentUserPath,
+                $releaseUserPathBaseline,
+                [StringComparison]::Ordinal) -or
+              -not [string]::Equals(
+                $currentMachinePath,
+                $releaseMachinePathBaseline,
+                [StringComparison]::Ordinal)) {
+              throw 'The release build changed a persistent Windows PATH.'
+            }
             if ($null -eq $releaseSourceTreeLocks) {
               throw 'The reviewed source-tree locks are not held.'
             }
@@ -807,6 +837,25 @@ jobs:
             $releaseFailure = $_
           } finally {
             $cleanupFailures = [Collections.Generic.List[string]]::new()
+            $releaseUserPathAtCleanup =
+              [Environment]::GetEnvironmentVariable(
+                'Path',
+                [EnvironmentVariableTarget]::User)
+            $releaseMachinePathAtCleanup =
+              [Environment]::GetEnvironmentVariable(
+                'Path',
+                [EnvironmentVariableTarget]::Machine)
+            if (-not [string]::Equals(
+                $releaseUserPathAtCleanup,
+                $releaseUserPathBaseline,
+                [StringComparison]::Ordinal) -or
+              -not [string]::Equals(
+                $releaseMachinePathAtCleanup,
+                $releaseMachinePathBaseline,
+                [StringComparison]::Ordinal)) {
+              $cleanupFailures.Add(
+                'The release build changed a persistent Windows PATH.')
+            }
             $removeDependencyRoot = $false
             if ($dependencyRootCreated) {
               try {
