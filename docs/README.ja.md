@@ -114,25 +114,12 @@ crash-loop抑制を適用します。
 
 ## 手動更新
 
-EverVigilに自動更新機能はありません。将来のReleaseでは、GitHub Releaseから新版installerを
-取得し、実行前にSHA-256を確認してください。Release固有の更新要件は、そのReleaseへ記載します。
-
-## 旧v1.2.1からのupgrade
-
-EverVigil v2.0.0はin-place upgradeを採用します。既存のinstaller identityを内部の
-移行keyとして保持することで、同じWindowsユーザーの対応する設定とDPAPI保護済み
-tokenを安全に継続できます。このidentityはユーザー向け製品名ではありません。
-
-移行時は、旧resourceを停止・削除する前に所有権を検証します。対応する設定、token、
-自動起動選択を保持し、ユーザー向け名称をEverVigilへ置換します。新版が正常になった後で、
-所有確認できた旧process、Startup entry、shortcut、Firewall rule、Serve経路、
-transaction、support、program resourceだけを撤去し、重複を残しません。所有が
-曖昧な場合はfail-closedで停止し、手動解決を要求します。
-
-DPAPIで復号可能な状態を保つため、検証済みv1.2.1導入ではmigration中に互換data root、
-entropy context、同期名を継続使用する場合があります。これらは`LegacyCompatibility`
-内部だけに保持します。`token.dat`を手動移動しないでください。currentと旧data rootの
-両方に永続状態がある場合、正本を推測せずfail-closedにします。
+EverVigil v2.0.0が最初で現在唯一の公開Releaseです。EverVigilに自動更新機能は
+ありません。将来のReleaseでは、GitHub Releaseから新版installerを取得し、実行前に
+SHA-256を確認してください。検証済みEverVigilを更新する場合、installerは対応する
+設定、DPAPI保護済みtoken、自動起動選択を保持します。保護commit境界より前の失敗では
+検証済みの更新前状態を復元し、状態が曖昧または検証不能ならfail-closedで停止します。
+Release固有の更新要件は、そのReleaseへ記載します。
 
 ## アンインストール
 

@@ -2,8 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EverVigil.Broker.Protocol\EverVigil.Broker.Protocol.csproj" />
-    <Compile Include="..\EverVigil\Compatibility\LegacyCompatibility.g.cs"
-             Link="Compatibility\LegacyCompatibility.g.cs" />
     <Compile Include="$(IntermediateOutputPath)EverVigil.Broker.BuildInfo.g.cs"
              AutoGen="True"
              DesignTime="True"

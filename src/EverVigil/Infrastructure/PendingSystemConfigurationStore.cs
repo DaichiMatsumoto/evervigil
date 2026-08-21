@@ -292,7 +292,7 @@ internal sealed class PendingSystemConfigurationStore
         if (journal.Phase != PendingSystemConfigurationPhase.Prepared)
         {
             throw new InvalidDataException(
-                "Local coordination journal has unsupported legacy mutation evidence.");
+                "Local coordination journal has unsupported mutation evidence.");
         }
         var updated = journal with
         {
@@ -560,21 +560,14 @@ internal sealed class PendingSystemConfigurationStore
     private void ValidatePathForOwner()
     {
         var localAppData = ResolveLocalAppData(_ownerSid);
-        var expectedCurrentRoot = Path.Combine(localAppData, "EverVigil");
-        var expectedLegacyRoot = Path.Combine(
-            localAppData,
-            Compatibility.LegacyCompatibility.Application.DataRootRelativeToLocalAppData);
+        var expectedRoot = Path.Combine(localAppData, ProductIdentity.DataRootDirectoryName);
         if (!string.Equals(
                 Path.TrimEndingDirectorySeparator(_dataRoot),
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(expectedCurrentRoot)),
-                StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(
-                Path.TrimEndingDirectorySeparator(_dataRoot),
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(expectedLegacyRoot)),
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(expectedRoot)),
                 StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException(
-                "The pending system journal is outside the invoking user's recognized data roots.");
+                "The pending system journal is outside the invoking user's EverVigil data root.");
         }
         EnsureNoReparsePoint(localAppData, _dataRoot);
         if (File.Exists(_path))

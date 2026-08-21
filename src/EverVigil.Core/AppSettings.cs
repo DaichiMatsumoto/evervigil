@@ -47,38 +47,25 @@ public sealed record AppSettings
         "Tailscale",
         "tailscale.exe"));
 
-    public static AppSettings CreateDefault() => CreateDefault(legacyInstallationRoot: null);
-
-    public static AppSettings CreateDefault(string? legacyInstallationRoot)
+    public static AppSettings CreateDefault()
     {
-        var legacyAppsDirectory = GetLegacyAppsDirectory(legacyInstallationRoot);
         var tailscalePath = FixedTailscalePath;
-
-        var nodePreferredPaths = new List<string>();
-        if (legacyAppsDirectory is not null)
-        {
-            var legacyNodePath = Path.Combine(legacyAppsDirectory, "nodejs", "node.exe");
-            if (File.Exists(legacyNodePath))
-            {
-                nodePreferredPaths.Add(legacyNodePath);
-            }
-        }
-        nodePreferredPaths.Add(Path.Combine(
+        var nodePreferredPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             "nodejs",
-            "node.exe"));
+            "node.exe");
 
         return new AppSettings
         {
             DisplayName = Environment.MachineName,
-            NodePath = ResolveExecutable("node.exe", nodePreferredPaths.ToArray()),
-            EvenTerminalCliPath = GetDefaultEvenTerminalCliPath(legacyAppsDirectory),
+            NodePath = ResolveExecutable("node.exe", nodePreferredPath),
+            EvenTerminalCliPath = GetDefaultEvenTerminalCliPath(),
             CodexPath = GetDefaultCodexPath(),
             TailscalePath = tailscalePath
         };
     }
 
-    private static string GetDefaultEvenTerminalCliPath(string? legacyAppsDirectory)
+    private static string GetDefaultEvenTerminalCliPath()
     {
         var relativeCliPath = Path.Combine(
             "node_modules",
@@ -86,14 +73,6 @@ public sealed record AppSettings
             "even-terminal",
             "bin",
             "cli.js");
-        if (legacyAppsDirectory is not null)
-        {
-            var legacyCliPath = Path.Combine(legacyAppsDirectory, "npm", relativeCliPath);
-            if (File.Exists(legacyCliPath))
-            {
-                return Path.GetFullPath(legacyCliPath);
-            }
-        }
 
         var shimBackedCandidates = new List<string>();
         var fallbackCandidates = new List<string>
@@ -120,30 +99,6 @@ public sealed record AppSettings
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
-    }
-
-    private static string? GetLegacyAppsDirectory(
-        string? legacyInstallationRoot)
-    {
-        if (string.IsNullOrWhiteSpace(legacyInstallationRoot))
-        {
-            return null;
-        }
-
-        var installationDirectory = new DirectoryInfo(Path.GetFullPath(legacyInstallationRoot));
-        if (!installationDirectory.Exists ||
-            !string.Equals(
-                installationDirectory.Name,
-                "even-terminal",
-                StringComparison.OrdinalIgnoreCase) ||
-            installationDirectory.Parent is not { } appsDirectory ||
-            !string.Equals(appsDirectory.Name, "Apps", StringComparison.OrdinalIgnoreCase) ||
-            !appsDirectory.Exists)
-        {
-            return null;
-        }
-
-        return appsDirectory.FullName;
     }
 
     private static string GetDefaultCodexPath()

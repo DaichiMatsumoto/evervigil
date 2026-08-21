@@ -17,8 +17,6 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot 'WindowsExecutableResourceAudit.psm1') -Force
-. (Join-Path $PSScriptRoot 'LegacyCompatibility.generated.ps1')
-
 $auditAppId = 'A17D6AC4-2F11-45CF-A0BE-42C2F607F7B8'
 $auditUninstallRegistryPath =
     "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{$auditAppId}_is1"
@@ -121,15 +119,10 @@ function Get-ProtectedHostSnapshot {
     $protectedPaths = @(
         $installLocation,
         (Join-Path $env:LOCALAPPDATA 'Programs\EverVigil'),
-        (Join-Path $env:LOCALAPPDATA $script:LegacyCompatibilityApplicationInstallRootRelativeToLocalAppData),
         (Join-Path $env:LOCALAPPDATA 'EverVigil'),
-        (Join-Path $env:LOCALAPPDATA $script:LegacyCompatibilityApplicationDataRootRelativeToLocalAppData),
         (Join-Path $env:LOCALAPPDATA 'EverVigil.Uninstall'),
-        (Join-Path $env:LOCALAPPDATA $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData),
         (Join-Path $programsRoot 'EverVigil'),
-        (Join-Path $programsRoot $script:LegacyCompatibilityApplicationProductName),
-        (Join-Path $startupRoot 'EverVigil.lnk'),
-        (Join-Path $startupRoot $script:LegacyCompatibilityApplicationStartupShortcutFileName)
+        (Join-Path $startupRoot 'EverVigil.lnk')
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $lines = @(
         Get-RegistryFingerprintLines -Path @($uninstallRegistry, $runRegistry)

@@ -271,13 +271,13 @@ $expectedUninstallSupportSources = @(
     'Source: "{#PackageRoot}\scripts\InstallTransactionData.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Invoke-InteractiveUserTask.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Invoke-SystemMaintenance.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
-    'Source: "{#PackageRoot}\scripts\LegacyCompatibility.generated.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
+    'Source: "{#PackageRoot}\scripts\ProductIdentity.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Resolve-SafeInstallRoot.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
 )
 $actualUninstallSupportSources = @(
     [regex]::Matches(
         $installerContent,
-        '(?m)^Source: .*DestDir: "\{#MySupportRoot\}\\Support(?:\\scripts)?"; Flags: ignoreversion$') |
+        '(?m)^Source: .*DestDir: "\{#MySupportRoot\}\\Support(?:\\scripts)?"; Flags: ignoreversion(?=\r?$)') |
         ForEach-Object { $_.Value })
 if ($actualUninstallSupportSources.Count -ne
         $expectedUninstallSupportSources.Count -or
@@ -302,7 +302,6 @@ foreach ($requiredBuildGuard in @(
 foreach ($requiredAuditGuard in @(
         'Get-ProtectedHostSnapshot',
         "(Join-Path `$env:LOCALAPPDATA 'EverVigil')",
-        'LegacyCompatibilityApplicationDataRootRelativeToLocalAppData',
         'protectedHostUnchanged',
         'Assert-EverVigilExecutableResources',
         'Icon.ExtractAssociatedIcon',

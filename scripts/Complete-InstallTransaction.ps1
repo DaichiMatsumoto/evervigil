@@ -9,12 +9,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$legacyCompatibilityPath = Join-Path $PSScriptRoot 'LegacyCompatibility.generated.ps1'
-if (-not (Test-Path -LiteralPath $legacyCompatibilityPath -PathType Leaf)) {
-    throw "Required legacy-compatibility constants not found: $legacyCompatibilityPath"
+$productIdentityPath = Join-Path $PSScriptRoot 'ProductIdentity.ps1'
+if (-not (Test-Path -LiteralPath $productIdentityPath -PathType Leaf)) {
+    throw "Required product-identity constants not found: $productIdentityPath"
 }
-. $legacyCompatibilityPath
-$script:InstallTransactionAppId = $script:LegacyCompatibilityApplicationAppId
+. $productIdentityPath
+$script:InstallTransactionAppId = $script:EverVigilProductAppId
 
 $installPathResolver = Join-Path $PSScriptRoot 'Resolve-SafeInstallRoot.ps1'
 $interactiveTaskHelper = Join-Path $PSScriptRoot 'Invoke-InteractiveUserTask.ps1'
@@ -34,7 +34,7 @@ if (-not (Test-Path -LiteralPath $installTransactionDataHelper -PathType Leaf)) 
 $script:InstallTransactionDataRoot = Get-EverVigilActiveDataRoot
 $script:InstallTransactionDefaultPath = Join-Path `
     $script:InstallTransactionDataRoot `
-    $script:LegacyCompatibilityDataTransactionJournalFileName
+    $script:EverVigilTransactionJournalFileName
 $script:PendingSystemJournalPath = Join-Path `
     $script:InstallTransactionDataRoot `
     'pending-system-configuration.json'
@@ -61,12 +61,7 @@ function Assert-NoForeignPendingSystemJournal {
         [switch]$AllowOwnedAtomicTemporary
     )
 
-    $recognizedRoots = @(
-        (Join-Path $env:LOCALAPPDATA 'EverVigil')
-        (Join-Path `
-            $env:LOCALAPPDATA `
-            $script:LegacyCompatibilityApplicationDataRootRelativeToLocalAppData)
-    ) | ForEach-Object { [IO.Path]::GetFullPath($_) } | Select-Object -Unique
+    $recognizedRoots = @([IO.Path]::GetFullPath($script:InstallTransactionDataRoot))
     foreach ($recognizedRoot in $recognizedRoots) {
         if (-not (Test-Path -LiteralPath $recognizedRoot -PathType Container)) {
             continue
@@ -288,58 +283,36 @@ function Read-EverVigilInstallTransaction {
     }
 
     $requiredProperties = @(
-            'schemaVersion'
-            'appId'
-            'ownerSid'
-            'status'
-            'deletionIntent'
-            'transactionId'
-            'installRoot'
-            'previousInstallRoot'
-            'publishRoot'
-            'stagingRoot'
-            'backupRoot'
-            'previousBackupRoot'
-            'recoveryRoot'
-            'rollbackTaskXml'
-            'systemResultPath'
-            'installRootChanged'
-            'destinationBackupPlanned'
-            'previousBackupPlanned'
-            'destinationOwnedInstallPresent'
-            'existingInstallPresent'
-            'migrationApplied'
-            'runtimeConfigurationReady'
-            'dataRootExisted'
-            'settingsWasPresent'
-            'tokenWasPresent'
-            'applicationDataSnapshotReady'
-            'applicationDataSnapshots'
-            'settingsQuarantineFiles'
-            'tokenQuarantineFiles'
-            'systemConfigurationRequiredWasPresent'
-            'diagnosticLoggingWasPresent'
-            'logsRootWasPresent'
-            'transactionsRootWasPresent'
-            'systemConfigurationWasRequired'
-            'appliedSystemConfigurationWasPresent'
-            'legacyCredentialFound'
-            'legacyTokenPath'
-            'startupWasRegistered'
-            'existingSupervisorWasRunning'
-            'publicPort'
-            'backendPort'
-            'tailscalePath'
-        )
-    $optionalProperties = @(
-        'legacyCleanupAuthorized'
-        'previousOwnedInstallPresent'
-        'bridgeHostWasPresent'
-        'migrateV121SystemState'
-        'protectedBrokerWasPresentBefore'
-        'protectedBrokerCleanupAuthorized'
-        'protectedBrokerReady'
+        'schemaVersion'
+        'appId'
+        'ownerSid'
+        'status'
+        'deletionIntent'
+        'transactionId'
         'cleanupTransactionId'
+        'installRoot'
+        'previousInstallRoot'
+        'installRootChanged'
+        'publishRoot'
+        'stagingRoot'
+        'backupRoot'
+        'previousBackupRoot'
+        'recoveryRoot'
+        'rollbackTaskXml'
+        'systemResultPath'
+        'destinationBackupPlanned'
+        'previousBackupPlanned'
+        'destinationOwnedInstallPresent'
+        'previousOwnedInstallPresent'
+        'existingInstallPresent'
+        'systemMutationApplied'
+        'runtimeConfigurationReady'
+        'dataRootExisted'
+        'bridgeHostWasPresent'
+        'settingsWasPresent'
+        'tokenWasPresent'
+        'applicationDataSnapshotReady'
+        'applicationDataSnapshots'
         'externalArtifactSnapshotReady'
         'externalArtifactSnapshots'
         'uninstallRegistryWasPresent'
@@ -347,8 +320,25 @@ function Read-EverVigilInstallTransaction {
         'uninstallRegistrySnapshotSha256'
         'uninstallRegistryMutationMarkerSha256'
         'externalCommitPhase'
+        'settingsQuarantineFiles'
+        'tokenQuarantineFiles'
+        'appliedSystemConfigurationWasPresent'
+        'systemConfigurationRequiredWasPresent'
+        'diagnosticLoggingWasPresent'
+        'logsRootWasPresent'
+        'transactionsRootWasPresent'
+        'systemConfigurationWasRequired'
+        'protectedBrokerWasPresentBefore'
+        'protectedBrokerCleanupAuthorized'
+        'protectedBrokerReady'
+        'startupWasRegistered'
+        'existingSupervisorWasRunning'
+        'publicPort'
+        'backendPort'
+        'tailscalePath'
         'targetVersion'
     )
+    $optionalProperties = @()
     $stateProperties = @($state.PSObject.Properties)
     if (@($requiredProperties | Where-Object {
                 $null -eq $state.PSObject.Properties[$_]
@@ -364,113 +354,74 @@ function Read-EverVigilInstallTransaction {
 
     $stringProperties = @(
         'appId', 'ownerSid', 'status', 'deletionIntent', 'transactionId',
-        'installRoot', 'previousInstallRoot', 'publishRoot', 'stagingRoot',
-        'backupRoot', 'previousBackupRoot', 'recoveryRoot', 'rollbackTaskXml',
-        'systemResultPath', 'legacyTokenPath', 'tailscalePath')
+        'cleanupTransactionId', 'installRoot', 'previousInstallRoot',
+        'publishRoot', 'stagingRoot', 'backupRoot', 'previousBackupRoot',
+        'recoveryRoot', 'rollbackTaskXml', 'systemResultPath', 'tailscalePath',
+        'uninstallRegistrySnapshotSha256',
+        'uninstallRegistryMutationMarkerSha256', 'externalCommitPhase',
+        'targetVersion')
     $booleanProperties = @(
         'installRootChanged', 'destinationBackupPlanned',
         'previousBackupPlanned', 'destinationOwnedInstallPresent',
-        'existingInstallPresent', 'migrationApplied',
-        'runtimeConfigurationReady', 'dataRootExisted', 'settingsWasPresent',
-        'tokenWasPresent', 'applicationDataSnapshotReady',
+        'previousOwnedInstallPresent', 'existingInstallPresent',
+        'systemMutationApplied', 'runtimeConfigurationReady', 'dataRootExisted',
+        'bridgeHostWasPresent', 'settingsWasPresent', 'tokenWasPresent',
+        'applicationDataSnapshotReady', 'externalArtifactSnapshotReady',
+        'uninstallRegistryWasPresent', 'uninstallRegistrySnapshotReady',
         'systemConfigurationRequiredWasPresent', 'diagnosticLoggingWasPresent',
         'logsRootWasPresent', 'transactionsRootWasPresent',
         'systemConfigurationWasRequired', 'appliedSystemConfigurationWasPresent',
-        'legacyCredentialFound', 'startupWasRegistered',
+        'protectedBrokerWasPresentBefore', 'protectedBrokerCleanupAuthorized',
+        'protectedBrokerReady', 'startupWasRegistered',
         'existingSupervisorWasRunning')
     $arrayProperties = @(
         'applicationDataSnapshots',
+        'externalArtifactSnapshots',
         'settingsQuarantineFiles',
         'tokenQuarantineFiles')
-    if (@($stringProperties | Where-Object {
-                $state.PSObject.Properties[$_].Value -isnot [string]
-            }).Count -gt 0 -or
-        @($booleanProperties | Where-Object {
-                $state.PSObject.Properties[$_].Value -isnot [bool]
-            }).Count -gt 0 -or
-        @($arrayProperties | Where-Object {
-                $state.PSObject.Properties[$_].Value -isnot [Array]
-            }).Count -gt 0 -or
-        ($state.PSObject.Properties['schemaVersion'].Value -isnot [int] -and
-            $state.PSObject.Properties['schemaVersion'].Value -isnot [long]) -or
-        ($state.PSObject.Properties['publicPort'].Value -isnot [int] -and
-            $state.PSObject.Properties['publicPort'].Value -isnot [long]) -or
-        ($state.PSObject.Properties['backendPort'].Value -isnot [int] -and
-            $state.PSObject.Properties['backendPort'].Value -isnot [long])) {
-        throw 'The install transaction contains a property with an invalid JSON type.'
-    }
-    foreach ($optionalBooleanProperty in @(
-            'previousOwnedInstallPresent'
-            'bridgeHostWasPresent'
-            'migrateV121SystemState'
-            'protectedBrokerWasPresentBefore'
-            'protectedBrokerCleanupAuthorized'
-            'protectedBrokerReady')) {
-        $optionalProperty = $state.PSObject.Properties[$optionalBooleanProperty]
-        if ($null -ne $optionalProperty -and
-            $optionalProperty.Value -isnot [bool]) {
-            throw "The install transaction property '$optionalBooleanProperty' must be a JSON boolean."
+    foreach ($name in $stringProperties) {
+        if ($state.PSObject.Properties[$name].Value -isnot [string]) {
+            throw "The install transaction property '$name' must be a JSON string."
         }
     }
-    $externalSnapshotProperties = @(
-        'externalArtifactSnapshotReady'
-        'externalArtifactSnapshots'
-        'uninstallRegistryWasPresent'
-        'uninstallRegistrySnapshotReady'
-        'uninstallRegistrySnapshotSha256'
-        'uninstallRegistryMutationMarkerSha256'
-        'externalCommitPhase')
-    $externalSnapshotPropertyCount = @($externalSnapshotProperties | Where-Object {
-            $null -ne $state.PSObject.Properties[$_]
-        }).Count
-    if ($externalSnapshotPropertyCount -notin @(0, $externalSnapshotProperties.Count)) {
-        throw 'The external artifact snapshot state is incomplete.'
+    foreach ($name in $booleanProperties) {
+        if ($state.PSObject.Properties[$name].Value -isnot [bool]) {
+            throw "The install transaction property '$name' must be a JSON boolean."
+        }
     }
-    if ($externalSnapshotPropertyCount -eq $externalSnapshotProperties.Count) {
-        foreach ($booleanName in @(
-                'externalArtifactSnapshotReady'
-                'uninstallRegistryWasPresent'
-                'uninstallRegistrySnapshotReady')) {
-            if ($state.PSObject.Properties[$booleanName].Value -isnot [bool]) {
-                throw "The install transaction property '$booleanName' must be a JSON boolean."
-            }
+    foreach ($name in $arrayProperties) {
+        if ($state.PSObject.Properties[$name].Value -isnot [Array]) {
+            throw "The install transaction property '$name' must be a JSON array."
         }
-        if ($state.externalArtifactSnapshots -isnot [Array] -or
-            $state.uninstallRegistrySnapshotSha256 -isnot [string] -or
-            $state.uninstallRegistryMutationMarkerSha256 -isnot [string] -or
-            $state.externalCommitPhase -isnot [string] -or
-            [string]$state.externalCommitPhase -notin @(
-                'None', 'SnapshotReady', 'SystemCommitPrepared',
-                'SystemCommitted', 'CleanupComplete')) {
-            throw 'The external artifact snapshot state contains an invalid JSON type or phase.'
-        }
-        foreach ($snapshot in @($state.externalArtifactSnapshots)) {
-            $snapshotProperties = @($snapshot.PSObject.Properties)
-            if ($snapshotProperties.Count -ne 4 -or
-                @($snapshotProperties.Name | Where-Object {
-                        $_ -cnotin @('role', 'wasPresent', 'length', 'sha256')
-                    }).Count -gt 0 -or
-                $snapshot.role -isnot [string] -or
-                $snapshot.wasPresent -isnot [bool] -or
-                ($snapshot.length -isnot [int] -and
-                    $snapshot.length -isnot [long]) -or
-                $snapshot.sha256 -isnot [string]) {
-                throw 'The install transaction contains an invalid external artifact snapshot schema.'
-            }
-        }
-    } elseif ($null -ne $state.PSObject.Properties['cleanupTransactionId']) {
-        throw 'A current install transaction is missing its external artifact recovery state.'
     }
-    $targetVersionProperty = $state.PSObject.Properties['targetVersion']
-    if ($null -ne $targetVersionProperty -and
-        ($targetVersionProperty.Value -isnot [string] -or
-            [string]$targetVersionProperty.Value -cnotmatch
-                '\A(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?\z')) {
+    foreach ($name in @('schemaVersion', 'publicPort', 'backendPort')) {
+        $value = $state.PSObject.Properties[$name].Value
+        if ($value -isnot [int] -and $value -isnot [long]) {
+            throw "The install transaction property '$name' must be a JSON integer."
+        }
+    }
+    if ([string]$state.externalCommitPhase -notin @(
+            'None', 'SnapshotReady', 'SystemCommitPrepared',
+            'SystemCommitted', 'CleanupComplete')) {
+        throw 'The external artifact snapshot state contains an invalid phase.'
+    }
+    foreach ($snapshot in @($state.externalArtifactSnapshots)) {
+        $snapshotProperties = @($snapshot.PSObject.Properties)
+        if ($snapshotProperties.Count -ne 4 -or
+            @($snapshotProperties.Name | Where-Object {
+                    $_ -cnotin @('role', 'wasPresent', 'length', 'sha256')
+                }).Count -gt 0 -or
+            $snapshot.role -isnot [string] -or
+            $snapshot.wasPresent -isnot [bool] -or
+            ($snapshot.length -isnot [int] -and
+                $snapshot.length -isnot [long]) -or
+            $snapshot.sha256 -isnot [string]) {
+            throw 'The install transaction contains an invalid external artifact snapshot schema.'
+        }
+    }
+    if ([string]$state.targetVersion -cnotmatch
+        '\A(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?\z') {
         throw 'The install transaction target version is invalid.'
-    }
-    if ($null -ne $state.PSObject.Properties['cleanupTransactionId'] -and
-        $null -eq $targetVersionProperty) {
-        throw 'A current install transaction is missing its target version.'
     }
     foreach ($snapshot in @($state.applicationDataSnapshots)) {
         $snapshotProperties = @($snapshot.PSObject.Properties)
@@ -491,7 +442,7 @@ function Read-EverVigilInstallTransaction {
 
     $ownerSid = Get-EverVigilOwnerSid
     if ([string]$state.schemaVersion -cne
-        $script:LegacyCompatibilityDataTransactionSchemaVersion -or
+        $script:EverVigilTransactionSchemaVersion -or
         -not [string]::Equals(
             [string]$state.appId,
             $script:InstallTransactionAppId,
@@ -515,35 +466,13 @@ function Read-EverVigilInstallTransaction {
     if ([string]$state.transactionId -cnotmatch '\A[0-9a-f]{32}\z') {
         throw "The install transaction identifier is invalid: $($state.transactionId)"
     }
-    $cleanupTransactionIdProperty =
-        $state.PSObject.Properties['cleanupTransactionId']
-    if ($null -ne $cleanupTransactionIdProperty -and
-        ($cleanupTransactionIdProperty.Value -isnot [string] -or
-            [string]$cleanupTransactionIdProperty.Value -cnotmatch
-                '\A[0-9a-f]{32}\z' -or
-            [string]::Equals(
-                [string]$cleanupTransactionIdProperty.Value,
-                [string]$state.transactionId,
-                [StringComparison]::Ordinal))) {
+    if ([string]$state.cleanupTransactionId -cnotmatch '\A[0-9a-f]{32}\z' -or
+        [string]::Equals(
+            [string]$state.cleanupTransactionId,
+            [string]$state.transactionId,
+            [StringComparison]::Ordinal)) {
         throw 'The install cleanup transaction identifier is malformed or reuses the primary transaction identifier.'
     }
-    $protectedBrokerReadyProperty =
-        $state.PSObject.Properties['protectedBrokerReady']
-    $protectedBrokerCleanupAuthorizedProperty =
-        $state.PSObject.Properties['protectedBrokerCleanupAuthorized']
-    if ((($null -ne $protectedBrokerReadyProperty -and
-                $protectedBrokerReadyProperty.Value -eq $true) -or
-            ($null -ne $protectedBrokerCleanupAuthorizedProperty -and
-                $protectedBrokerCleanupAuthorizedProperty.Value -eq $true)) -and
-        $null -eq $cleanupTransactionIdProperty) {
-        throw 'A protected broker transaction requires a separate cleanup transaction identifier.'
-    }
-    $legacyCleanupProperty = $state.PSObject.Properties['legacyCleanupAuthorized']
-    if ($null -ne $legacyCleanupProperty -and
-        $legacyCleanupProperty.Value -isnot [bool]) {
-        throw 'The legacy cleanup authorization must be a JSON boolean.'
-    }
-
     $state.installRoot = Resolve-SafeInstallRoot `
         -Path ([string]$state.installRoot) `
         -AllowCurrentTempTree
@@ -552,20 +481,20 @@ function Read-EverVigilInstallTransaction {
         -AllowCurrentTempTree
     $expectedPublishRoot = Join-Path `
         $script:InstallTransactionDataRoot `
-        "$($script:LegacyCompatibilityDataInstallerPublishDirectoryPrefix)$($state.transactionId)"
+        "$($script:EverVigilInstallerPublishDirectoryPrefix)$($state.transactionId)"
     $expectedStagingRoot = "$($state.installRoot).staging-$($state.transactionId)"
     $expectedBackupRoot = "$($state.installRoot).backup-$($state.transactionId)"
     $expectedPreviousBackupRoot = "$($state.previousInstallRoot).relocated-$($state.transactionId)"
     $expectedRecoveryRoot = Join-Path `
         $script:InstallTransactionDataRoot `
-        "$($script:LegacyCompatibilityDataTransactionRecoveryDirectoryName)\$($state.transactionId)"
+        "$($script:EverVigilTransactionRecoveryDirectoryName)\$($state.transactionId)"
     foreach ($pathCheck in @(
             [pscustomobject]@{ Actual = [string]$state.publishRoot; Expected = $expectedPublishRoot; Name = 'temporary publish root' }
             [pscustomobject]@{ Actual = [string]$state.stagingRoot; Expected = $expectedStagingRoot; Name = 'staging root' }
             [pscustomobject]@{ Actual = [string]$state.backupRoot; Expected = $expectedBackupRoot; Name = 'destination backup' }
             [pscustomobject]@{ Actual = [string]$state.previousBackupRoot; Expected = $expectedPreviousBackupRoot; Name = 'previous backup' }
             [pscustomobject]@{ Actual = [string]$state.recoveryRoot; Expected = $expectedRecoveryRoot; Name = 'recovery root' }
-            [pscustomobject]@{ Actual = [string]$state.rollbackTaskXml; Expected = (Join-Path $expectedRecoveryRoot 'legacy-task.xml'); Name = 'rollback task' }
+            [pscustomobject]@{ Actual = [string]$state.rollbackTaskXml; Expected = (Join-Path $expectedRecoveryRoot 'interactive-task.xml'); Name = 'rollback task' }
             [pscustomobject]@{ Actual = [string]$state.systemResultPath; Expected = (Join-Path $expectedRecoveryRoot 'system.log'); Name = 'system log' }
         )) {
         $actual = [IO.Path]::GetFullPath($pathCheck.Actual)
@@ -592,35 +521,33 @@ function Read-EverVigilInstallTransaction {
         -RecoveryRoot $expectedRecoveryRoot `
         -Status ([string]$state.status) `
         -RequireBackupFiles:$requireBackupFiles
-    if ($externalSnapshotPropertyCount -eq $externalSnapshotProperties.Count) {
-        if ([bool]$state.externalArtifactSnapshotReady -ne
-                [bool]$state.uninstallRegistrySnapshotReady -or
-            ([bool]$state.externalArtifactSnapshotReady -and
-                ([string]$state.uninstallRegistrySnapshotSha256 -cnotmatch
-                    '\A[0-9a-f]{64}\z' -or
-                    [string]$state.uninstallRegistryMutationMarkerSha256 -cnotmatch
-                        '\A[0-9a-f]{64}\z')) -or
-            (-not [bool]$state.externalArtifactSnapshotReady -and
-                ([string]$state.uninstallRegistrySnapshotSha256 -cne '' -or
-                    [string]$state.uninstallRegistryMutationMarkerSha256 -cne '' -or
-                    [string]$state.externalCommitPhase -cne 'None'))) {
-            throw 'The external artifact and uninstall registry snapshot markers are inconsistent.'
-        }
-        Assert-EverVigilExternalArtifactSnapshotState `
-            -State $state `
-            -RecoveryRoot $expectedRecoveryRoot `
-            -RequireBackupFiles:([bool]$state.externalArtifactSnapshotReady -and
-                [string]$state.externalCommitPhase -cne 'CleanupComplete')
-        if ([bool]$state.uninstallRegistrySnapshotReady -and
-            [string]$state.externalCommitPhase -cne 'CleanupComplete') {
-            [void](Read-EverVigilUninstallRegistrySnapshot `
-                    -RecoveryRoot $expectedRecoveryRoot `
-                    -ExpectedSha256 ([string]$state.uninstallRegistrySnapshotSha256))
-            Assert-EverVigilUninstallRegistryMutationMarker `
+    if ([bool]$state.externalArtifactSnapshotReady -ne
+            [bool]$state.uninstallRegistrySnapshotReady -or
+        ([bool]$state.externalArtifactSnapshotReady -and
+            ([string]$state.uninstallRegistrySnapshotSha256 -cnotmatch
+                '\A[0-9a-f]{64}\z' -or
+                [string]$state.uninstallRegistryMutationMarkerSha256 -cnotmatch
+                    '\A[0-9a-f]{64}\z')) -or
+        (-not [bool]$state.externalArtifactSnapshotReady -and
+            ([string]$state.uninstallRegistrySnapshotSha256 -cne '' -or
+                [string]$state.uninstallRegistryMutationMarkerSha256 -cne '' -or
+                [string]$state.externalCommitPhase -cne 'None'))) {
+        throw 'The external artifact and uninstall registry snapshot markers are inconsistent.'
+    }
+    Assert-EverVigilExternalArtifactSnapshotState `
+        -State $state `
+        -RecoveryRoot $expectedRecoveryRoot `
+        -RequireBackupFiles:([bool]$state.externalArtifactSnapshotReady -and
+            [string]$state.externalCommitPhase -cne 'CleanupComplete')
+    if ([bool]$state.uninstallRegistrySnapshotReady -and
+        [string]$state.externalCommitPhase -cne 'CleanupComplete') {
+        [void](Read-EverVigilUninstallRegistrySnapshot `
                 -RecoveryRoot $expectedRecoveryRoot `
-                -TransactionId ([string]$state.transactionId) `
-                -ExpectedSha256 ([string]$state.uninstallRegistryMutationMarkerSha256)
-        }
+                -ExpectedSha256 ([string]$state.uninstallRegistrySnapshotSha256))
+        Assert-EverVigilUninstallRegistryMutationMarker `
+            -RecoveryRoot $expectedRecoveryRoot `
+            -TransactionId ([string]$state.transactionId) `
+            -ExpectedSha256 ([string]$state.uninstallRegistryMutationMarkerSha256)
     }
     Assert-EverVigilTransactionDeletionIntent -State $state
 
@@ -792,7 +719,7 @@ function Assert-VerifiedTree {
                         $_.PSIsContainer -or
                         ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
                         $_.Length -gt 536870912 -or
-                        ($_.Name -notin @('legacy-task.xml', 'system.log') -and
+                        ($_.Name -notin @('interactive-task.xml', 'system.log') -and
                             -not (Test-EverVigilApplicationDataRecoveryFileName `
                                 -Name $_.Name) -and
                             -not (Test-EverVigilExternalArtifactRecoveryFileName `
@@ -967,7 +894,7 @@ function Write-SystemConfigurationRequirement {
     New-Item -ItemType Directory -Path $script:InstallTransactionDataRoot -Force | Out-Null
     $requiredPath = Join-Path `
         $script:InstallTransactionDataRoot `
-        $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
+        $script:EverVigilSystemConfigurationRequiredFileName
     $bytes = [Text.UTF8Encoding]::new($false).GetBytes(
         "$Reason at $(Get-Date -Format o)`n")
     $stream = [IO.FileStream]::new(
@@ -990,7 +917,7 @@ function Test-AppliedSystemConfigurationMatchesTransaction {
 
     $path = Join-Path `
         $script:InstallTransactionDataRoot `
-        $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
+        $script:EverVigilAppliedSystemConfigurationFileName
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         return $false
     }
@@ -1019,7 +946,7 @@ function Invoke-SystemBrokerTransaction {
     $ownedSystemTemporaries = @(
         Get-OwnedInstallerSystemJournalTemporaries `
             -TransactionId ([string]$State.transactionId))
-    if (-not [bool]$State.migrationApplied -and
+    if (-not [bool]$State.systemMutationApplied -and
         -not $pendingExists -and
         $ownedSystemTemporaries.Count -eq 0) {
         return
@@ -1266,7 +1193,6 @@ function Restore-ProgramFiles {
         } else {
             Assert-OwnedInstallRoot `
                 -Path $previousRoot `
-                -AllowLegacyKnownLayout `
                 -AllowCurrentTempTree
         }
     }
@@ -1286,7 +1212,6 @@ function Restore-PreviousRuntime {
     $executable = Get-EverVigilExecutableAtRoot -Root $root
     Assert-OwnedInstallRoot `
         -Path $root `
-        -AllowLegacyKnownLayout `
         -AllowCurrentTempTree
     if ([bool]$State.startupWasRegistered) {
         Invoke-SupervisorCommand -Executable $executable -Arguments @('--register-startup') -TimeoutSeconds 15
@@ -1352,18 +1277,6 @@ function Remove-RollbackWorkTrees {
         -Kind $kind
 }
 
-function Get-BridgeHostWasPresentBeforeTransaction {
-    param([Parameter(Mandatory)]$State)
-
-    $property = $State.PSObject.Properties['bridgeHostWasPresent']
-    if ($null -eq $property) {
-        # Transactions from builds that predate BridgeHost could not have
-        # created it. Preserve any such directory during recovery.
-        return $true
-    }
-    return [bool]$property.Value
-}
-
 function Remove-NewApplicationData {
     param([Parameter(Mandatory)]$State)
 
@@ -1372,15 +1285,15 @@ function Remove-NewApplicationData {
         -State $State
     Remove-EverVigilNewBridgeHostDirectory `
         -DataRoot $script:InstallTransactionDataRoot `
-        -BridgeHostWasPresent (Get-BridgeHostWasPresentBeforeTransaction -State $State)
+        -BridgeHostWasPresent ([bool]$State.bridgeHostWasPresent)
     $logRoot = Join-Path `
         $script:InstallTransactionDataRoot `
-        $script:LegacyCompatibilityDataLogDirectoryName
+        $script:EverVigilLogDirectoryName
     if (-not [bool]$State.logsRootWasPresent -and
         (Test-Path -LiteralPath $logRoot -PathType Container)) {
         $ownedLogNames = @(
             'evervigil.log'
-            $script:LegacyCompatibilityDataLogFileName
+            $script:EverVigilLogFileName
         ) | Select-Object -Unique
         Get-ChildItem -LiteralPath $logRoot -File -Force |
             Where-Object {
@@ -1422,15 +1335,8 @@ function Complete-RolledBackInstallTransaction {
 function Restore-TransactionExternalArtifacts {
     param([Parameter(Mandatory)]$State)
 
-    $snapshotReady = $State.PSObject.Properties['externalArtifactSnapshotReady']
-    $registryReady = $State.PSObject.Properties['uninstallRegistrySnapshotReady']
-    if ($null -eq $snapshotReady -and $null -eq $registryReady) {
-        return
-    }
-    if ($null -ne $snapshotReady -and
-        $snapshotReady.Value -eq $false -and
-        $null -ne $registryReady -and
-        $registryReady.Value -eq $false -and
+    if (-not [bool]$State.externalArtifactSnapshotReady -and
+        -not [bool]$State.uninstallRegistrySnapshotReady -and
         [string]$State.status -ceq 'staging' -and
         [string]$State.externalCommitPhase -ceq 'None' -and
         @($State.externalArtifactSnapshots).Count -eq 0 -and
@@ -1441,229 +1347,14 @@ function Restore-TransactionExternalArtifacts {
         # disposable; they are not authority to restore or delete live state.
         return
     }
-    if ($null -eq $snapshotReady -or
-        $snapshotReady.Value -ne $true -or
-        $null -eq $registryReady -or
-        $registryReady.Value -ne $true) {
+    if (-not [bool]$State.externalArtifactSnapshotReady -or
+        -not [bool]$State.uninstallRegistrySnapshotReady) {
         throw 'The external artifact rollback snapshots are incomplete.'
     }
     Restore-EverVigilExternalArtifactSnapshots `
         -State $State `
         -RecoveryRoot ([string]$State.recoveryRoot) `
         -TransactionId ([string]$State.transactionId)
-}
-
-function Assert-LegacyTokenPath {
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [Parameter(Mandatory)][string]$OwnerSid
-    )
-
-    $resolvedPath = [IO.Path]::GetFullPath($Path)
-    if (-not [string]::Equals(
-            [IO.Path]::GetFileName($resolvedPath),
-            'token.txt',
-            [StringComparison]::OrdinalIgnoreCase)) {
-        throw "The legacy token path has an unexpected file name: $resolvedPath"
-    }
-    $profileRegistryPath =
-        "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$OwnerSid"
-    $profilePath = [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables([string](
-                Get-ItemPropertyValue -LiteralPath $profileRegistryPath -Name 'ProfileImagePath')))
-    $profileName = [IO.DirectoryInfo]::new($profilePath).Name
-    $allowedRoots = @(
-        (Join-Path `
-            $profilePath `
-            $script:LegacyCompatibilityOlderEvenTerminalCodexLocalAppDataRootRelativeToProfile)
-        foreach ($drive in @(Get-PSDrive -PSProvider FileSystem)) {
-            [IO.Path]::Combine($drive.Root, 'Users', $profileName, 'Apps', 'even-terminal')
-        }
-    ) | ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd('\') } | Select-Object -Unique
-    $tokenRoot = [IO.Path]::GetDirectoryName($resolvedPath).TrimEnd('\')
-    if (-not @($allowedRoots | Where-Object {
-                [string]::Equals($_, $tokenRoot, [StringComparison]::OrdinalIgnoreCase)
-            }).Count) {
-        throw "The legacy token path is outside the recognized migration roots: $resolvedPath"
-    }
-}
-
-function Remove-EverVigilLegacyStartMenuShortcuts {
-    param([Parameter(Mandatory)]$State)
-
-    $programsRoot = Get-EverVigilProgramsFolderPath
-    $legacyGroup = Join-Path `
-        $programsRoot `
-        $script:LegacyCompatibilityApplicationProductName
-    if (-not (Test-Path -LiteralPath $legacyGroup -PathType Container)) {
-        return
-    }
-    $groupItem = Get-Item -LiteralPath $legacyGroup -Force -ErrorAction Stop
-    if (($groupItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw "The legacy Start Menu group is a reparse point: $legacyGroup"
-    }
-
-    $applicationShortcut = Join-Path `
-        $legacyGroup `
-        "$($script:LegacyCompatibilityApplicationProductName).lnk"
-    $applicationTargets = @(
-        (Join-Path `
-            ([string]$State.previousInstallRoot) `
-            $script:LegacyCompatibilityApplicationExecutableFileName)
-        (Join-Path `
-            ([string]$State.installRoot) `
-            $script:LegacyCompatibilityApplicationExecutableFileName)
-        (Join-Path `
-            (Join-Path `
-                $env:LOCALAPPDATA `
-                $script:LegacyCompatibilityApplicationInstallRootRelativeToLocalAppData) `
-            $script:LegacyCompatibilityApplicationExecutableFileName)
-    ) | Select-Object -Unique
-    if ((Test-Path -LiteralPath $applicationShortcut -PathType Leaf) -and
-        -not (Remove-EverVigilOwnedShortcut `
-            -Path $applicationShortcut `
-            -ExpectedTargetPath $applicationTargets `
-            -ExpectedArguments '')) {
-        throw "The legacy application Start Menu shortcut has an unexpected identity: $applicationShortcut"
-    }
-
-    $legacySupportRoot = Join-Path `
-        $env:LOCALAPPDATA `
-        $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData
-    $uninstallShortcut = Join-Path `
-        $legacyGroup `
-        "Uninstall $($script:LegacyCompatibilityApplicationProductName).lnk"
-    if ((Test-Path -LiteralPath $uninstallShortcut -PathType Leaf) -and
-        -not (Remove-EverVigilOwnedShortcut `
-            -Path $uninstallShortcut `
-            -ExpectedTargetPath @((Join-Path $legacySupportRoot 'unins000.exe')) `
-            -ExpectedArguments '')) {
-        throw "The legacy uninstaller Start Menu shortcut has an unexpected identity: $uninstallShortcut"
-    }
-
-    if (@(Get-ChildItem -LiteralPath $legacyGroup -Force -ErrorAction Stop).Count -eq 0) {
-        Remove-Item -LiteralPath $legacyGroup -Force
-    }
-}
-
-function Remove-EverVigilLegacyStartupShortcut {
-    param([Parameter(Mandatory)]$State)
-
-    $startupFolder = Get-EverVigilStartupFolderPath
-    if ([string]::IsNullOrWhiteSpace($startupFolder)) {
-        return
-    }
-    $shortcutPath = Join-Path `
-        $startupFolder `
-        $script:LegacyCompatibilityApplicationStartupShortcutFileName
-    if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) {
-        return
-    }
-    $expectedTargets = @(
-        (Join-Path `
-            ([string]$State.previousInstallRoot) `
-            $script:LegacyCompatibilityApplicationExecutableFileName)
-        (Join-Path `
-            ([string]$State.installRoot) `
-            $script:LegacyCompatibilityApplicationExecutableFileName)
-        (Join-Path `
-            (Join-Path `
-                $env:LOCALAPPDATA `
-                $script:LegacyCompatibilityApplicationInstallRootRelativeToLocalAppData) `
-            $script:LegacyCompatibilityApplicationExecutableFileName)
-    ) | Select-Object -Unique
-    if (-not (Remove-EverVigilOwnedShortcut `
-            -Path $shortcutPath `
-            -ExpectedTargetPath $expectedTargets `
-            -ExpectedArguments '--background')) {
-        throw "The legacy startup shortcut has an unexpected identity: $shortcutPath"
-    }
-}
-
-function Remove-EverVigilLegacyUninstallSupport {
-    param($State)
-
-    $legacySupportRoot = [IO.Path]::GetFullPath((Join-Path `
-                $env:LOCALAPPDATA `
-                $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData))
-    if (-not (Test-Path -LiteralPath $legacySupportRoot -PathType Container)) {
-        return
-    }
-    $resolvedRoot = [IO.Path]::GetFullPath(
-        (Resolve-Path -LiteralPath $legacySupportRoot -ErrorAction Stop).Path)
-    if (-not [string]::Equals(
-            $resolvedRoot,
-            $legacySupportRoot,
-            [StringComparison]::OrdinalIgnoreCase)) {
-        throw "The legacy uninstall support path resolves unexpectedly: $resolvedRoot"
-    }
-    $allowedDirectories = @(
-        'Support'
-        'Support\scripts'
-    )
-    # The frozen v1.2.1 installer placed exactly three support scripts here.
-    # EverVigil's seven-file uninstall-support manifest lives under the new
-    # EverVigil.Uninstall root and must never be required at this legacy root.
-    $legacyV121AllowedFiles = @(
-        'unins000.dat'
-        'unins000.exe'
-        'Support\Uninstall.ps1'
-        'Support\scripts\Invoke-SystemMaintenance.ps1'
-        'Support\scripts\Resolve-SafeInstallRoot.ps1'
-    )
-    if ($null -eq $State) {
-        Assert-EverVigilFixedExternalTree `
-            -Root $resolvedRoot `
-            -AllowedDirectories $allowedDirectories `
-            -AllowedFiles $legacyV121AllowedFiles `
-            -RequireAllFiles
-        Remove-Item -LiteralPath $resolvedRoot -Recurse -Force
-        if (Test-Path -LiteralPath $resolvedRoot) {
-            throw "The legacy uninstall support directory could not be removed: $resolvedRoot"
-        }
-        return
-    }
-    Assert-EverVigilFixedExternalTree `
-        -Root $resolvedRoot `
-        -AllowedDirectories $allowedDirectories `
-        -AllowedFiles $legacyV121AllowedFiles
-    $snapshotByRole = @{}
-    foreach ($snapshot in @($State.externalArtifactSnapshots)) {
-        $snapshotByRole[[string]$snapshot.role] = $snapshot
-    }
-    $definitions = @(Get-EverVigilExternalArtifactDefinitions -State $State |
-        Where-Object { $_.Role -clike 'legacy-support-*' })
-    foreach ($definition in $definitions) {
-        $snapshot = $snapshotByRole[$definition.Role]
-        if ($null -eq $snapshot -or -not [bool]$snapshot.wasPresent) {
-            if (Test-Path -LiteralPath $definition.Path) {
-                throw "An unsnapshotted legacy support artifact appeared: $($definition.Path)"
-            }
-            continue
-        }
-        if (-not (Test-Path -LiteralPath $definition.Path -PathType Leaf)) {
-            continue
-        }
-        if (-not [string]::Equals(
-                (Get-EverVigilFileSha256 -Path $definition.Path),
-                [string]$snapshot.sha256,
-                [StringComparison]::Ordinal)) {
-            throw "A legacy support artifact changed before retirement: $($definition.Path)"
-        }
-        Remove-Item -LiteralPath $definition.Path -Force -ErrorAction Stop
-    }
-    foreach ($directory in @(
-            (Join-Path $resolvedRoot 'Support\scripts')
-            (Join-Path $resolvedRoot 'Support')
-            $resolvedRoot
-        )) {
-        if ((Test-Path -LiteralPath $directory -PathType Container) -and
-            @(Get-ChildItem -LiteralPath $directory -Force -ErrorAction Stop).Count -eq 0) {
-            Remove-Item -LiteralPath $directory -Force -ErrorAction Stop
-        }
-    }
-    if (Test-Path -LiteralPath $resolvedRoot) {
-        throw "The legacy uninstall support directory contains unretired entries: $resolvedRoot"
-    }
 }
 
 function Assert-EverVigilInstallerFinalizationPreflight {
@@ -1684,9 +1375,6 @@ function Assert-EverVigilInstallerFinalizationPreflight {
         -RecoveryRoot ([string]$State.recoveryRoot) `
         -TransactionId ([string]$State.transactionId) `
         -ExpectedSha256 ([string]$State.uninstallRegistryMutationMarkerSha256)
-    Assert-EverVigilLegacyArtifactsMatchSnapshot `
-        -State $State `
-        -RecoveryRoot ([string]$State.recoveryRoot)
 
     Assert-EverVigilFixedExternalTree `
         -Root (Join-Path $env:LOCALAPPDATA 'EverVigil.Uninstall') `
@@ -1699,7 +1387,7 @@ function Assert-EverVigilInstallerFinalizationPreflight {
             'Support\scripts\InstallTransactionData.ps1'
             'Support\scripts\Invoke-InteractiveUserTask.ps1'
             'Support\scripts\Invoke-SystemMaintenance.ps1'
-            'Support\scripts\LegacyCompatibility.generated.ps1'
+            'Support\scripts\ProductIdentity.ps1'
             'Support\scripts\Resolve-SafeInstallRoot.ps1') `
         -RequireAllFiles
     $programsRoot = Get-EverVigilProgramsFolderPath
@@ -1751,7 +1439,7 @@ function Assert-EverVigilInstallerFinalizationPreflight {
                 -TransactionId ([string]$State.transactionId)).Count -ne 0) {
         throw 'A system journal atomic temporary remains before finalization.'
     }
-    if ([bool]$State.migrationApplied -and
+    if ([bool]$State.systemMutationApplied -and
         -not (Test-AppliedSystemConfigurationMatchesTransaction -State $State)) {
         throw 'The locally applied system configuration does not match the install transaction.'
     }
@@ -1770,70 +1458,9 @@ function Commit-EverVigilInstallTransaction {
             (Get-EverVigilExecutableAtRoot -Root ([string]$State.installRoot))
             (Get-EverVigilExecutableAtRoot -Root ([string]$State.previousInstallRoot)))
     $installRoot = [string]$State.installRoot
-    $currentInstallLayout = Test-EverVigilKnownLayout `
+    Assert-OwnedInstallRoot `
         -Path $installRoot `
         -AllowCurrentTempTree
-    $legacyInstallLayout = if ($currentInstallLayout) {
-        $false
-    } else {
-        $null -ne (Get-EverVigilLegacyInstallOwnership `
-                -Path $installRoot `
-                -AllowCurrentTempTree)
-    }
-    if ($currentInstallLayout) {
-        Assert-OwnedInstallRoot `
-            -Path $installRoot `
-            -AllowCurrentTempTree
-    } elseif ($legacyInstallLayout) {
-        Assert-OwnedInstallRoot `
-            -Path $installRoot `
-            -AllowLegacyKnownLayout `
-            -AllowCurrentTempTree
-    } else {
-        throw "The committed installation does not match a verified current or legacy layout: $installRoot"
-    }
-    $externalCommitPhaseProperty =
-        $State.PSObject.Properties['externalCommitPhase']
-    if ($null -eq $externalCommitPhaseProperty) {
-        # Frozen v1.2.1 transactions predate Inno-external snapshots. Preserve
-        # their established recovery behavior without manufacturing new
-        # rollback authority for files that were never snapshotted.
-        $State.status = 'committed'
-        Write-EverVigilInstallTransaction -Path $Path -State $State
-        Invoke-SystemBrokerTransaction -State $State -Mode Commit
-        Resume-VerifiedTransactionTreeRemoval -TransactionPath $Path -State $State
-        Remove-TemporaryPublishTree -TransactionPath $Path -State $State
-        Remove-VerifiedTransactionTree `
-            -TransactionPath $Path `
-            -State $State `
-            -Role stagingRoot `
-            -Kind StagedInstall
-        if ([bool]$State.destinationBackupPlanned) {
-            $kind = if ([bool]$State.destinationOwnedInstallPresent) {
-                'OwnedInstallBackup'
-            } else {
-                'EmptyDirectory'
-            }
-            Remove-VerifiedTransactionTree `
-                -TransactionPath $Path `
-                -State $State `
-                -Role backupRoot `
-                -Kind $kind `
-                -OriginalInstallRoot ([string]$State.installRoot)
-        }
-        if ([bool]$State.previousBackupPlanned) {
-            Remove-VerifiedTransactionTree `
-                -TransactionPath $Path `
-                -State $State `
-                -Role previousBackupRoot `
-                -Kind OwnedInstallBackup `
-                -OriginalInstallRoot ([string]$State.previousInstallRoot)
-        }
-        Remove-TransactionRecoveryFiles -TransactionPath $Path -State $State
-        Remove-Item -LiteralPath $Path -Force
-        'Legacy install transaction committed.'
-        return
-    }
 
     $phase = [string]$State.externalCommitPhase
     if ($phase -in @('None', 'SnapshotReady')) {
@@ -1843,10 +1470,10 @@ function Commit-EverVigilInstallTransaction {
             # Everything below this point is still compensatable from the
             # durable Program Files, application-data, shortcut, uninstall
             # support, and typed-registry snapshots. Complete all fallible
-            # external retirement before crossing the protected broker commit
+            # external mutation before crossing the protected broker commit
             # boundary. A failure or hard crash while the durable phase is
             # SnapshotReady is therefore recovered by rollback, never by
-            # leaving a partially retired prior installation active.
+            # leaving a partially updated installation active.
             Resume-VerifiedTransactionTreeRemoval -TransactionPath $Path -State $State
             Remove-TemporaryPublishTree -TransactionPath $Path -State $State
             Remove-VerifiedTransactionTree `
@@ -1854,44 +1481,6 @@ function Commit-EverVigilInstallTransaction {
                 -State $State `
                 -Role stagingRoot `
                 -Kind StagedInstall
-
-            if ([bool]$State.runtimeConfigurationReady -and
-                [bool]$State.legacyCredentialFound -and
-                -not [string]::IsNullOrWhiteSpace([string]$State.legacyTokenPath) -and
-                (Test-Path -LiteralPath ([string]$State.legacyTokenPath) -PathType Leaf)) {
-                Assert-LegacyTokenPath `
-                    -Path ([string]$State.legacyTokenPath) `
-                    -OwnerSid ([string]$State.ownerSid)
-                $legacyTokenSnapshot = @($State.externalArtifactSnapshots |
-                        Where-Object {
-                            [string]$_.role -ceq 'legacy-plaintext-token'
-                        })
-                if ($legacyTokenSnapshot.Count -ne 1 -or
-                    $legacyTokenSnapshot[0].wasPresent -ne $true -or
-                    -not [string]::Equals(
-                        (Get-EverVigilFileSha256 -Path ([string]$State.legacyTokenPath)),
-                        [string]$legacyTokenSnapshot[0].sha256,
-                        [StringComparison]::Ordinal)) {
-                    throw 'The legacy plaintext token changed before retirement.'
-                }
-                Remove-Item -LiteralPath ([string]$State.legacyTokenPath) -Force
-            }
-            $legacyCleanupProperty =
-                $State.PSObject.Properties['legacyCleanupAuthorized']
-            if ($null -ne $legacyCleanupProperty -and
-                $legacyCleanupProperty.Value -isnot [bool]) {
-                throw 'The legacy cleanup authorization must be a JSON boolean.'
-            }
-            $legacyCleanupAuthorized = $null -ne $legacyCleanupProperty -and
-                $legacyCleanupProperty.Value -eq $true
-            if ($legacyCleanupAuthorized) {
-                if (-not $currentInstallLayout) {
-                    throw 'Legacy artifact retirement is authorized only after the current EverVigil layout is active.'
-                }
-                Remove-EverVigilLegacyStartupShortcut -State $State
-                Remove-EverVigilLegacyStartMenuShortcuts -State $State
-                Remove-EverVigilLegacyUninstallSupport -State $State
-            }
 
             $State.externalCommitPhase = 'SystemCommitPrepared'
             Write-EverVigilInstallTransaction -Path $Path -State $State
@@ -1903,7 +1492,7 @@ function Commit-EverVigilInstallTransaction {
             } catch {
                 throw "Installer finalization preflight failed: $($preflightError.Message) Rollback also failed: $($_.Exception.Message)"
             }
-            throw "Installer finalization preflight failed and the prior environment was restored: $($preflightError.Message)"
+            throw "Installer finalization preflight failed and the pre-installation state was restored: $($preflightError.Message)"
         }
         $phase = 'SystemCommitPrepared'
     }
@@ -1920,7 +1509,7 @@ function Commit-EverVigilInstallTransaction {
     }
 
     if ($phase -ceq 'SystemCommitted') {
-        # The active installation and all externally visible migration cleanup
+        # The active installation and all externally visible installation state
         # were already verified before SystemCommitPrepared. After the broker
         # commit only transaction evidence remains, so retries move forward and
         # never guess whether protected state was committed.
@@ -1971,16 +1560,9 @@ function Seal-EverVigilInstallTransaction {
     if (-not [bool]$State.applicationDataSnapshotReady) {
         throw 'The install transaction cannot be sealed before application-data snapshots complete.'
     }
-    $externalReadyProperty =
-        $State.PSObject.Properties['externalArtifactSnapshotReady']
-    $registryReadyProperty =
-        $State.PSObject.Properties['uninstallRegistrySnapshotReady']
-    if ($null -ne $State.PSObject.Properties['cleanupTransactionId'] -and
-        ($null -eq $externalReadyProperty -or
-            $externalReadyProperty.Value -ne $true -or
-            $null -eq $registryReadyProperty -or
-            $registryReadyProperty.Value -ne $true -or
-            [string]$State.externalCommitPhase -cne 'SnapshotReady')) {
+    if (-not [bool]$State.externalArtifactSnapshotReady -or
+        -not [bool]$State.uninstallRegistrySnapshotReady -or
+        [string]$State.externalCommitPhase -cne 'SnapshotReady') {
         throw 'The install transaction cannot be sealed before external recovery snapshots complete.'
     }
     Assert-OwnedInstallRoot `
@@ -1997,10 +1579,7 @@ function Rollback-EverVigilInstallTransaction {
         [Parameter(Mandatory)]$State
     )
 
-    $externalCommitPhaseProperty =
-        $State.PSObject.Properties['externalCommitPhase']
-    if ($null -ne $externalCommitPhaseProperty -and
-        [string]$externalCommitPhaseProperty.Value -in @(
+    if ([string]$State.externalCommitPhase -in @(
             'SystemCommitPrepared', 'SystemCommitted', 'CleanupComplete')) {
         throw 'The install transaction crossed the protected system commit boundary and must resume commit.'
     }
@@ -2160,28 +1739,11 @@ function Invoke-EverVigilInstallTransaction {
             'No pending install transaction was found.'
             return
         }
-        $ownedSystemTemporaries = @(
-            Get-OwnedInstallerSystemJournalTemporaries `
-                -TransactionId ([string]$state.transactionId))
         $effectiveAction = if ($RequestedAction -eq 'Recover') {
-            if ($null -ne $state.PSObject.Properties['externalCommitPhase'] -and
-                [string]$state.externalCommitPhase -in @(
+            if ([string]$state.externalCommitPhase -in @(
                     'SystemCommitPrepared',
                     'SystemCommitted',
                     'CleanupComplete')) {
-                'Commit'
-            } elseif ($ownedSystemTemporaries.Count -gt 0) {
-                'Rollback'
-            } elseif ($null -ne $state.PSObject.Properties['externalCommitPhase']) {
-                if ([string]$state.externalCommitPhase -in @(
-                        'SystemCommitPrepared',
-                        'SystemCommitted',
-                        'CleanupComplete')) {
-                    'Commit'
-                } else {
-                    'Rollback'
-                }
-            } elseif ([string]$state.status -in @('readyToCommit', 'committed')) {
                 'Commit'
             } else {
                 'Rollback'

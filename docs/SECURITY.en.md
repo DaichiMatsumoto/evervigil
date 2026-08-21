@@ -134,8 +134,8 @@ application content. Inspect and sanitize it manually before sharing.
   reparse points, protected trees, and unrelated non-empty destinations.
 - A durable journal and verified snapshots precede mutation. Settings, token,
   and startup preference are restored if update activation fails.
-- Rollback must be verified before the prior service restarts; otherwise startup
-  remains blocked.
+- Rollback must be verified before the pre-update service state resumes;
+  otherwise startup remains blocked.
 - Uninstall stops owned processes and removes only ownership-verified routes,
   rules, startup entries, shortcuts, support data, transactions, temporary data,
   and the verified install directory.

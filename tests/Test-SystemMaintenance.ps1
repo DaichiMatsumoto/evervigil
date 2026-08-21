@@ -704,7 +704,6 @@ foreach ($loopbackTokenHealthGuard in @(
 foreach ($attackerControlledTokenDestination in @(
         'SettingsPath'
         'PublicPort'
-        'publicHost'
         'UriBuilder'
         'Dns'
         '.ts.net'
@@ -731,7 +730,6 @@ if ([regex]::Matches(
 $unsafeTokenHealthFixtures = @(
     $tokenHealthContent.Replace('127.0.0.1', 'attacker.invalid')
     $tokenHealthContent.Replace('$handler.AllowAutoRedirect = $false', '$handler.AllowAutoRedirect = $true')
-    ($tokenHealthContent + "`n`$settings.publicHost`n")
     ($tokenHealthContent + "`n[Net.Dns]::GetHostAddresses('attacker.invalid')`n")
 )
 foreach ($unsafeTokenHealthFixture in $unsafeTokenHealthFixtures) {
@@ -744,7 +742,7 @@ foreach ($unsafeTokenHealthFixture in $unsafeTokenHealthFixtures) {
             [StringComparison]::Ordinal) -and
         -not [regex]::IsMatch(
             $unsafeTokenHealthFixture,
-            '(?i)publicHost|UriBuilder|Dns|https?://(?!127\.0\.0\.1:)')
+            '(?i)UriBuilder|Dns|https?://(?!127\.0\.0\.1:)')
     if ($isFixedLoopbackOnly) {
         throw 'An attacker host/IP/redirect/DNS token-health fixture was not rejected.'
     }
@@ -957,7 +955,6 @@ foreach ($brokerGuard in @(
         "'--pipe', `$pipeName"
         "'--nonce', `$nonce"
         "'--transaction-id', `$TransactionId.ToString('D')"
-        'migrateLegacySystemState = [bool]$MigrateV121SystemState'
         'return $bootstrapResponse'
         'public sealed class BootstrapPathLock : IDisposable'
         'FileFlagOpenReparsePoint'
@@ -1278,28 +1275,6 @@ if ($contents[$installPath].Contains(
         'Invoke-SystemBrokerMaintenance -Mode Prepare',
         [StringComparison]::Ordinal)) {
     throw 'Installer preparation must not trigger a standalone elevated broker request.'
-}
-foreach ($v121MigrationGuard in @(
-        '$migrateV121SystemState = [bool]$legacyCleanupAuthorized -and'
-        '$appliedSystemConfigurationWasPresent'
-        'if (-not $systemConfigurationCanBePreserved -or'
-        '-MigrateV121SystemState:$migrateV121SystemState'
-        'migrateV121SystemState = $migrateV121SystemState'
-    )) {
-    if (-not $contents[$installPath].Contains(
-            $v121MigrationGuard,
-            [StringComparison]::Ordinal)) {
-        throw "A strict v1.2.1 system-state migration guard is missing: $v121MigrationGuard"
-    }
-}
-foreach ($credentialCoupling in @(
-        '-MigrateV121SystemState:$legacyCredentialFound'
-        '-MigrateLegacySystemState:$legacyCredentialFound'
-        '[switch]$LegacyCredentialOwned'
-    )) {
-    if ($callerContent.Contains($credentialCoupling, [StringComparison]::Ordinal)) {
-        throw "v1.2.1 system-state migration is still coupled to an older plaintext credential: $credentialCoupling"
-    }
 }
 foreach ($adapterForbidden in @(
         'Get-NetFirewallRule'

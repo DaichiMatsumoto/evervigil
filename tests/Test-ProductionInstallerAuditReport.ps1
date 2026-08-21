@@ -297,7 +297,6 @@ function Assert-CleanInstallContract {
             'installRootAbsent',
             'installTransactionJournalAbsent',
             'installTransactionTemporaryCount',
-            'legacyDataRootAbsent',
             'protectedBrokerExecutableAbsent',
             'protectedBrokerInstallationReceiptAbsent',
             'protectedBrokerRootAbsent',
@@ -310,7 +309,6 @@ function Assert-CleanInstallContract {
             'currentDataRootAbsent',
             'installRootAbsent',
             'installTransactionJournalAbsent',
-            'legacyDataRootAbsent',
             'protectedBrokerExecutableAbsent',
             'protectedBrokerInstallationReceiptAbsent',
             'protectedBrokerRootAbsent',
@@ -485,7 +483,6 @@ function Assert-CleanInstallContract {
             'installRootPresent',
             'installTransactionJournalAbsent',
             'installTransactionTemporaryCount',
-            'legacyDataRootAbsent',
             'prepareFailureLineCount',
             'startMenuGroupPresent',
             'transactionCompleted',
@@ -498,7 +495,6 @@ function Assert-CleanInstallContract {
             'installedExecutablePresent',
             'installRootPresent',
             'installTransactionJournalAbsent',
-            'legacyDataRootAbsent',
             'startMenuGroupPresent',
             'transactionCompleted',
             'uninstallRegistrationPresent',
@@ -530,7 +526,6 @@ function ConvertTo-CanonicalCleanInstallJson {
                 installRootAbsent = $CleanInstall.preState.installRootAbsent
                 installTransactionJournalAbsent = $CleanInstall.preState.installTransactionJournalAbsent
                 installTransactionTemporaryCount = $CleanInstall.preState.installTransactionTemporaryCount
-                legacyDataRootAbsent = $CleanInstall.preState.legacyDataRootAbsent
                 protectedBrokerExecutableAbsent = $CleanInstall.preState.protectedBrokerExecutableAbsent
                 protectedBrokerInstallationReceiptAbsent = $CleanInstall.preState.protectedBrokerInstallationReceiptAbsent
                 protectedBrokerRootAbsent = $CleanInstall.preState.protectedBrokerRootAbsent
@@ -590,7 +585,6 @@ function ConvertTo-CanonicalCleanInstallJson {
                 installRootPresent = $CleanInstall.postState.installRootPresent
                 installTransactionJournalAbsent = $CleanInstall.postState.installTransactionJournalAbsent
                 installTransactionTemporaryCount = $CleanInstall.postState.installTransactionTemporaryCount
-                legacyDataRootAbsent = $CleanInstall.postState.legacyDataRootAbsent
                 prepareFailureLineCount = $CleanInstall.postState.prepareFailureLineCount
                 startMenuGroupPresent = $CleanInstall.postState.startMenuGroupPresent
                 transactionCompleted = $CleanInstall.postState.transactionCompleted
@@ -855,8 +849,6 @@ $requiredEvidenceKinds = @(
     'qr-connection-redacted-log'
     'token-persistence-redacted-log'
     'normal-update-log'
-    'v121-default-migration-log'
-    'v121-custom-migration-log'
     'pre-boundary-rollback-log'
     'post-boundary-recovery-log'
     'shell-state-snapshot'
@@ -919,14 +911,6 @@ $scenarioContract = [ordered]@{
             'qr-connection-redacted-log',
             'token-persistence-redacted-log',
             'normal-update-log')
-    }
-    'v1.2.1-default-migration' = [ordered]@{
-        Checks = @('v1.2.1-detected', 'default-path-migrated', 'default-ports-migrated')
-        EvidenceKinds = @('v121-default-migration-log')
-    }
-    'v1.2.1-custom-path-ports-migration' = [ordered]@{
-        Checks = @('v1.2.1-detected', 'custom-path-migrated', 'custom-ports-migrated')
-        EvidenceKinds = @('v121-custom-migration-log')
     }
     'pre-boundary-rollback' = [ordered]@{
         Checks = @('old-version-restored', 'external-state-restored', 'residue-baseline-restored')

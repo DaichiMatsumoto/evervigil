@@ -79,13 +79,13 @@ $expectedUninstallSupportSources = @(
     'Source: "{#PackageRoot}\scripts\InstallTransactionData.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Invoke-InteractiveUserTask.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Invoke-SystemMaintenance.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
-    'Source: "{#PackageRoot}\scripts\LegacyCompatibility.generated.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
+    'Source: "{#PackageRoot}\scripts\ProductIdentity.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Resolve-SafeInstallRoot.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
 )
 $actualUninstallSupportSources = @(
     [regex]::Matches(
         $installerContent,
-        '(?m)^Source: .*DestDir: "\{#MySupportRoot\}\\Support(?:\\scripts)?"; Flags: ignoreversion$') |
+        '(?m)^Source: .*DestDir: "\{#MySupportRoot\}\\Support(?:\\scripts)?"; Flags: ignoreversion(?=\r?$)') |
         ForEach-Object { $_.Value })
 if ($actualUninstallSupportSources.Count -ne
         $expectedUninstallSupportSources.Count -or
@@ -97,7 +97,7 @@ if ($actualUninstallSupportSources.Count -ne
 }
 if ([regex]::Matches(
         $installerContent,
-        '(?m)^UsePreviousAppDir=no$').Count -ne 3 -or
+        '(?m)^UsePreviousAppDir=no(?=\r?$)').Count -ne 3 -or
     $installerContent.Contains(
         'UsePreviousAppDir=yes',
         [StringComparison]::Ordinal) -or
@@ -186,4 +186,4 @@ if (-not $missingResourceCompilerRejected) {
     throw 'A missing explicit Windows resource compiler was accepted.'
 }
 
-"Inno/compiler toolchain fallback, fixed EverVigil directory migration, and exact uninstall-support manifest passed: skipped $candidateVersion and selected $($compiler.Version)."
+"Inno/compiler toolchain fallback, fixed EverVigil directory selection, and exact uninstall-support manifest passed: skipped $candidateVersion and selected $($compiler.Version)."

@@ -1307,8 +1307,6 @@ foreach ($productionAuditGuard in @(
         "'reveal-timeout'"
         "'token-persistence'"
         "'normal-update'"
-        "'v1.2.1-default-migration'"
-        "'v1.2.1-custom-path-ports-migration'"
         "'pre-boundary-rollback'"
         "'post-boundary-forward-recovery'"
         "'shell-registration'"
@@ -3988,13 +3986,13 @@ $expectedUninstallSupportSources = @(
     'Source: "{#PackageRoot}\scripts\InstallTransactionData.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Invoke-InteractiveUserTask.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Invoke-SystemMaintenance.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
-    'Source: "{#PackageRoot}\scripts\LegacyCompatibility.generated.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
+    'Source: "{#PackageRoot}\scripts\ProductIdentity.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
     'Source: "{#PackageRoot}\scripts\Resolve-SafeInstallRoot.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion'
 )
 $actualUninstallSupportSources = @(
     [regex]::Matches(
         $installerContent,
-        '(?m)^Source: .*DestDir: "\{#MySupportRoot\}\\Support(?:\\scripts)?"; Flags: ignoreversion$') |
+        '(?m)^Source: .*DestDir: "\{#MySupportRoot\}\\Support(?:\\scripts)?"; Flags: ignoreversion(?=\r?$)') |
         ForEach-Object { $_.Value })
 if ($actualUninstallSupportSources.Count -ne
         $expectedUninstallSupportSources.Count -or
@@ -4002,7 +4000,7 @@ if ($actualUninstallSupportSources.Count -ne
             $expectedUninstallSupportSources `
             $actualUninstallSupportSources `
             -CaseSensitive).Count -ne 0) {
-    $failures.Add('The installed uninstall-support source manifest is not the exact fixed seven-file manifest.')
+    $failures.Add('The installed uninstall support must contain Uninstall.ps1 and the exact six-script current helper manifest.')
 }
 if (-not $buildReleaseContent.Contains(
         "Join-Path `$PSScriptRoot 'Test-ReleaseVersion.ps1'",
@@ -4349,7 +4347,6 @@ foreach ($installPathGuard in @(
         '[string]$InstallRoot = $Path'
         '[IO.FileOptions]::WriteThrough'
         '$stream.Flush($true)'
-        'Get-EverVigilRequiredLegacyPaths'
         '$script:EverVigilOwnershipFileName'
         'ownerSid = Get-EverVigilOwnerSid'
         'function Test-EverVigilPathFullyQualified'
@@ -4474,59 +4471,6 @@ try {
 
     Remove-Item -LiteralPath $compatibilityTestRoot -Recurse -Force
     New-Item -ItemType Directory -Path $compatibilityTestRoot -Force | Out-Null
-    foreach ($relativePath in @(Get-EverVigilRequiredLegacyPaths)) {
-        $fixturePath = Join-Path $compatibilityTestRoot $relativePath
-        New-Item -ItemType Directory -Path (Split-Path -Parent $fixturePath) -Force | Out-Null
-        [IO.File]::WriteAllText($fixturePath, 'fixture', [Text.UTF8Encoding]::new($false))
-    }
-    $acceptLegacyFixtureExecutable = {
-        param([string]$Path)
-        return [string]::Equals(
-            [IO.Path]::GetFileName($Path),
-            $script:LegacyCompatibilityApplicationExecutableFileName,
-            [StringComparison]::OrdinalIgnoreCase)
-    }
-    if (-not (Test-EverVigilLegacyKnownLayout `
-                -Path $compatibilityTestRoot `
-                -ExecutableIdentityTest $acceptLegacyFixtureExecutable)) {
-        $failures.Add('The exact legacy install-layout fixture was not recognized.')
-    }
-
-    [IO.File]::WriteAllText(
-        (Join-Path $compatibilityTestRoot 'unrelated-user-file.txt'),
-        'must never be deleted',
-        [Text.UTF8Encoding]::new($false))
-    if (Test-EverVigilLegacyKnownLayout `
-            -Path $compatibilityTestRoot `
-            -ExecutableIdentityTest $acceptLegacyFixtureExecutable) {
-        $failures.Add('An install layout containing an unrelated file was accepted.')
-    }
-    Remove-Item -LiteralPath (Join-Path $compatibilityTestRoot 'unrelated-user-file.txt') -Force
-
-    New-Item -ItemType Directory -Path (Join-Path $compatibilityTestRoot 'unrelated-directory') | Out-Null
-    if (Test-EverVigilLegacyKnownLayout `
-            -Path $compatibilityTestRoot `
-            -ExecutableIdentityTest $acceptLegacyFixtureExecutable) {
-        $failures.Add('An install layout containing an unrelated directory was accepted.')
-    }
-    Remove-Item -LiteralPath (Join-Path $compatibilityTestRoot 'unrelated-directory') -Recurse -Force
-
-    Remove-Item -LiteralPath $compatibilityTestRoot -Recurse -Force
-    New-Item -ItemType Directory -Path $compatibilityTestRoot -Force | Out-Null
-    [IO.File]::WriteAllText(
-        (Join-Path `
-            $compatibilityTestRoot `
-            $script:LegacyCompatibilityApplicationExecutableFileName),
-        'copied executable',
-        [Text.UTF8Encoding]::new($false))
-    if (Test-EverVigilLegacyKnownLayout `
-            -Path $compatibilityTestRoot `
-            -ExecutableIdentityTest $acceptLegacyFixtureExecutable) {
-        $failures.Add('A copied executable without the exact legacy layout was accepted.')
-    }
-
-    Remove-Item -LiteralPath $compatibilityTestRoot -Recurse -Force
-    New-Item -ItemType Directory -Path $compatibilityTestRoot -Force | Out-Null
     foreach ($relativePath in @(Get-EverVigilRequiredCurrentPaths)) {
         $fixturePath = Join-Path $compatibilityTestRoot $relativePath
         New-Item -ItemType Directory -Path (Split-Path -Parent $fixturePath) -Force | Out-Null
@@ -4617,8 +4561,6 @@ foreach ($startupShortcutRemovalGuard in @(
         'Remove-EverVigilOwnedShortcut'
         '-Path $StartupShortcutPath'
         '-ExpectedTargetPath $CurrentStartupTargets'
-        '-Path $LegacyStartupShortcutPath'
-        '-ExpectedTargetPath $LegacyStartupTargets'
         "-ExpectedArguments '--background'"
     )) {
     if (-not $uninstallContent.Contains(
@@ -4661,11 +4603,14 @@ foreach ($customUninstallGuard in @(
         '-AllowCurrentTempTree:$allowInstallRootInCurrentTemp'
         'Assert-NoSupervisorOutsideInstallRoot'
         'Get-EverVigilProcessLocations -Root $InstallRoot'
-        '$script:LegacyCompatibilitySynchronizationInstanceMutexTemplate.Replace('
-        "'{ownerSid}'"
+        '"Global\EverVigil-$OwnerSid-Mutex"'
         '$instanceLockTaken'
-        '$InstallTransactionPath'
-        '$transactionRecoveryRoots'
+        '$recoveryTransactionPath'
+        '$recoveryTransactionTemporaries'
+        '$ProductIdentityScript'
+        "'ProductIdentity.ps1'"
+        "'interactive-task.xml'"
+        "'EverVigil/token/v1'"
         '-Action Recover'
         'An install recovery transaction could not be resolved before uninstalling'
         'Required uninstall support helper is missing or unsafe'
@@ -4676,6 +4621,26 @@ foreach ($customUninstallGuard in @(
     )) {
     if (-not $uninstallContent.Contains($customUninstallGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Custom uninstall destination guard is missing: $customUninstallGuard")
+    }
+}
+foreach ($obsoleteUninstallCompatibilitySurface in @(
+        'LegacyCompatibility'
+        '$LegacyStartupShortcutPath'
+        '$LegacyStartupTargets'
+        '$LegacyDefaultInstallRoot'
+        '-AllowLegacyKnownLayout'
+        'projectDirectory'
+        'publicHost'
+        'legacy-task.xml'
+        'EvenTerminalCodex'
+        'MigrateV121'
+        'v1.2.1'
+    )) {
+    if ($uninstallContent.Contains(
+            $obsoleteUninstallCompatibilitySurface,
+            [StringComparison]::OrdinalIgnoreCase)) {
+        $failures.Add(
+            "Obsolete uninstall compatibility surface remains: $obsoleteUninstallCompatibilitySurface")
     }
 }
 $uninstallTokens = $null
@@ -4862,10 +4827,7 @@ $reversibleStagingCleanupIndex = $installTransactionContent.IndexOf(
     '-Role stagingRoot',
     $snapshotCommitIndex,
     [StringComparison]::Ordinal)
-$reversibleLegacyCleanupIndex = $installTransactionContent.IndexOf(
-    'Remove-EverVigilLegacyUninstallSupport -State $State',
-    $snapshotCommitIndex,
-    [StringComparison]::Ordinal)
+
 $systemCommitPreparedIndex = $installTransactionContent.IndexOf(
     "`$State.externalCommitPhase = 'SystemCommitPrepared'",
     $snapshotCommitIndex,
@@ -4885,13 +4847,12 @@ $cleanupCompleteIndex = $installTransactionContent.IndexOf(
 if ($commitFunctionIndex -lt 0 -or
     $snapshotCommitIndex -le $commitFunctionIndex -or
     $reversibleStagingCleanupIndex -le $snapshotCommitIndex -or
-    $reversibleLegacyCleanupIndex -le $reversibleStagingCleanupIndex -or
-    $systemCommitPreparedIndex -le $reversibleLegacyCleanupIndex -or
+    $systemCommitPreparedIndex -le $reversibleStagingCleanupIndex -or
     $protectedBrokerCommitIndex -le $systemCommitPreparedIndex -or
     $systemCommittedIndex -le $protectedBrokerCommitIndex -or
     $cleanupCompleteIndex -le $systemCommittedIndex) {
     $failures.Add(
-        'All fallible external retirement must remain rollback-capable before SystemCommitPrepared; only forward evidence cleanup may follow the protected broker commit.')
+        'All fallible external mutation must remain rollback-capable before SystemCommitPrepared; only forward evidence cleanup may follow the protected broker commit.')
 }
 foreach ($postCommitAclRewrite in @(
         'Set-EverVigilAtomicJournalFileAcl -Path $TransactionPath'
@@ -4950,7 +4911,7 @@ foreach ($customInstallGuard in @(
         'New-EverVigilApplicationDataSnapshots'
         'Restore-EverVigilApplicationDataSnapshots'
         'Remove-EverVigilNewQuarantineFiles'
-        '$script:LegacyCompatibilityDataInstallerPublishDirectoryPrefix'
+        '$script:EverVigilInstallerPublishDirectoryPrefix'
         'systemConfigurationRequiredWasPresent = $systemConfigurationRequiredWasPresent'
         'Assert-EverVigilProtectedBrokerVersionLayout `'
         '$protectedBrokerPathsBeforeBootstrap.CanonicalPath'
@@ -4969,7 +4930,7 @@ foreach ($customInstallGuard in @(
         '$InstallTransactionScript'
         '$InstallTransactionDataHelper'
         '$InteractiveTaskHelper'
-        '$LegacyCompatibilityHelper'
+        '$ProductIdentityHelper'
         'protectedBrokerReady = $protectedBrokerWasPresentBefore'
         'protectedBrokerWasPresentBefore = $protectedBrokerWasPresentBefore'
         'protectedBrokerCleanupAuthorized = -not $protectedBrokerWasPresentBefore'
@@ -5067,8 +5028,9 @@ foreach ($transactionGuard in @(
         '-TransactionId $cleanupTransactionId'
         '-Operation UninstallCleanup'
         'Complete-EverVigilProtectedBrokerRetirementFromReceipt'
-        '$legacyV121AllowedFiles = @('
+        "'Support\scripts\Complete-InstallTransaction.ps1'"
         "'Support\scripts\Invoke-SystemMaintenance.ps1'"
+        "'Support\scripts\ProductIdentity.ps1'"
         "'Support\scripts\Resolve-SafeInstallRoot.ps1'"
         'function Remove-VerifiedTransactionTree'
         'Resume-EverVigilTransactionTreeRemoval'
@@ -5084,40 +5046,43 @@ foreach ($transactionGuard in @(
         'System rollback failed; backend must remain stopped'
         'Restore-EverVigilApplicationDataSnapshots'
         'Remove-EverVigilNewQuarantineFiles'
-        '$script:LegacyCompatibilityDataInstallerPublishDirectoryPrefix'
+        '$script:EverVigilInstallerPublishDirectoryPrefix'
         'Only remaining transaction evidence is resumable from this state.'
     )) {
     if (-not $installTransactionContent.Contains($transactionGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Install transaction recovery guard is missing: $transactionGuard")
     }
 }
-$legacySupportCleanupMatch = [regex]::Match(
+$currentSupportManifestMatch = [regex]::Match(
     $installTransactionContent,
-    '(?s)function Remove-EverVigilLegacyUninstallSupport \{(?<body>.*?)\r?\n\}(?=\r?\n\r?\nfunction )')
-$expectedLegacyV121SupportFiles = @(
+    '(?s)Assert-EverVigilFixedExternalTree\s*`\r?\n\s*-Root \(Join-Path \$env:LOCALAPPDATA ''EverVigil\.Uninstall''\)\s*`\r?\n\s*-AllowedDirectories @\(''Support'', ''Support\\scripts''\)\s*`\r?\n\s*-AllowedFiles @\((?<files>.*?)\)\s*`\r?\n\s*-RequireAllFiles')
+$expectedCurrentSupportFiles = @(
     'unins000.dat'
     'unins000.exe'
     'Support\Uninstall.ps1'
-    'Support\scripts\Invoke-SystemMaintenance.ps1'
-    'Support\scripts\Resolve-SafeInstallRoot.ps1')
-$currentOnlySupportFiles = @(
     'Support\scripts\Complete-InstallTransaction.ps1'
     'Support\scripts\InstallTransactionData.ps1'
     'Support\scripts\Invoke-InteractiveUserTask.ps1'
-    'Support\scripts\LegacyCompatibility.generated.ps1')
-if (-not $legacySupportCleanupMatch.Success -or
-    @($expectedLegacyV121SupportFiles | Where-Object {
-            -not $legacySupportCleanupMatch.Groups['body'].Value.Contains(
-                "'$_'",
-                [StringComparison]::Ordinal)
-        }).Count -gt 0 -or
-    @($currentOnlySupportFiles | Where-Object {
-            $legacySupportCleanupMatch.Groups['body'].Value.Contains(
-                "'$_'",
-                [StringComparison]::Ordinal)
-        }).Count -gt 0) {
+    'Support\scripts\Invoke-SystemMaintenance.ps1'
+    'Support\scripts\ProductIdentity.ps1'
+    'Support\scripts\Resolve-SafeInstallRoot.ps1')
+$actualCurrentSupportFiles = if ($currentSupportManifestMatch.Success) {
+    @([regex]::Matches(
+            $currentSupportManifestMatch.Groups['files'].Value,
+            "'(?<path>[^']+)'")) | ForEach-Object {
+        $_.Groups['path'].Value
+    }
+} else {
+    @()
+}
+if (-not $currentSupportManifestMatch.Success -or
+    $actualCurrentSupportFiles.Count -ne $expectedCurrentSupportFiles.Count -or
+    @(Compare-Object `
+            $expectedCurrentSupportFiles `
+            $actualCurrentSupportFiles `
+            -CaseSensitive).Count -ne 0) {
     $failures.Add(
-        'Legacy cleanup must accept the frozen v1.2.1 three-script support tree independently from the current seven-script support manifest.')
+        'Installer finalization must require Uninstall.ps1 and the exact six-script current support manifest.')
 }
 $interactiveTaskContent = Get-Content `
     -LiteralPath (Join-Path $RepositoryRoot 'scripts\Invoke-InteractiveUserTask.ps1') `
@@ -5297,11 +5262,16 @@ if (-not $rollbackTransactionAst -or
     $failures.Add('Rollback recovery must stop leftover task instances and continue recovery after cleanup errors.')
 }
 $firstPendingTransactionIndex = $uninstallContent.IndexOf(
-    '$transactionRecoveryRoots =',
+    '$transactionResiduePreflight =',
     [StringComparison]::Ordinal)
-$uninstallMutexWaitIndex = $uninstallContent.IndexOf(
-    '$transactionMutex.WaitOne',
-    [StringComparison]::Ordinal)
+$uninstallMutexWaitIndex = if ($firstPendingTransactionIndex -ge 0) {
+    $uninstallContent.IndexOf(
+        '$transactionMutex.WaitOne',
+        $firstPendingTransactionIndex,
+        [StringComparison]::Ordinal)
+} else {
+    -1
+}
 $secondPendingTransactionIndex = if ($uninstallMutexWaitIndex -ge 0) {
     $uninstallContent.IndexOf(
         '$candidateInstallTransactionArtifacts =',
@@ -5365,7 +5335,7 @@ $stagingOwnershipIndex = $installContent.IndexOf(
     'Write-EverVigilInstallOwnership',
     [StringComparison]::Ordinal)
 $systemIntentIndex = $installContent.IndexOf(
-    '$transactionState.migrationApplied = $true',
+    '$transactionState.systemMutationApplied = $true',
     [StringComparison]::Ordinal)
 $systemPreparedJournalIndex = $installContent.LastIndexOf(
     'New-InstallPendingSystemJournal',
@@ -5404,7 +5374,7 @@ if ($systemPreparedJournalIndex -lt 0 -or $systemMutationIndex -lt 0 -or
     $systemCompletionEvidenceIndex -lt 0 -or
     $systemIntentIndex -lt $systemMutationIndex -or
     $systemIntentIndex -lt $systemCompletionEvidenceIndex) {
-    $failures.Add('Install must persist Prepared before elevation and mark migration applied only after durable MutationsCompleted evidence.')
+    $failures.Add('Install must persist Prepared before elevation and commit only after durable MutationsCompleted evidence.')
 }
 if (-not $installContent.Contains(
         'Run Install.ps1 from a non-administrator PowerShell.',
@@ -5428,36 +5398,27 @@ if ([regex]::Matches($installContent, '-WorkingDirectory \$InstallRoot').Count -
     [regex]::Matches($installContent, '-WorkingDirectory \$PreviousInstallRoot').Count -ne 4) {
     $failures.Add('Installed-application launches must use the corresponding current or previous install directory.')
 }
-foreach ($legacyCredentialGuard in @(
-        'function Get-LegacyTokenCredential'
-        'function Get-ProfilePathForSid'
-        'function Get-LegacyRootCandidatesForProfile'
-        '$ownerProfilePath = Get-ProfilePathForSid -Sid $ownerSid'
-        '$script:LegacyCompatibilityOlderEvenTerminalCodexDriveLauncherRelativeToProfileDirectory'
-        '$portableSuffix = [IO.Path]::GetDirectoryName($portableLauncher)'
-        'Get-PSDrive -PSProvider FileSystem'
-        '$legacyCredential = Get-LegacyTokenCredential -CandidateRoots $LegacyRootCandidates'
-        "'--initialize-legacy-settings'"
-        "'--legacy-token-file', `$LegacyTokenPath"
-        "'--legacy-root', `$LegacyRoot"
-        'Multiple valid legacy credentials were found'
-        'Remove-Item -LiteralPath $LegacyTokenPath -Force'
+foreach ($obsoleteInstallerCompatibilitySurface in @(
+        'Get-LegacyTokenCredential'
+        'Get-LegacyRootCandidatesForProfile'
+        '--initialize-legacy-settings'
+        '--import-token-file'
+        '--legacy-token-file'
+        '--legacy-root'
+        'LegacyCompatibility'
+        'EvenTerminalCodex'
+        'MigrateV121SystemState'
+        'migrateV121SystemState'
+        'LegacyCredentialOwned'
+        'legacyCredentialFound'
+        'legacyCleanupAuthorized'
     )) {
-    if (-not $installContent.Contains($legacyCredentialGuard, [StringComparison]::Ordinal)) {
-        $failures.Add("Legacy credential migration guard is missing: $legacyCredentialGuard")
+    if ($installContent.Contains(
+            $obsoleteInstallerCompatibilitySurface,
+            [StringComparison]::Ordinal)) {
+        $failures.Add(
+            "Obsolete installer compatibility surface remains: $obsoleteInstallerCompatibilitySurface")
     }
-}
-if ($installContent.Contains('Remove-ExactTree -Path $LegacyRoot', [StringComparison]::Ordinal) -or
-    $installContent.Contains('Remove-Item -LiteralPath $LegacyRoot', [StringComparison]::Ordinal)) {
-    $failures.Add('Legacy migration must retire only the validated plaintext token, not its directory.')
-}
-if ($installContent.Contains('$legacyImportArguments', [StringComparison]::Ordinal) -or
-    -not $installContent.Contains(
-        '-not (Test-Path -LiteralPath $TokenPath -PathType Leaf)',
-        [StringComparison]::Ordinal) -or
-    $installContent.IndexOf("'--initialize-legacy-settings'", [StringComparison]::Ordinal) -gt
-        $installContent.IndexOf("@('--import-token-file', `$LegacyTokenPath)", [StringComparison]::Ordinal)) {
-    $failures.Add('Legacy settings initialization must be separate from token import, and existing DPAPI tokens must be preserved.')
 }
 if (-not $installContent.Contains('Persisted settings are missing while applied system configuration exists.', [StringComparison]::Ordinal)) {
     $failures.Add('Install must fail closed when settings are missing but an applied system configuration remains.')
@@ -5478,7 +5439,7 @@ foreach ($transactionContent in @($installContent, $uninstallContent)) {
 }
 foreach ($mutexAclGuard in @(
         'function New-EverVigilSystemTransactionMutex'
-        '$script:LegacyCompatibilitySynchronizationSystemTransactionMutex'
+        '$script:EverVigilSystemTransactionMutex'
         '[Threading.MutexAcl]::Create('
         '[Security.Principal.WellKnownSidType]::AuthenticatedUserSid'
         "[Security.AccessControl.MutexRights]'Synchronize, Modify'"
@@ -5494,24 +5455,11 @@ foreach ($brokerApplyGuard in @(
         '$appliedSystemConfigurationWasPresent'
         'New-InstallPendingSystemJournal'
         'Invoke-SystemBrokerMaintenance'
-        '-MigrateV121SystemState:$migrateV121SystemState'
-        '$migrateV121SystemState = [bool]$legacyCleanupAuthorized -and'
-        'if (-not $systemConfigurationCanBePreserved -or'
+        'if (-not $systemConfigurationCanBePreserved) {'
         "[string]`$pendingSystemState.phase -cne 'MutationsCompleted'"
     )) {
     if (-not $installContent.Contains($brokerApplyGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Installer protected-broker Apply guard is missing: $brokerApplyGuard")
-    }
-}
-foreach ($forbiddenOwnershipForwarding in @(
-        '-LegacyCredentialOwned:'
-        '-MigrateV121SystemState:$legacyCredentialFound'
-    )) {
-    if ($installContent.Contains(
-            $forbiddenOwnershipForwarding,
-            [StringComparison]::Ordinal)) {
-        $failures.Add(
-            "Install must not forward caller-invented system ownership: $forbiddenOwnershipForwarding")
     }
 }
 if (-not $installContent.Contains('-not $preserveRecoveryArtifacts', [StringComparison]::Ordinal)) {
@@ -5540,10 +5488,10 @@ if (-not $installContent.Contains("-Arguments @('--installer-runtime-check')", [
     $failures.Add('Install must run the bounded headless runtime check without launching the tray UI.')
 }
 if (-not $installContent.Contains(
-        '($migrationApplied -or',
+        '($systemMutationApplied -or',
         [StringComparison]::Ordinal) -or
     $installContent.Contains(
-        'migrationApplied is not ownership evidence',
+        'systemMutationApplied is not ownership evidence',
         [StringComparison]::Ordinal)) {
     $failures.Add('Immediate rollback must defer ownership authority to the protected broker ledger after local commit.')
 }
@@ -5559,7 +5507,7 @@ foreach ($configurationGuard in @(
         'function Test-ExistingSupervisorHealth'
         '$tokenWasPresent -and'
         '$systemConfigurationCanBePreserved = $false'
-        'if (-not $systemConfigurationCanBePreserved -or'
+        'if (-not $systemConfigurationCanBePreserved) {'
         'whose protected ledger is the sole ownership authority.'
         'if ($runtimeConfigurationReady) {'
         '$existingSupervisorWasHealthy -and -not $runtimeConfigurationReady'
@@ -5567,7 +5515,6 @@ foreach ($configurationGuard in @(
         "-Arguments @('--installer-runtime-check')"
         'The installed runtime did not become healthy within three minutes.'
         '$runtimeConfigurationReady -and'
-        'preserved until system migration completes'
         "'CONFIGURATION REQUIRED'"
     )) {
     if (-not $installContent.Contains($configurationGuard, [StringComparison]::Ordinal)) {
@@ -5635,46 +5582,6 @@ if (-not $healthValidatorAst) {
     if ([regex]::Matches($healthValidatorContent, '(?i)https?://').Count -ne 1) {
         $failures.Add(
             'Installer token health must expose exactly one fixed loopback HTTP destination; redirects, host settings, and DNS destinations are forbidden.')
-    }
-}
-$legacyRootResolverAst = $installAst.Find(
-    {
-        param($node)
-        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
-            $node.Name -eq 'Get-LegacyRootCandidatesForProfile'
-    },
-    $true)
-if (-not $legacyRootResolverAst -or
-    $installContent.Contains('[Environment]::UserName', [StringComparison]::Ordinal) -or
-    -not $installContent.Contains('ProfileList\$Sid', [StringComparison]::Ordinal) -or
-    -not $installContent.Contains(
-        '$ownerProfilePath = Get-ProfilePathForSid -Sid $ownerSid',
-        [StringComparison]::Ordinal)) {
-    $failures.Add('Install must derive legacy roots from the invoking SID profile.')
-} else {
-    Invoke-Expression $legacyRootResolverAst.Extent.Text
-    $syntheticProfileName = 'alice.DOMAIN'
-    $syntheticProfile = Join-Path 'C:\' (Join-Path 'Users' $syntheticProfileName)
-    $syntheticRoots = @('C:\', 'D:\')
-    $legacyRootCandidates = @(Get-LegacyRootCandidatesForProfile `
-            -ProfilePath $syntheticProfile `
-            -FileSystemRoots $syntheticRoots)
-    $expectedLocalRoot = [IO.Path]::Combine(
-        $syntheticProfile,
-        $script:LegacyCompatibilityOlderEvenTerminalCodexLocalAppDataRootRelativeToProfile)
-    $portableLauncher =
-        $script:LegacyCompatibilityOlderEvenTerminalCodexDriveLauncherRelativeToProfileDirectory.Replace(
-            '{profileDirectory}',
-            $syntheticProfileName,
-            [StringComparison]::Ordinal)
-    $portableSuffix = [IO.Path]::GetDirectoryName($portableLauncher)
-    $expectedPortableRoots = @($syntheticRoots | ForEach-Object {
-            [IO.Path]::Combine($_, $portableSuffix)
-        })
-    if ($legacyRootCandidates.Count -ne 3 -or
-        $expectedLocalRoot -notin $legacyRootCandidates -or
-        @($expectedPortableRoots | Where-Object { $_ -notin $legacyRootCandidates }).Count -gt 0) {
-        $failures.Add('Install legacy roots did not preserve a suffixed profile-directory name.')
     }
 }
 $tailscaleResolverAst = $installAst.Find(
@@ -5761,13 +5668,15 @@ foreach ($mediumAdapterGuard in @(
         'This script is intentionally a medium-integrity protocol adapter.'
         'Invoke-EverVigilSystemBroker'
         "[ValidateSet('Interactive', 'Installer')]"
-        '[switch]$MigrateV121SystemState'
     )) {
     if (-not $maintenanceContent.Contains(
             $mediumAdapterGuard,
             [StringComparison]::Ordinal)) {
         $failures.Add("Medium system-adapter guard is missing: $mediumAdapterGuard")
     }
+}
+if ($maintenanceContent.Contains('MigrateV121SystemState', [StringComparison]::Ordinal)) {
+    $failures.Add('The medium-integrity protocol adapter still exposes obsolete system migration authorization.')
 }
 foreach ($brokerSecurityGuard in @(
         'GetNamedPipeClientProcessId'
@@ -5987,20 +5896,50 @@ if (($appSettingsContent + $dashboardContent).Contains(
     $failures.Add(
         'The obsolete global workspace setting must be absent and loaded settings must be canonicalized.')
 }
-foreach ($legacySettingsGuard in @(
+$appCompatibilitySourceContent = @(
+    $programContent
+    $settingsStoreContent
+    $appSettingsContent
+    (Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\Infrastructure\DataPaths.cs') `
+        -Raw)
+    (Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\Infrastructure\TokenStore.cs') `
+        -Raw)
+    (Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\Infrastructure\StartupRegistration.cs') `
+        -Raw)
+) -join "`n"
+foreach ($obsoleteAppCompatibilitySurface in @(
         '--initialize-legacy-settings'
+        '--import-token-file'
         '--legacy-token-file'
         '--legacy-root'
         'CreateLegacyMigrationDefaults'
         'TryReplaceNewlyCreatedDefaults'
-        'AppSettings.CreateDefault(fullLegacyRoot)'
+        'ImportLegacyFileIfMissing'
         'GetLegacyAppsDirectory'
         'legacyAppsDirectory'
+        'UsesLegacyDataRoot'
+        'LegacyStartupShortcutPath'
+        'LegacyCompatibility'
     )) {
-    if (-not ($programContent + $settingsStoreContent + $appSettingsContent).Contains(
-            $legacySettingsGuard,
+    if ($appCompatibilitySourceContent.Contains(
+            $obsoleteAppCompatibilitySurface,
             [StringComparison]::Ordinal)) {
-        $failures.Add("Legacy dependency migration guard is missing: $legacySettingsGuard")
+        $failures.Add(
+            "Obsolete application compatibility surface remains: $obsoleteAppCompatibilitySurface")
+    }
+}
+foreach ($obsoleteCompatibilityFile in @(
+        'compatibility\legacy-v1.2.1.json'
+        'installer\LegacyCompatibility.generated.iss'
+        'scripts\LegacyCompatibility.generated.ps1'
+        'scripts\Sync-LegacyCompatibility.ps1'
+        'src\EverVigil\Compatibility\LegacyCompatibility.g.cs'
+    )) {
+    if (Test-Path -LiteralPath (Join-Path $RepositoryRoot $obsoleteCompatibilityFile)) {
+        $failures.Add("Obsolete compatibility file remains: $obsoleteCompatibilityFile")
     }
 }
 foreach ($startupValidationGuard in @(
@@ -6032,7 +5971,7 @@ foreach ($interactiveSafetyGuard in @(
         'current.Phase == PendingSystemConfigurationPhase.Prepared'
         'pendingStore.CancelUnmutated(pending.TransactionId);'
         'internal const string SystemTransactionMutexName ='
-        'LegacyCompatibility.Synchronization.SystemTransactionMutex;'
+        'ProductIdentity.SystemTransactionMutexName;'
         'transactionMutex.WaitOne(SystemTransactionTimeout)'
         'MutexAcl.Create('
         'WellKnownSidType.AuthenticatedUserSid'

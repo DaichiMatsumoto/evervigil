@@ -9,12 +9,6 @@ param(
 
 Set-StrictMode -Version Latest
 
-$legacyCompatibilityPath = Join-Path $PSScriptRoot 'LegacyCompatibility.generated.ps1'
-if (-not (Test-Path -LiteralPath $legacyCompatibilityPath -PathType Leaf)) {
-    throw "Required legacy-compatibility constants not found: $legacyCompatibilityPath"
-}
-. $legacyCompatibilityPath
-
 $script:EverVigilInteractiveTaskPrefix = 'EverVigil Installer'
 $script:TaskCreate = 2
 $script:TaskLogonInteractiveToken = 3
@@ -98,19 +92,13 @@ function Get-EverVigilInteractiveTaskName {
         [Parameter(Mandatory)][string]$TransactionId,
         [Parameter(Mandatory)]
         [ValidateSet('Command', 'Launch', 'RecoveryLaunch')]
-        [string]$Purpose,
-        [switch]$Legacy
+        [string]$Purpose
     )
 
     if ($TransactionId -cnotmatch '\A[0-9a-f]{32}\z') {
         throw "The interactive task transaction identifier is invalid: $TransactionId"
     }
-    $prefix = if ($Legacy) {
-        $script:LegacyCompatibilityInstallerTaskPrefix
-    } else {
-        $script:EverVigilInteractiveTaskPrefix
-    }
-    return "$prefix $TransactionId $Purpose"
+    return "$script:EverVigilInteractiveTaskPrefix $TransactionId $Purpose"
 }
 
 function Get-EverVigilAllowedTaskArgumentLines {
@@ -453,12 +441,7 @@ function Get-EverVigilProcessesAtRoot {
     param([Parameter(Mandatory)][string]$Root)
 
     $prefix = "{0}\" -f ([IO.Path]::GetFullPath($Root).TrimEnd('\'))
-    $processNames = @(
-        'EverVigil'
-        [IO.Path]::GetFileNameWithoutExtension(
-            $script:LegacyCompatibilityApplicationExecutableFileName)
-    ) | Select-Object -Unique
-    return @(Get-Process -Name $processNames -ErrorAction SilentlyContinue |
+    return @(Get-Process -Name 'EverVigil' -ErrorAction SilentlyContinue |
         Where-Object {
             $processPath = try { [string]$_.Path } catch { '' }
             -not [string]::IsNullOrWhiteSpace($processPath) -and
@@ -519,19 +502,16 @@ function Remove-EverVigilInteractiveTasksForTransaction {
     $service = New-Object -ComObject Schedule.Service
     $service.Connect()
     $folder = $service.GetFolder('\')
-    foreach ($legacy in @($false, $true)) {
-        foreach ($purpose in @('Command', 'Launch', 'RecoveryLaunch')) {
-            Remove-EverVigilInteractiveTaskFromFolder `
-                -Folder $folder `
-                -TaskName (Get-EverVigilInteractiveTaskName `
-                    -TransactionId $TransactionId `
-                    -Purpose $purpose `
-                    -Legacy:$legacy) `
-                -OwnerSid $OwnerSid `
-                -Purpose $purpose `
-                -AllowedExecutablePath $AllowedExecutablePath `
-                -StopInstances:$StopInstances
-        }
+    foreach ($purpose in @('Command', 'Launch', 'RecoveryLaunch')) {
+        Remove-EverVigilInteractiveTaskFromFolder `
+            -Folder $folder `
+            -TaskName (Get-EverVigilInteractiveTaskName `
+                -TransactionId $TransactionId `
+                -Purpose $purpose) `
+            -OwnerSid $OwnerSid `
+            -Purpose $purpose `
+            -AllowedExecutablePath $AllowedExecutablePath `
+            -StopInstances:$StopInstances
     }
 }
 

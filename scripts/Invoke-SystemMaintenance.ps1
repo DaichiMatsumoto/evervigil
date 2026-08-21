@@ -7,7 +7,6 @@ param(
         'Rollback',
         'Commit',
         'UninstallCleanup',
-        'LegacyTaskCleanup',
         'Status')]
     [string]$Operation,
 
@@ -24,9 +23,7 @@ param(
     [int]$PublicPort = 0,
 
     [ValidateRange(0, 65535)]
-    [int]$BackendPort = 0,
-
-    [switch]$MigrateV121SystemState
+    [int]$BackendPort = 0
 )
 
 Set-StrictMode -Version Latest
@@ -52,6 +49,5 @@ $response = Invoke-EverVigilSystemBroker `
     -TransactionId ([guid]$TransactionId) `
     -Initiator $Initiator `
     -PublicPort $PublicPort `
-    -BackendPort $BackendPort `
-    -MigrateV121SystemState:$MigrateV121SystemState
+    -BackendPort $BackendPort
 $response | ConvertTo-Json -Compress -Depth 4

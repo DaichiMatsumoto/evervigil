@@ -30,8 +30,7 @@ EverVigilはユーザー単位で動く.NET 8 Windows通知領域アプリです
 fork、patch、再配布しません。telemetry、独自cloud backend、外部relayも追加しません。
 
 製品名、実行ファイル、自動起動entry、導入folder、Start menu folder、process、
-window titleはすべて`EverVigil`です。旧製品との互換性に必要なidentifierは内部の
-移行dataであり、製品名ではありません。
+window titleはすべて`EverVigil`です。
 
 ## 2. Process supervision（プロセス監督）
 
@@ -167,8 +166,9 @@ credential、既知bridge token、32文字の16進token形式値を秘匿化し�
 
 ## 8. Update mechanism（更新機構）
 
-EverVigilに自動更新機能はありません。GitHub Releasesから
-`EverVigil-<version>-Setup.exe`を手動取得し、公開SHA-256と照合して既存導入へ
+EverVigil v2.0.0が最初で現在唯一の公開Releaseです。EverVigilに自動更新機能は
+ありません。将来のReleaseでは、GitHub Releasesからversion付き
+`EverVigil-<version>-Setup.exe`を手動取得し、公開SHA-256と照合して検証済みEverVigilへ
 上書き実行します。コミュニティbinaryは未署名で、Microsoft Defender SmartScreenが
 警告する場合があります。
 
@@ -176,18 +176,18 @@ checksumはfileがrepository掲載値と一致することを示します。inst
 Releaseから取得する場合、checksumだけではpublisher真正性を独立に証明できないため、
 repositoryとReleaseのidentityも確認する必要があります。
 
-変更前に永続transactionを記録し、可変dataをsnapshotし、旧稼働版を保持します。
-設定、DPAPI保護済みtoken、自動起動選択を維持します。旧shortcut、support、平文credential、
-一時treeなど失敗し得る外部退役処理は、snapshotから旧版へ戻せる間にすべて完了します。
-永続`SystemCommitPrepared`境界より前の失敗では、検証済みsnapshot、旧program、system設定、
-startup状態、稼働状態を復元します。rollbackを検証できない場合はpartial serviceを開始せず、
-起動禁止状態を維持します。
+検証済みEverVigilを変更する前に永続transactionを記録し、可変dataをsnapshotして、
+検証済みの更新前applicationを保持します。設定、DPAPI保護済みtoken、自動起動選択を
+維持します。所有するsupportと一時resourceの置換処理は、検証済みの更新前状態へ戻せる
+間に完了します。永続`SystemCommitPrepared`境界より前の失敗では、snapshot、program、
+system設定、startup状態、稼働状態を復元します。rollbackを検証できない場合はpartial
+serviceを開始せず、起動禁止状態を維持します。
 
-`SystemCommitPrepared`は、新版と外部post-stateをすべて検証した後だけ記録します。この境界後は
-応答を失っていても保護brokerがcommit済みの可能性があるため、安全性を推測せずforward recovery
-だけを行います。最終証拠の削除が中断した場合、setupは復旧必要codeを返し、検証済み新版を
-activeのまま保持して、同じinstallerによる同一transactionの再開を要求します。保護commit後に
-残るのはbackupとtransaction証拠の削除だけです。
+`SystemCommitPrepared`は、更新後の導入と外部post-stateをすべて検証した後だけ記録します。
+この境界後は応答を失っていても保護brokerがcommit済みの可能性があるため、安全性を推測せず
+forward recoveryだけを行います。最終証拠の削除が中断した場合、setupは復旧必要codeを返し、
+検証済みの更新後導入をactiveのまま保持して、同じinstallerによる同一transactionの再開を
+要求します。保護commit後に残るのはbackupとtransaction証拠の削除だけです。
 
 アプリ本体はユーザーscopeへ導入します。runtime dependencyが不足している
 `CONFIGURATION REQUIRED`の導入では昇格を行いません。system構成を適用できる場合は、
@@ -196,29 +196,7 @@ Commitだけを別の短時間UAC処理として実行し、通常監視を昇�
 Commit完了後に予約され、Setup processが終了してから起動するため、初回表示時点で保護された
 Tailscale identityを読み取れます。
 
-## 9. Upgrade from Even Terminal Supervisor（旧製品からの移行）
-
-EverVigil v2.0.0は旧v1.2.1からin-place upgradeします。既存Inno Setup AppIdを維持する
-方式により、Windowsがv2.0.0を置換導入として扱い、同じユーザーの対応する設定と
-DPAPI保護済みtokenを維持できます。保持するAppId、entropy互換性、旧path、mutex、task name、
-その他の旧identifierは実装の`LegacyCompatibility`境界へ集約し、EverVigilの製品名として表示しません。
-
-停止・移動・削除前に旧導入とresource所有権を検証します。対応する設定、token、自動起動選択を
-保持し、ユーザー表示をEverVigilへ変更します。EverVigil正常化後に、所有確認できた旧process、
-Startup entry、shortcut、Firewall rule、Serve mapping、transaction data、support file、
-install fileだけを撤去します。無関係なresourceは保持し、所有が曖昧ならfail-closedにします。
-
-旧構成変換も有効化と同じ永続transactionに含めます。setup commitまでは旧programと
-検証済みsnapshotを保持し、失敗時は旧runtime再起動前に移行前状態を復元します。
-
-v1.2.1状態の復号・同期に必要な間は、検証済み旧data root、DPAPI entropy context、同期名を
-継続使用する場合があります。これらは互換内部情報であり、ユーザー向けbrandではありません。
-currentと旧data rootの両方に永続状態がある場合、暗黙に一方を選ばず起動をfail-closedにします。
-
-Release承認前に実機v1.2.1-to-v2.0.0 migration testを行い、対応する設定・tokenが使えること、所有する
-process、経路、rule、shortcut、自動起動entry、導入directoryが重複しないことを確認します。
-
-## 10. Uninstall process（アンインストール処理）
+## 9. Uninstall process（アンインストール処理）
 
 Windows Installed AppsまたはEverVigilのStart menu shortcutから実行できます。
 
@@ -254,7 +232,7 @@ Tailscale、Node.js、Codex、`@evenrealities/even-terminal`、無関係なServe
 Firewall rule、未検証directory、ユーザーが独自作成した設定は削除しません。
 所有検査に失敗した場合は破壊的処理前に停止します。
 
-## 11. Security limitations（セキュリティ上の制限）
+## 10. Security limitations（セキュリティ上の制限）
 
 - コミュニティutilityであり、vendor security productやsecurity auditではありません。
 - 検証対象のEven Terminal 0.8.1では、明示済み／保存済みの利用可能なworking directoryが
@@ -276,7 +254,7 @@ Firewall rule、未検証directory、ユーザーが独自作成した設定は�
 - 外部dependencyには各製品固有のsecurity、update、availability riskがあります。
 - 所有権検証はfail-closedであり、手動修復が必要になる場合があります。
 
-## 12. No affiliation statement（非提携声明）
+## 11. No affiliation statement（非提携声明）
 
 This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.
 

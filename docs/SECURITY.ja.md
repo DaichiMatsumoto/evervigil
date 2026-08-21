@@ -111,7 +111,7 @@ network到達制御はbridge-token認証の代替ではなく、same-host softwa
   non-empty destinationを拒否します。
 - 変更前に永続journalと検証済みsnapshotを作り、update有効化失敗時は設定、token、
   自動起動設定を復元します。
-- 旧service再起動前にrollbackを検証し、検証不能なら起動禁止を維持します。
+- 更新前のservice状態を再開する前にrollbackを検証し、検証不能なら起動禁止を維持します。
 - uninstallは所有processを停止し、所有確認済み経路、rule、Startup entry、shortcut、
   support data、transaction、一時data、検証済み導入directoryだけを削除します。
 - 設定とDPAPI tokenを保持・削除するかをユーザーが選択します。

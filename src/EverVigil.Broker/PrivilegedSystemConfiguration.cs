@@ -48,8 +48,6 @@ internal static class PrivilegedSystemConfiguration
             PrivilegedBrokerOperation.Recover => Recover(request, ownerSid, store),
             PrivilegedBrokerOperation.UninstallCleanup =>
                 UninstallCleanup(request, ownerSid, store, otherAppliedLedgers),
-            PrivilegedBrokerOperation.LegacyTaskCleanup =>
-                CleanupLegacyTask(request, ownerSid, store),
             PrivilegedBrokerOperation.Status => Status(request, store),
             _ => throw new BrokerRefusalException(
                 "Privileged broker operation is not allow-listed.",
@@ -142,55 +140,13 @@ internal static class PrivilegedSystemConfiguration
             applied,
             otherAppliedLedgers);
 
-        var legacyTaskService = new LegacyScheduledTask(ownerSid);
-        var legacyTask = legacyTaskService.CaptureIfOwned();
-        if (legacyTask is not null && !request.MigrateLegacySystemState)
-        {
-            throw new BrokerRefusalException(
-                "A fixed legacy task exists outside an authorized installer migration.",
-                PrivilegedBrokerErrorCode.OwnershipMismatch);
-        }
-
         var previous = applied?.Configuration;
-        BrokerSystemConfiguration? legacyV121Configuration = null;
-        if (request.MigrateLegacySystemState)
-        {
-            legacyV121Configuration = LegacyV121Evidence.RequireConfiguration(
-                ownerSid,
-                request.TransactionId,
-                tailscale.Path);
-        }
-        if (previous is null && request.MigrateLegacySystemState)
-        {
-            var legacySnapshot = TailscaleServeStatus.ReadRootSnapshot(
-                tailscale.ReadServeStatus(),
-                legacyV121Configuration!.PublicPort,
-                [legacyV121Configuration.BackendPort]);
-            if (legacySnapshot.FunnelActive)
-            {
-                throw new BrokerRefusalException(
-                    "Tailscale Funnel was detected on the fixed legacy port.",
-                    PrivilegedBrokerErrorCode.FunnelDetected);
-            }
-            if (legacySnapshot.State == ServeRootState.Unowned)
-            {
-                throw new BrokerRefusalException(
-                    "Legacy Tailscale route does not match the fixed v1 identity.",
-                    PrivilegedBrokerErrorCode.OwnershipMismatch);
-            }
-            if (legacySnapshot.State == ServeRootState.Owned)
-            {
-                previous = legacyV121Configuration;
-            }
-        }
 
         var pending = store.Begin(
             request,
             target,
             previous,
-            legacyTask,
-            selfIdentity,
-            legacyV121Configuration);
+            selfIdentity);
         var failureStage = "apply.start";
         try
         {
@@ -200,7 +156,6 @@ internal static class PrivilegedSystemConfiguration
                 tailscale,
                 new BrokerFirewall(ownerSid),
                 applied,
-                request.MigrateLegacySystemState,
                 targetRouteShared,
                 stage => failureStage = stage);
             pending = ApplyMutations(
@@ -208,7 +163,6 @@ internal static class PrivilegedSystemConfiguration
                 pending,
                 tailscale,
                 new BrokerFirewall(ownerSid),
-                legacyTaskService,
                 targetRouteShared,
                 stage => failureStage = stage);
             if (request.Initiator == PrivilegedBrokerInitiator.Interactive)
@@ -290,7 +244,6 @@ internal static class PrivilegedSystemConfiguration
         TrustedTailscale tailscale,
         BrokerFirewall firewall,
         BrokerAppliedLedger? applied,
-        bool legacyTaskAuthorized,
         bool targetRouteShared,
         Action<string> setFailureStage)
     {
@@ -352,10 +305,7 @@ internal static class PrivilegedSystemConfiguration
         }
 
         setFailureStage("preflight.firewall");
-        var firewallSnapshot = firewall.CapturePreflight(
-            applied,
-            allowLegacyMigration: legacyTaskAuthorized,
-            legacyBackendPort: pending.LegacyV121Configuration?.BackendPort ?? 3457);
+        var firewallSnapshot = firewall.CapturePreflight(applied);
         setFailureStage("state.preflight");
         return store.Update(pending.TransactionId, current => current with
         {
@@ -373,27 +323,9 @@ internal static class PrivilegedSystemConfiguration
         BrokerPendingJournal pending,
         TrustedTailscale tailscale,
         BrokerFirewall firewall,
-        LegacyScheduledTask legacyTaskService,
         bool targetRouteShared,
         Action<string> setFailureStage)
     {
-        if (pending.LegacyTask is not null)
-        {
-            var legacyTaskSnapshot = pending.LegacyTask;
-            setFailureStage("state.legacy-task-prepared");
-            pending = store.Update(pending.TransactionId, current => current with
-            {
-                Phase = BrokerMutationPhase.LegacyTaskMutationPrepared,
-                LegacyTaskMutationAuthorized = true
-            });
-            setFailureStage("mutate.legacy-task");
-            legacyTaskService.RemoveOwned(legacyTaskSnapshot);
-            setFailureStage("state.legacy-task-removed");
-            pending = store.Update(pending.TransactionId, current => current with
-            {
-                Phase = BrokerMutationPhase.LegacyTaskRemoved
-            });
-        }
 
         if (!targetRouteShared)
         {
@@ -459,8 +391,7 @@ internal static class PrivilegedSystemConfiguration
         setFailureStage("mutate.firewall");
         firewall.ConfigureTarget(
             pending.Target.BackendPort,
-            pending.OriginalFirewallRules,
-            removeLegacy: pending.MigrateLegacySystemState);
+            pending.OriginalFirewallRules);
         setFailureStage("state.firewall-applied");
         pending = store.Update(pending.TransactionId, current => current with
         {
@@ -603,9 +534,7 @@ internal static class PrivilegedSystemConfiguration
                     : PrivilegedBrokerErrorCode.OwnershipMismatch,
                 pendingRecovery: true);
         }
-        firewall.VerifyTarget(
-            pending.Target.BackendPort,
-            requireLegacyAbsent: pending.MigrateLegacySystemState);
+        firewall.VerifyTarget(pending.Target.BackendPort);
         var currentSelf = tailscale.ReadSelfIdentity();
         if (!SelfIdentityEquals(pending.ObservedSelf, currentSelf))
         {
@@ -636,11 +565,6 @@ internal static class PrivilegedSystemConfiguration
         }
         if (pending.Operation != PrivilegedBrokerOperation.Apply)
         {
-            if (!pending.LegacyTaskMutationAuthorized)
-            {
-                store.DeletePending(pending.TransactionId);
-                return;
-            }
             throw new BrokerRefusalException(
                 "Protected pending operation cannot be rolled back safely.",
                 PrivilegedBrokerErrorCode.RecoveryRequired,
@@ -694,10 +618,7 @@ internal static class PrivilegedSystemConfiguration
                     throw new InvalidDataException(
                         "Previous unrelated handler snapshot is missing."));
         }
-        if (pending.LegacyTaskMutationAuthorized && pending.LegacyTask is not null)
-        {
-            new LegacyScheduledTask(ownerSid).RestoreOwned(pending.LegacyTask);
-        }
+
         store.RollbackAppliedLedger(pending);
     }
 
@@ -717,7 +638,6 @@ internal static class PrivilegedSystemConfiguration
                     !existing.PreviousRouteMutationAuthorized &&
                     !existing.TargetRouteMutationAuthorized &&
                     !existing.FirewallMutationAuthorized &&
-                    !existing.LegacyTaskMutationAuthorized &&
                     !existing.AppliedLedgerMutationAuthorized)
                 {
                     store.DiscardUnmutatedPending(existing);
@@ -751,13 +671,10 @@ internal static class PrivilegedSystemConfiguration
             liveSelf,
             tailscale.Path,
             otherAppliedLedgers);
-        var taskService = new LegacyScheduledTask(ownerSid);
-        var legacyTask = taskService.CaptureIfOwned();
         var pending = store.Begin(
             request,
             applied.Configuration,
             applied.Configuration,
-            legacyTask,
             applied.TailscaleSelf);
         var targetRoot = TailscaleServeStatus.ReadRootSnapshot(
             tailscale.ReadServeStatus(),
@@ -780,9 +697,7 @@ internal static class PrivilegedSystemConfiguration
                 pendingRecovery: true);
         }
         var firewall = new BrokerFirewall(ownerSid);
-        var firewallSnapshot = firewall.CapturePreflight(
-            applied,
-            allowLegacyMigration: false);
+        var firewallSnapshot = firewall.CapturePreflight(applied);
         pending = store.Update(pending.TransactionId, current => current with
         {
             Phase = BrokerMutationPhase.PreflightVerified,
@@ -920,120 +835,12 @@ internal static class PrivilegedSystemConfiguration
         {
             Phase = BrokerMutationPhase.UninstallFirewallRemoved
         });
-
-        if (pending.LegacyTask is not null)
-        {
-            var legacyTaskSnapshot = pending.LegacyTask;
-            if (!pending.LegacyTaskMutationAuthorized)
-            {
-                pending = store.Update(pending.TransactionId, current => current with
-                {
-                    Phase = BrokerMutationPhase.UninstallTaskMutationPrepared,
-                    LegacyTaskMutationAuthorized = true
-                });
-            }
-            new LegacyScheduledTask(ownerSid).RemoveOwned(legacyTaskSnapshot);
-            pending = store.Update(pending.TransactionId, current => current with
-            {
-                Phase = BrokerMutationPhase.UninstallTaskRemoved
-            });
-        }
         pending = store.Update(pending.TransactionId, current => current with
         {
             Phase = BrokerMutationPhase.UninstallCompleted,
             AppliedLedgerMutationAuthorized = true
         });
         store.DeleteApplied();
-        store.CompleteWithoutAppliedMutation(
-            pending,
-            PrivilegedBrokerDisposition.Completed);
-    }
-
-    private static PrivilegedBrokerResponse CleanupLegacyTask(
-        PrivilegedBrokerRequest request,
-        string ownerSid,
-        BrokerStateStore store)
-    {
-        if (store.PendingExists)
-        {
-            var existing = store.LoadExistingPending();
-            if (existing.Operation == PrivilegedBrokerOperation.LegacyTaskCleanup)
-            {
-                ResumeLegacyTaskCleanup(store, existing, ownerSid);
-                return Success(
-                    request,
-                    PrivilegedBrokerDisposition.Completed,
-                    "Interrupted fixed legacy task cleanup was resumed.");
-            }
-            throw new BrokerRefusalException(
-                "Another protected transaction requires recovery.",
-                PrivilegedBrokerErrorCode.PendingTransactionMismatch,
-                pendingRecovery: true);
-        }
-        var applied = store.LoadApplied();
-        if (applied is null)
-        {
-            return Success(
-                request,
-                PrivilegedBrokerDisposition.NoChange,
-                "No protected applied ownership exists for legacy-task repair.");
-        }
-        var taskService = new LegacyScheduledTask(ownerSid);
-        var task = taskService.CaptureIfOwned();
-        if (task is null)
-        {
-            return Success(
-                request,
-                PrivilegedBrokerDisposition.NoChange,
-                "No fixed legacy scheduled task exists.");
-        }
-        var pending = store.Begin(
-            request,
-            applied.Configuration,
-            applied.Configuration,
-            task,
-            applied.TailscaleSelf);
-        pending = store.Update(pending.TransactionId, current => current with
-        {
-            Phase = BrokerMutationPhase.PreflightVerified
-        });
-        pending = store.Update(pending.TransactionId, current => current with
-        {
-            Phase = BrokerMutationPhase.LegacyTaskMutationPrepared,
-            LegacyTaskMutationAuthorized = true
-        });
-        ResumeLegacyTaskCleanup(store, pending, ownerSid);
-        return Success(
-            request,
-            PrivilegedBrokerDisposition.Completed,
-            "Fixed legacy scheduled task cleanup completed.");
-    }
-
-    private static void ResumeLegacyTaskCleanup(
-        BrokerStateStore store,
-        BrokerPendingJournal pending,
-        string ownerSid)
-    {
-        if (pending.Operation != PrivilegedBrokerOperation.LegacyTaskCleanup ||
-            pending.LegacyTask is null)
-        {
-            throw new InvalidDataException(
-                "Protected pending operation is not a legacy-task cleanup.");
-        }
-        var legacyTask = pending.LegacyTask;
-        if (!pending.LegacyTaskMutationAuthorized)
-        {
-            pending = store.Update(pending.TransactionId, current => current with
-            {
-                Phase = BrokerMutationPhase.LegacyTaskMutationPrepared,
-                LegacyTaskMutationAuthorized = true
-            });
-        }
-        new LegacyScheduledTask(ownerSid).RemoveOwned(legacyTask);
-        pending = store.Update(pending.TransactionId, current => current with
-        {
-            Phase = BrokerMutationPhase.LegacyTaskRemoved
-        });
         store.CompleteWithoutAppliedMutation(
             pending,
             PrivilegedBrokerDisposition.Completed);

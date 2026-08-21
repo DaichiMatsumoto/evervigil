@@ -86,9 +86,7 @@ internal sealed class BrokerStateStore
         PrivilegedBrokerRequest request,
         BrokerSystemConfiguration target,
         BrokerSystemConfiguration? previous,
-        LegacyTaskIdentity? legacyTask,
-        TailscaleSelfIdentity observedSelf,
-        BrokerSystemConfiguration? legacyV121Configuration = null)
+        TailscaleSelfIdentity observedSelf)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(target);
@@ -111,22 +109,18 @@ internal sealed class BrokerStateStore
             previous,
             previous is not null,
             previous is not null && previous.PublicPort == target.PublicPort,
-            request.MigrateLegacySystemState,
             ObservedTargetRoot: null,
             ObservedPreviousRoot: null,
             TargetUnrelatedHandlersJson: null,
             PreviousUnrelatedHandlersJson: null,
             OriginalFirewallRules: [],
-            LegacyTask: legacyTask,
             PreviousRouteMutationAuthorized: false,
             TargetRouteMutationAuthorized: false,
             FirewallMutationAuthorized: false,
-            LegacyTaskMutationAuthorized: false,
             AppliedLedgerMutationAuthorized: false,
             ObservedSelf: observedSelf,
             PreviousAppliedLedger: LoadApplied(),
-            AppliedLedgerCommitTimeUtc: null,
-            LegacyV121Configuration: legacyV121Configuration);
+            AppliedLedgerCommitTimeUtc: null);
         ValidatePending(journal);
         WriteAtomic(_pendingPath, journal, overwrite: false);
         return journal;
@@ -164,8 +158,7 @@ internal sealed class BrokerStateStore
             next.Operation != current.Operation ||
             next.Target != current.Target ||
             next.Previous != current.Previous ||
-            !AppliedLedgerEquals(next.PreviousAppliedLedger, current.PreviousAppliedLedger) ||
-            next.LegacyV121Configuration != current.LegacyV121Configuration)
+            !AppliedLedgerEquals(next.PreviousAppliedLedger, current.PreviousAppliedLedger))
         {
             throw new InvalidDataException("Protected pending journal immutable identity changed.");
         }
@@ -409,7 +402,6 @@ internal sealed class BrokerStateStore
             pending.PreviousRouteMutationAuthorized ||
             pending.TargetRouteMutationAuthorized ||
             pending.FirewallMutationAuthorized ||
-            pending.LegacyTaskMutationAuthorized ||
             pending.AppliedLedgerMutationAuthorized)
         {
             throw new InvalidDataException(
@@ -450,9 +442,7 @@ internal sealed class BrokerStateStore
             PrivilegedBrokerDisposition.Completed when
                 receipt.SourceOperation == PrivilegedBrokerOperation.UninstallCleanup =>
                 pending.Phase == BrokerMutationPhase.UninstallCompleted,
-            PrivilegedBrokerDisposition.Completed when
-                receipt.SourceOperation == PrivilegedBrokerOperation.LegacyTaskCleanup =>
-                pending.Phase == BrokerMutationPhase.LegacyTaskRemoved,
+
             PrivilegedBrokerDisposition.RolledBack =>
                 pending.Phase is (
                     BrokerMutationPhase.RecoveryPrepared or
@@ -684,8 +674,7 @@ internal sealed class BrokerStateStore
             !Enum.IsDefined(pending.Phase) ||
             pending.Operation is not (
                 PrivilegedBrokerOperation.Apply or
-                PrivilegedBrokerOperation.UninstallCleanup or
-                PrivilegedBrokerOperation.LegacyTaskCleanup))
+                PrivilegedBrokerOperation.UninstallCleanup))
         {
             throw new InvalidDataException("Protected pending journal identity is invalid.");
         }
@@ -694,19 +683,11 @@ internal sealed class BrokerStateStore
         {
             ValidateConfiguration(pending.Previous);
         }
-        if (pending.LegacyV121Configuration is not null)
-        {
-            ValidateConfiguration(pending.LegacyV121Configuration);
-        }
+
         if (pending.PreviousOwned != (pending.Previous is not null) ||
             pending.ExistingTargetOwned &&
             (!pending.PreviousOwned ||
-             pending.Previous?.PublicPort != pending.Target.PublicPort) ||
-            pending.MigrateLegacySystemState &&
-            (pending.Operation != PrivilegedBrokerOperation.Apply ||
-             pending.Initiator != PrivilegedBrokerInitiator.Installer) ||
-            pending.MigrateLegacySystemState !=
-                (pending.LegacyV121Configuration is not null))
+             pending.Previous?.PublicPort != pending.Target.PublicPort))
         {
             throw new InvalidDataException("Protected pending journal ownership is invalid.");
         }
@@ -876,22 +857,18 @@ internal sealed record BrokerPendingJournal(
     BrokerSystemConfiguration? Previous,
     bool PreviousOwned,
     bool ExistingTargetOwned,
-    bool MigrateLegacySystemState,
     ServeRootState? ObservedTargetRoot,
     ServeRootState? ObservedPreviousRoot,
     string? TargetUnrelatedHandlersJson,
     string? PreviousUnrelatedHandlersJson,
     IReadOnlyList<FirewallRuleIdentity> OriginalFirewallRules,
-    LegacyTaskIdentity? LegacyTask,
     bool PreviousRouteMutationAuthorized,
     bool TargetRouteMutationAuthorized,
     bool FirewallMutationAuthorized,
-    bool LegacyTaskMutationAuthorized,
     bool AppliedLedgerMutationAuthorized,
     TailscaleSelfIdentity? ObservedSelf,
     BrokerAppliedLedger? PreviousAppliedLedger,
-    DateTimeOffset? AppliedLedgerCommitTimeUtc,
-    BrokerSystemConfiguration? LegacyV121Configuration);
+    DateTimeOffset? AppliedLedgerCommitTimeUtc);
 
 internal sealed record BrokerTransactionReceipt(
     int SchemaVersion,
@@ -927,16 +904,10 @@ internal sealed record FirewallRuleIdentity(
     string? Grouping,
     string? IcmpTypesAndCodes);
 
-internal sealed record LegacyTaskIdentity(
-    string Name,
-    string Xml);
-
 internal enum BrokerMutationPhase
 {
     Prepared,
     PreflightVerified,
-    LegacyTaskMutationPrepared,
-    LegacyTaskRemoved,
     PreviousRouteMutationPrepared,
     PreviousRouteRemoved,
     TargetRouteMutationPrepared,
@@ -952,7 +923,5 @@ internal enum BrokerMutationPhase
     UninstallRouteRemoved,
     UninstallFirewallMutationPrepared,
     UninstallFirewallRemoved,
-    UninstallTaskMutationPrepared,
-    UninstallTaskRemoved,
     UninstallCompleted
 }

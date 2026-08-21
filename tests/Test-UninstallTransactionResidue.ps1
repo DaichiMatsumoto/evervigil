@@ -145,7 +145,7 @@ try {
         -Content 'owned log'
     $recoveryRoot = Join-Path $dataRoot "install-transactions\$transactionId"
     Write-TestFile -Path (Join-Path $recoveryRoot 'settings.json.rollback') -Content 'old state'
-    Write-TestFile -Path (Join-Path $recoveryRoot 'legacy-task.xml') -Content '<Task />'
+    Write-TestFile -Path (Join-Path $recoveryRoot 'interactive-task.xml') -Content '<Task />'
     Write-TestFile -Path (Join-Path $recoveryRoot 'system.log') -Content 'maintenance'
     $publishRoot = Join-Path $dataRoot "install-publish-$transactionId"
     New-ValidPublishRoot -Root $publishRoot
@@ -374,30 +374,6 @@ try {
     Write-TestFile -Path $settingsTemporary -Content $settingsJson
     Protect-TestFileForCurrentOwner -Path $settingsTemporary
 
-    $previousSettingsDocument = $settingsJson | ConvertFrom-Json
-    $previousSettingsDocument | Add-Member `
-        -MemberType NoteProperty `
-        -Name projectDirectory `
-        -Value $testRoot
-    $previousSettingsJson = $previousSettingsDocument | ConvertTo-Json
-    $previousSettingsTemporary = Join-Path `
-        $dataRoot `
-        "settings.json.$([guid]::NewGuid().ToString('N')).tmp"
-    Write-TestFile -Path $previousSettingsTemporary -Content $previousSettingsJson
-    Protect-TestFileForCurrentOwner -Path $previousSettingsTemporary
-
-    $legacySettingsDocument = $previousSettingsJson | ConvertFrom-Json
-    $legacySettingsDocument | Add-Member `
-        -MemberType NoteProperty `
-        -Name publicHost `
-        -Value 'test-device'
-    $legacySettingsJson = $legacySettingsDocument | ConvertTo-Json
-    $legacySettingsTemporary = Join-Path `
-        $dataRoot `
-        "settings.json.$([guid]::NewGuid().ToString('N')).tmp"
-    Write-TestFile -Path $legacySettingsTemporary -Content $legacySettingsJson
-    Protect-TestFileForCurrentOwner -Path $legacySettingsTemporary
-
     $appliedTemporary = Join-Path `
         $dataRoot `
         "applied-system-configuration.json.$atomicSuffix.tmp"
@@ -422,8 +398,6 @@ try {
 
     foreach ($runtimeTemporary in @(
             $settingsTemporary,
-            $previousSettingsTemporary,
-            $legacySettingsTemporary,
             $appliedTemporary,
             $tokenTemporary)) {
         [void](Get-EverVigilRuntimeAtomicTemporaryInfo `
@@ -432,28 +406,26 @@ try {
     }
     Remove-EverVigilTransactionResidue -Path $dataRoot -PreserveData
     if ((Test-Path -LiteralPath $settingsTemporary) -or
-        (Test-Path -LiteralPath $previousSettingsTemporary) -or
-        (Test-Path -LiteralPath $legacySettingsTemporary) -or
         (Test-Path -LiteralPath $appliedTemporary) -or
         (Test-Path -LiteralPath $tokenTemporary)) {
         throw 'Validated runtime atomic temporaries were not removed with KeepData.'
     }
 
     Reset-TestDirectory -Path $dataRoot
-    $legacyCompleteRemovalTemporary = Join-Path `
+    $completeRemovalTemporary = Join-Path `
         $dataRoot `
         "settings.json.$([guid]::NewGuid().ToString('N')).tmp"
     Write-TestFile `
-        -Path $legacyCompleteRemovalTemporary `
-        -Content $legacySettingsJson
-    Protect-TestFileForCurrentOwner -Path $legacyCompleteRemovalTemporary
+        -Path $completeRemovalTemporary `
+        -Content $settingsJson
+    Protect-TestFileForCurrentOwner -Path $completeRemovalTemporary
     Remove-EverVigilTransactionResidue -Path $dataRoot
-    if (Test-Path -LiteralPath $legacyCompleteRemovalTemporary) {
-        throw 'A validated v1.2.1 settings atomic temporary survived complete removal.'
+    if (Test-Path -LiteralPath $completeRemovalTemporary) {
+        throw 'A validated current settings atomic temporary survived complete removal.'
     }
 
     Reset-TestDirectory -Path $dataRoot
-    $unknownSettingsDocument = $legacySettingsJson | ConvertFrom-Json
+    $unknownSettingsDocument = $settingsJson | ConvertFrom-Json
     $unknownSettingsDocument | Add-Member `
         -MemberType NoteProperty `
         -Name unexpectedProperty `
@@ -467,9 +439,9 @@ try {
         [pscustomobject]@{
             Label = 'duplicate property'
             Content = [regex]::Replace(
-                $legacySettingsJson,
+                $settingsJson,
                 '\A\s*\{',
-                '{"publicHost":"duplicate.invalid",',
+                '{"uiLanguage":"duplicate",',
                 1)
             Protect = $true
         }
@@ -480,7 +452,7 @@ try {
         }
         [pscustomobject]@{
             Label = 'wrong ACL'
-            Content = $legacySettingsJson
+            Content = $settingsJson
             Protect = $false
         }
     )
@@ -506,31 +478,6 @@ try {
         }
         Remove-Item -LiteralPath $invalidPath -Force
     }
-
-    $invalidHostDocument = $previousSettingsJson | ConvertFrom-Json
-    $invalidHostDocument | Add-Member `
-        -MemberType NoteProperty `
-        -Name publicHost `
-        -Value ('a' * 256)
-    $invalidHostPath = Join-Path `
-        $dataRoot `
-        "settings.json.$([guid]::NewGuid().ToString('N')).tmp"
-    Write-TestFile `
-        -Path $invalidHostPath `
-        -Content ($invalidHostDocument | ConvertTo-Json)
-    Protect-TestFileForCurrentOwner -Path $invalidHostPath
-    $invalidHostRejected = $false
-    try {
-        [void](Get-EverVigilRuntimeAtomicTemporaryInfo `
-                -Path $invalidHostPath `
-                -DataRoot $dataRoot)
-    } catch {
-        $invalidHostRejected = $true
-    }
-    if (-not $invalidHostRejected) {
-        throw 'An overlong v1.2.1 publicHost was accepted as owned residue.'
-    }
-    Remove-Item -LiteralPath $invalidHostPath -Force
 
     $reparseTarget = Join-Path $testRoot 'settings-reparse-target'
     Reset-TestDirectory -Path $reparseTarget

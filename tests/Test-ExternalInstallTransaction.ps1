@@ -94,13 +94,13 @@ function Set-TestRegistryRecords {
     param([Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Record)
 
     [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree(
-        $script:LegacyCompatibilityApplicationUninstallRegistrySubKey,
+        $script:EverVigilProductUninstallRegistrySubKey,
         $false)
     if ($Record.Count -eq 0) {
         return
     }
     $key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey(
-        $script:LegacyCompatibilityApplicationUninstallRegistrySubKey,
+        $script:EverVigilProductUninstallRegistrySubKey,
         $true)
     try {
         foreach ($entry in $Record) {
@@ -163,8 +163,8 @@ try {
     . $transactionDataScript
     . $transactionScript
     $originalRegistrySubKey =
-        $script:LegacyCompatibilityApplicationUninstallRegistrySubKey
-    $script:LegacyCompatibilityApplicationUninstallRegistrySubKey =
+        $script:EverVigilProductUninstallRegistrySubKey
+    $script:EverVigilProductUninstallRegistrySubKey =
         $testRegistrySubKey
     function Get-EverVigilProgramsFolderPath { return $testPrograms }
     function Get-EverVigilStartupFolderPath { return $testStartup }
@@ -178,7 +178,7 @@ try {
         'Support\scripts\InstallTransactionData.ps1'
         'Support\scripts\Invoke-InteractiveUserTask.ps1'
         'Support\scripts\Invoke-SystemMaintenance.ps1'
-        'Support\scripts\LegacyCompatibility.generated.ps1'
+        'Support\scripts\ProductIdentity.ps1'
         'Support\scripts\Resolve-SafeInstallRoot.ps1')
     foreach ($relative in $supportFiles) {
         $path = Join-Path $supportRoot $relative
@@ -215,17 +215,17 @@ try {
         -WorkingDirectory ($installRoot + [IO.Path]::DirectorySeparatorChar) `
         -IconLocation "$targetExecutable,0"
 
-    $legacyRegistryRecords = @(
-        [pscustomobject]@{ name = 'LegacyString'; kind = 'String'; value = 'legacy text' }
-        [pscustomobject]@{ name = 'LegacyExpand'; kind = 'ExpandString'; value = '%LOCALAPPDATA%\Legacy' }
-        [pscustomobject]@{ name = 'LegacyDword'; kind = 'DWord'; value = '41' }
-        [pscustomobject]@{ name = 'LegacyQword'; kind = 'QWord'; value = '4294967297' }
-        [pscustomobject]@{ name = 'LegacyMulti'; kind = 'MultiString'; value = @('one', 'two') }
-        [pscustomobject]@{ name = 'LegacyBinary'; kind = 'Binary'; value = [Convert]::ToBase64String([byte[]](0, 1, 254, 255)) }
-        [pscustomobject]@{ name = 'LegacyNone'; kind = 'None'; value = [Convert]::ToBase64String([byte[]](4, 5, 6)) }
+    $preInstallRegistryRecords = @(
+        [pscustomobject]@{ name = 'PreInstallString'; kind = 'String'; value = 'pre-install text' }
+        [pscustomobject]@{ name = 'PreInstallExpand'; kind = 'ExpandString'; value = '%LOCALAPPDATA%\EverVigil' }
+        [pscustomobject]@{ name = 'PreInstallDword'; kind = 'DWord'; value = '41' }
+        [pscustomobject]@{ name = 'PreInstallQword'; kind = 'QWord'; value = '4294967297' }
+        [pscustomobject]@{ name = 'PreInstallMulti'; kind = 'MultiString'; value = @('one', 'two') }
+        [pscustomobject]@{ name = 'PreInstallBinary'; kind = 'Binary'; value = [Convert]::ToBase64String([byte[]](0, 1, 254, 255)) }
+        [pscustomobject]@{ name = 'PreInstallNone'; kind = 'None'; value = [Convert]::ToBase64String([byte[]](4, 5, 6)) }
     )
-    Set-TestRegistryRecords -Record $legacyRegistryRecords
-    $legacyRegistryCanonical = Get-EverVigilUninstallRegistryState |
+    Set-TestRegistryRecords -Record $preInstallRegistryRecords
+    $preInstallRegistryCanonical = Get-EverVigilUninstallRegistryState |
         ConvertTo-Json -Depth 8 -Compress
 
     $recoveryRoot = Join-Path `
@@ -236,13 +236,10 @@ try {
         cleanupTransactionId = $cleanupTransactionId
         installRoot = $installRoot
         previousInstallRoot = $installRoot
-        legacyCleanupAuthorized = $false
-        legacyCredentialFound = $false
-        legacyTokenPath = ''
         targetVersion = '2.0.0'
         existingInstallPresent = $true
         startupWasRegistered = $true
-        migrationApplied = $false
+        systemMutationApplied = $false
         externalArtifactSnapshotReady = $false
         externalArtifactSnapshots = @()
         uninstallRegistryWasPresent = $false
@@ -394,7 +391,7 @@ try {
         -State $state `
         -RecoveryRoot $recoveryRoot `
         -TransactionId $transactionId
-    Assert-TestRegistryCanonical -Expected $legacyRegistryCanonical
+    Assert-TestRegistryCanonical -Expected $preInstallRegistryCanonical
     foreach ($definition in @($definitions | Where-Object Authorized)) {
         $snapshot = $snapshotByRole[[string]$definition.Role]
         if ([bool]$snapshot.wasPresent) {
@@ -418,7 +415,7 @@ try {
         Restore-EverVigilUninstallRegistrySnapshot `
             -State $state `
             -RecoveryRoot $recoveryRoot
-        Assert-TestRegistryCanonical -Expected $legacyRegistryCanonical
+        Assert-TestRegistryCanonical -Expected $preInstallRegistryCanonical
     }
 
     foreach ($versionCase in @(
@@ -546,7 +543,7 @@ try {
                 -State $preflightFailureState
         } catch {
             $preflightFailureRejected = $_.Exception.Message -match
-                'prior environment was restored'
+                'pre-installation state was restored'
         } finally {
             $script:InstallTransactionMutexTaken = $false
         }
@@ -624,9 +621,6 @@ try {
                 previousBackupPlanned = $true
                 destinationOwnedInstallPresent = $true
                 runtimeConfigurationReady = $false
-                legacyCredentialFound = $false
-                legacyTokenPath = ''
-                legacyCleanupAuthorized = $false
             }
         }
 
@@ -822,12 +816,12 @@ try {
     'External install transaction tests passed: byte-exact support and shortcut rollback, typed HKCU rollback with semantic-exact ACL, all 24 partial Inno value boundaries, transaction-bound registry intent, target-version manifests, SnapshotReady rollback, forward-only protected commit phases with crash retry, zero-byte known artifacts, idempotent recovery, and unknown file/value/subkey fail-closed behavior.'
 } finally {
     if ($null -ne $originalRegistrySubKey) {
-        $script:LegacyCompatibilityApplicationUninstallRegistrySubKey =
+        $script:EverVigilProductUninstallRegistrySubKey =
             $testRegistrySubKey
         [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree(
             $testRegistrySubKey,
             $false)
-        $script:LegacyCompatibilityApplicationUninstallRegistrySubKey =
+        $script:EverVigilProductUninstallRegistrySubKey =
             $originalRegistrySubKey
     }
     $env:LOCALAPPDATA = $originalLocalAppData

@@ -25,12 +25,13 @@ if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
     }
 }
 $InstallPathResolver = Join-Path $PSScriptRoot 'scripts\Resolve-SafeInstallRoot.ps1'
+$ProductIdentityScript = Join-Path $PSScriptRoot 'scripts\ProductIdentity.ps1'
 $requiredUninstallSupportScripts = @(
     'Complete-InstallTransaction.ps1'
     'InstallTransactionData.ps1'
     'Invoke-InteractiveUserTask.ps1'
     'Invoke-SystemMaintenance.ps1'
-    'LegacyCompatibility.generated.ps1'
+    'ProductIdentity.ps1'
     'Resolve-SafeInstallRoot.ps1'
 )
 foreach ($requiredSupportScriptName in $requiredUninstallSupportScripts) {
@@ -48,11 +49,11 @@ foreach ($requiredSupportScriptName in $requiredUninstallSupportScripts) {
         throw "Required uninstall support helper is missing or unsafe: $requiredSupportScriptPath"
     }
 }
+. $ProductIdentityScript
 . $InstallPathResolver
 try {
     $installRootResolution = Resolve-EverVigilMaintenanceInstallRoot `
-        -Path $InstallRoot `
-        -AllowLegacyKnownLayout
+        -Path $InstallRoot
 } catch {
     $missingInstallRoot = Resolve-SafeInstallRoot `
         -Path $InstallRoot `
@@ -73,34 +74,24 @@ $DataRoot = Get-EverVigilActiveDataRoot
 $PendingSystemJournalPath = Join-Path $DataRoot 'pending-system-configuration.json'
 $SystemTransactionId = [guid]::NewGuid().ToString('N')
 $RecognizedDataRoots = @(
-    (Join-Path $env:LOCALAPPDATA 'EverVigil')
-    (Join-Path `
-        $env:LOCALAPPDATA `
-        $script:LegacyCompatibilityApplicationDataRootRelativeToLocalAppData)
-    ) | ForEach-Object { [IO.Path]::GetFullPath($_) } | Select-Object -Unique
+    [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'EverVigil'))
+)
 $CurrentDefaultInstallRoot = [IO.Path]::GetFullPath($defaultInstallRoot).TrimEnd('\')
-$LegacyDefaultInstallRoot = [IO.Path]::GetFullPath((Join-Path `
-        $env:LOCALAPPDATA `
-        $script:LegacyCompatibilityApplicationInstallRootRelativeToLocalAppData)).TrimEnd('\')
 $SiblingTransactionResidueSpecifications = [Collections.Generic.List[object]]::new()
 $SiblingTransactionResidueSpecifications.Add([pscustomobject]@{
         OriginalInstallRoot = $InstallRoot
         AllowedKind = @('staging', 'backup', 'relocated')
     })
-foreach ($knownPreviousRoot in @($CurrentDefaultInstallRoot, $LegacyDefaultInstallRoot)) {
-    if (-not [string]::Equals(
-            $knownPreviousRoot,
-            $InstallRoot,
-            [StringComparison]::OrdinalIgnoreCase)) {
-        $SiblingTransactionResidueSpecifications.Add([pscustomobject]@{
-                OriginalInstallRoot = $knownPreviousRoot
-                AllowedKind = @('relocated')
-            })
-    }
+if (-not [string]::Equals(
+        $CurrentDefaultInstallRoot,
+        $InstallRoot,
+        [StringComparison]::OrdinalIgnoreCase)) {
+    $SiblingTransactionResidueSpecifications.Add([pscustomobject]@{
+            OriginalInstallRoot = $CurrentDefaultInstallRoot
+            AllowedKind = @('relocated')
+        })
 }
-$InstallTransactionPath = Join-Path `
-    $DataRoot `
-    $script:LegacyCompatibilityDataTransactionJournalFileName
+
 $InstallTransactionScript = Join-Path `
     $PSScriptRoot `
     'scripts\Complete-InstallTransaction.ps1'
@@ -112,28 +103,14 @@ if (-not (Test-Path -LiteralPath $InstallTransactionScript -PathType Leaf)) {
 }
 . $InstallTransactionDataHelper
 $installTransactionTemporaryPrefix =
-    "$($script:LegacyCompatibilityDataTransactionJournalFileName).new-"
-$transactionRecoveryRoots = [Collections.Generic.List[string]]::new()
-foreach ($recognizedDataRoot in $RecognizedDataRoots) {
-    $candidateTransactionPath = Join-Path `
-        $recognizedDataRoot `
-        $script:LegacyCompatibilityDataTransactionJournalFileName
-    $candidateTemporaries = @(
-        Get-EverVigilInstallTransactionTemporaryFiles `
-            -DataRoot $recognizedDataRoot)
-    if ((Test-Path -LiteralPath $candidateTransactionPath) -or
-        $candidateTemporaries.Count -gt 0) {
-        $transactionRecoveryRoots.Add(
-            [IO.Path]::GetFullPath($recognizedDataRoot))
-    }
-}
-if ($transactionRecoveryRoots.Count -gt 1) {
-    throw 'Install transaction artifacts exist in both recognized data roots; refusing ambiguous recovery.'
-}
-if ($transactionRecoveryRoots.Count -eq 1) {
-    $recoveryTransactionPath = Join-Path `
-        $transactionRecoveryRoots[0] `
-        $script:LegacyCompatibilityDataTransactionJournalFileName
+    "$($script:EverVigilTransactionJournalFileName).new-"
+$recoveryTransactionPath = Join-Path `
+    $DataRoot `
+    $script:EverVigilTransactionJournalFileName
+$recoveryTransactionTemporaries = @(
+    Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $DataRoot)
+if ((Test-Path -LiteralPath $recoveryTransactionPath) -or
+    $recoveryTransactionTemporaries.Count -gt 0) {
     & $InstallTransactionScript `
         -Action Recover `
         -TransactionPath $recoveryTransactionPath
@@ -141,8 +118,7 @@ if ($transactionRecoveryRoots.Count -eq 1) {
         if (Test-Path -LiteralPath $recoveryTransactionPath) {
             Get-Item -LiteralPath $recoveryTransactionPath -Force -ErrorAction Stop
         }
-        Get-EverVigilInstallTransactionTemporaryFiles `
-            -DataRoot $transactionRecoveryRoots[0])
+        Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $DataRoot)
     if ($remainingTransactionArtifacts.Count -gt 0) {
         throw "An install recovery transaction could not be resolved before uninstalling: $($remainingTransactionArtifacts[0].FullName)"
     }
@@ -150,28 +126,15 @@ if ($transactionRecoveryRoots.Count -eq 1) {
 $InstalledExecutable = Join-Path $InstallRoot 'EverVigil.exe'
 $AppliedSystemConfigurationPath = Join-Path `
     $DataRoot `
-    $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
+    $script:EverVigilAppliedSystemConfigurationFileName
 $SystemConfigurationRequiredPath = Join-Path `
     $DataRoot `
-    $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
+    $script:EverVigilSystemConfigurationRequiredFileName
 $StartupShortcutPath = Join-Path `
     ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) `
     'EverVigil.lnk'
-$LegacyStartupShortcutPath = Join-Path `
-    ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) `
-    $script:LegacyCompatibilityApplicationStartupShortcutFileName
 $CurrentStartupTargets = @(
     (Join-Path $InstallRoot 'EverVigil.exe')
-) | Select-Object -Unique
-$LegacyStartupTargets = @(
-    (Join-Path `
-        $InstallRoot `
-        $script:LegacyCompatibilityApplicationExecutableFileName)
-    (Join-Path `
-        (Join-Path `
-            $env:LOCALAPPDATA `
-            $script:LegacyCompatibilityApplicationInstallRootRelativeToLocalAppData) `
-        $script:LegacyCompatibilityApplicationExecutableFileName)
 ) | Select-Object -Unique
 if ((Test-Path -LiteralPath $StartupShortcutPath -PathType Leaf) -and
     -not (Test-EverVigilShortcutIdentity `
@@ -180,13 +143,7 @@ if ((Test-Path -LiteralPath $StartupShortcutPath -PathType Leaf) -and
         -ExpectedArguments '--background')) {
     throw "The EverVigil startup shortcut has an unexpected target or arguments: $StartupShortcutPath"
 }
-if ((Test-Path -LiteralPath $LegacyStartupShortcutPath -PathType Leaf) -and
-    -not (Test-EverVigilShortcutIdentity `
-        -Path $LegacyStartupShortcutPath `
-        -ExpectedTargetPath $LegacyStartupTargets `
-        -ExpectedArguments '--background')) {
-    throw "The legacy startup shortcut has an unexpected target or arguments: $LegacyStartupShortcutPath"
-}
+
 $PublicPort = 3456
 $BackendPort = 3457
 $TailscalePath = $null
@@ -518,7 +475,7 @@ function Assert-NoInstallTransactionAfterElevation {
     foreach ($recognizedDataRoot in $RecognizedDataRoots) {
         $candidate = Join-Path `
             $recognizedDataRoot `
-            $script:LegacyCompatibilityDataTransactionJournalFileName
+            $script:EverVigilTransactionJournalFileName
         if (Test-Path -LiteralPath $candidate) {
             throw "An install transaction appeared while the elevated helper owned the system mutex: $candidate"
         }
@@ -1012,11 +969,11 @@ function Test-EverVigilRecoveryFileName {
     param([Parameter(Mandatory)][string]$Name)
 
     $applicationDataNames = @(
-        $script:LegacyCompatibilityDataSettingsFileName
-        $script:LegacyCompatibilityDataProtectedTokenFileName
-        $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
-        $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
-        $script:LegacyCompatibilityDataDiagnosticLoggingMarkerFileName
+        $script:EverVigilSettingsFileName
+        $script:EverVigilProtectedTokenFileName
+        $script:EverVigilAppliedSystemConfigurationFileName
+        $script:EverVigilSystemConfigurationRequiredFileName
+        $script:EverVigilDiagnosticLoggingMarkerFileName
     ) | Select-Object -Unique
     if (@($applicationDataNames | Where-Object {
                 $Name -ceq "$_.rollback"
@@ -1037,11 +994,11 @@ function Test-EverVigilRestoreTemporaryFileName {
     }
     $sourceName = [string]$Matches.source
     $applicationDataNames = @(
-        $script:LegacyCompatibilityDataSettingsFileName
-        $script:LegacyCompatibilityDataProtectedTokenFileName
-        $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
-        $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
-        $script:LegacyCompatibilityDataDiagnosticLoggingMarkerFileName
+        $script:EverVigilSettingsFileName
+        $script:EverVigilProtectedTokenFileName
+        $script:EverVigilAppliedSystemConfigurationFileName
+        $script:EverVigilSystemConfigurationRequiredFileName
+        $script:EverVigilDiagnosticLoggingMarkerFileName
     ) | Select-Object -Unique
     return $sourceName -cin $applicationDataNames -or
         $sourceName -cmatch `
@@ -1071,7 +1028,7 @@ function Assert-EverVigilRecoveryTree {
                 Get-ChildItem -LiteralPath $transactionRoot.FullName -Force -ErrorAction Stop)) {
             if ($entry.PSIsContainer -or
                 ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-                ($entry.Name -notin @('legacy-task.xml', 'system.log') -and
+                ($entry.Name -notin @('interactive-task.xml', 'system.log') -and
                     -not (Test-EverVigilRecoveryFileName -Name $entry.Name))) {
                 throw "The transaction-recovery directory contains an unexpected entry: $($entry.FullName)"
             }
@@ -1131,28 +1088,19 @@ function Get-EverVigilRuntimeAtomicTemporaryInfo {
 
     if ($stableName -ceq 'token.dat') {
         $protectedBytes = [IO.File]::ReadAllBytes($item.FullName)
-        $tokenEvidenceValid = $false
-        foreach ($entropyContext in @(
-                'EverVigil/token/v1',
-                $script:LegacyCompatibilityCryptographyDpapiEntropyContext)) {
-            try {
-                $entropy = [Security.Cryptography.SHA256]::HashData(
-                    [Text.UTF8Encoding]::new($false).GetBytes($entropyContext))
-                $tokenBytes = [Security.Cryptography.ProtectedData]::Unprotect(
-                    $protectedBytes,
-                    $entropy,
-                    [Security.Cryptography.DataProtectionScope]::CurrentUser)
-                $token = [Text.Encoding]::ASCII.GetString($tokenBytes)
-                if ($token -cmatch '\A[0-9a-f]{32}\z' -and
-                    $tokenBytes.Length -eq 32) {
-                    $tokenEvidenceValid = $true
-                    break
-                }
-            } catch [Security.Cryptography.CryptographicException] {
-                # Try the other fixed application-specific entropy context.
-            }
+        $entropy = [Security.Cryptography.SHA256]::HashData(
+            [Text.UTF8Encoding]::new($false).GetBytes('EverVigil/token/v1'))
+        try {
+            $tokenBytes = [Security.Cryptography.ProtectedData]::Unprotect(
+                $protectedBytes,
+                $entropy,
+                [Security.Cryptography.DataProtectionScope]::CurrentUser)
+        } catch [Security.Cryptography.CryptographicException] {
+            throw "The token atomic temporary is not valid CurrentUser DPAPI data: $($item.FullName)"
         }
-        if (-not $tokenEvidenceValid) {
+        $token = [Text.Encoding]::ASCII.GetString($tokenBytes)
+        if ($token -cnotmatch '\A[0-9a-f]{32}\z' -or
+            $tokenBytes.Length -ne 32) {
             throw "The token atomic temporary is not valid CurrentUser DPAPI data: $($item.FullName)"
         }
         return [pscustomobject]@{
@@ -1232,25 +1180,7 @@ function Get-EverVigilRuntimeAtomicTemporaryInfo {
         'stableRunSeconds', 'failureThreshold', 'logFileSizeMb',
         'logFileCopies', 'clipboardClearSeconds', 'diagnosticLogging',
         'autoStartService')
-    $previousSettingsProperties = @(
-        $currentSettingsProperties
-        'projectDirectory'
-    )
-    $legacySettingsProperties = @(
-        $previousSettingsProperties
-        'publicHost'
-    )
     $settingsProperties = @($document.PSObject.Properties)
-    $isLegacySettingsSchema =
-        $settingsProperties.Count -eq $legacySettingsProperties.Count -and
-        @($settingsProperties.Name | Where-Object {
-                $_ -cnotin $legacySettingsProperties
-            }).Count -eq 0
-    $isPreviousSettingsSchema =
-        $settingsProperties.Count -eq $previousSettingsProperties.Count -and
-        @($settingsProperties.Name | Where-Object {
-                $_ -cnotin $previousSettingsProperties
-            }).Count -eq 0
     $isCurrentSettingsSchema =
         $settingsProperties.Count -eq $currentSettingsProperties.Count -and
         @($settingsProperties.Name | Where-Object {
@@ -1259,49 +1189,14 @@ function Get-EverVigilRuntimeAtomicTemporaryInfo {
     $stringSettings = @(
         'uiLanguage', 'displayName', 'nodePath',
         'evenTerminalCliPath', 'codexPath', 'tailscalePath')
-    $validatedStringSettings = if ($isLegacySettingsSchema -or $isPreviousSettingsSchema) {
-        @($stringSettings + 'projectDirectory')
-    } else {
-        @($stringSettings)
-    }
     $integerSettings = @(
         'publicPort', 'backendPort', 'codexAppServerPort',
         'healthIntervalSeconds', 'providerCheckIntervalSeconds',
         'publicCheckIntervalSeconds', 'startupTimeoutSeconds',
         'stableRunSeconds', 'failureThreshold', 'logFileSizeMb',
         'logFileCopies', 'clipboardClearSeconds')
-    $legacyPublicHostValid = $true
-    if ($isLegacySettingsSchema) {
-        $legacyPublicHostProperty = $document.PSObject.Properties['publicHost']
-        $legacyPublicHostValid = $legacyPublicHostProperty.Value -is [string]
-        if ($legacyPublicHostValid) {
-            $legacyPublicHostValue = [string]$legacyPublicHostProperty.Value
-            $legacyPublicHost = $legacyPublicHostValue
-            if ($legacyPublicHost.Length -ge 2 -and
-                $legacyPublicHost[0] -eq '[' -and
-                $legacyPublicHost[$legacyPublicHost.Length - 1] -eq ']') {
-                $legacyPublicHost = $legacyPublicHost.Substring(
-                    1,
-                    $legacyPublicHost.Length - 2)
-            }
-            $legacyPublicHostValid =
-                $legacyPublicHostValue.Length -le 255 -and
-                $legacyPublicHost.Length -le 253 -and
-                -not [string]::IsNullOrWhiteSpace($legacyPublicHost) -and
-                -not $legacyPublicHostValue.Contains(
-                    '://',
-                    [StringComparison]::Ordinal) -and
-                -not $legacyPublicHostValue.Contains('/') -and
-                -not ($legacyPublicHostValue -match '\s') -and
-                [Uri]::CheckHostName($legacyPublicHost) -ne
-                    [UriHostNameType]::Unknown
-        }
-    }
-    if ((-not $isCurrentSettingsSchema -and
-         -not $isPreviousSettingsSchema -and
-         -not $isLegacySettingsSchema) -or
-        -not $legacyPublicHostValid -or
-        @($validatedStringSettings | Where-Object {
+    if (-not $isCurrentSettingsSchema -or
+        @($stringSettings | Where-Object {
                 $document.PSObject.Properties[$_].Value -isnot [string]
             }).Count -gt 0 -or
         @($integerSettings | Where-Object {
@@ -1313,7 +1208,7 @@ function Get-EverVigilRuntimeAtomicTemporaryInfo {
         [string]$document.uiLanguage -cnotin @('system', 'en', 'ja') -or
         [string]::IsNullOrWhiteSpace([string]$document.displayName) -or
         ([string]$document.displayName).Length -gt 64 -or
-        @($validatedStringSettings | Where-Object {
+        @($stringSettings | Where-Object {
                 $_ -notin @('uiLanguage', 'displayName') -and
                 -not (Test-EverVigilPathFullyQualified `
                     -Path ([string]$document.$_))
@@ -1344,17 +1239,17 @@ function Get-EverVigilTransactionResiduePaths {
     }
 
     $journalTemporaryPattern = '\A' +
-        [regex]::Escape($script:LegacyCompatibilityDataTransactionJournalFileName) +
+        [regex]::Escape($script:EverVigilTransactionJournalFileName) +
         '\.new-[0-9a-f]{32}\z'
     $publishDirectoryPattern = '\A' +
-        [regex]::Escape($script:LegacyCompatibilityDataInstallerPublishDirectoryPrefix) +
+        [regex]::Escape($script:EverVigilInstallerPublishDirectoryPrefix) +
         '[0-9a-f]{32}\z'
     $runtimeAtomicTemporaryPattern =
         '\A(?:settings\.json|token\.dat|applied-system-configuration\.json|pending-system-configuration\.json)\.[0-9a-f]{32}\.tmp\z'
     foreach ($entry in @(
             Get-ChildItem -LiteralPath $expectedRoot -Force -ErrorAction Stop)) {
         $isRecoveryRoot = $entry.Name -ceq
-            $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
+            $script:EverVigilTransactionRecoveryDirectoryName
         $isPublishRoot = $entry.Name -cmatch $publishDirectoryPattern
         $isJournalTemporary = $entry.Name -cmatch $journalTemporaryPattern
         $isRestoreTemporary = Test-EverVigilRestoreTemporaryFileName -Name $entry.Name
@@ -1496,7 +1391,6 @@ function Get-EverVigilSiblingTransactionResiduePaths {
     }
     Assert-OwnedInstallRoot `
         -Path $activeRoot `
-        -AllowLegacyKnownLayout `
         -AllowCurrentTempTree:$AllowActiveInstallRootInCurrentTemp
 
     $result = [Collections.Generic.List[string]]::new()
@@ -1581,16 +1475,13 @@ function Assert-EverVigilDataRootRemovable {
     }
 
     $allowedRootFiles = @(
-        $script:LegacyCompatibilityDataSettingsFileName
-        $script:LegacyCompatibilityDataProtectedTokenFileName
-        $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
-        $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
-        $script:LegacyCompatibilityDataDiagnosticLoggingMarkerFileName
+        $script:EverVigilSettingsFileName
+        $script:EverVigilProtectedTokenFileName
+        $script:EverVigilAppliedSystemConfigurationFileName
+        $script:EverVigilSystemConfigurationRequiredFileName
+        $script:EverVigilDiagnosticLoggingMarkerFileName
     ) | Select-Object -Unique
-    $allowedLogNames = @(
-        'evervigil.log'
-        $script:LegacyCompatibilityDataLogFileName
-    ) | Select-Object -Unique
+    $allowedLogNames = @('evervigil.log')
     $transactionResiduePaths = @(Get-EverVigilTransactionResiduePaths -Path $resolvedRoot)
     $transactionResidue = [Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase)
@@ -1611,7 +1502,7 @@ function Assert-EverVigilDataRootRemovable {
             if ($entry.Name -ceq 'BridgeHost') {
                 continue
             }
-            if ($entry.Name -cne $script:LegacyCompatibilityDataLogDirectoryName) {
+            if ($entry.Name -cne $script:EverVigilLogDirectoryName) {
                 throw "Refusing to remove an application data directory with an unexpected entry: $($entry.Name)"
             }
             foreach ($logEntry in @(
@@ -1718,49 +1609,30 @@ try {
     if (-not $transactionLockTaken) {
         throw 'Another EverVigil install or uninstall transaction did not finish within 10 minutes.'
     }
-    foreach ($recognizedDataRoot in $RecognizedDataRoots) {
-        $candidateTransactionPath = Join-Path `
-            $recognizedDataRoot `
-            $script:LegacyCompatibilityDataTransactionJournalFileName
-        $candidateInstallTransactionArtifacts = @(if (
-                Test-Path -LiteralPath $recognizedDataRoot -PathType Container) {
-                Get-ChildItem `
-                    -LiteralPath $recognizedDataRoot `
-                    -Force `
-                    -ErrorAction Stop | Where-Object {
-                        $_.Name.StartsWith(
-                            $installTransactionTemporaryPrefix,
-                            [StringComparison]::Ordinal)
-                    }
-            })
-        if ((Test-Path -LiteralPath $candidateTransactionPath) -or
-            $candidateInstallTransactionArtifacts.Count -gt 0) {
-            throw "An install recovery transaction appeared after preflight at '$recognizedDataRoot'."
-        }
-    }
-    $pendingSystemCandidates = @(
-        foreach ($recognizedDataRoot in $RecognizedDataRoots) {
-            $candidate = Join-Path `
-                $recognizedDataRoot `
-                'pending-system-configuration.json'
-            if (Test-Path -LiteralPath $candidate) {
-                [pscustomobject]@{
-                    Path = $candidate
-                    DataRoot = $recognizedDataRoot
+    $candidateTransactionPath = Join-Path `
+        $DataRoot `
+        $script:EverVigilTransactionJournalFileName
+    $candidateInstallTransactionArtifacts = @(if (
+            Test-Path -LiteralPath $DataRoot -PathType Container) {
+            Get-ChildItem `
+                -LiteralPath $DataRoot `
+                -Force `
+                -ErrorAction Stop | Where-Object {
+                    $_.Name.StartsWith(
+                        $installTransactionTemporaryPrefix,
+                        [StringComparison]::Ordinal)
                 }
-            }
-        }
-    )
-    if ($pendingSystemCandidates.Count -gt 1) {
-        throw 'Multiple pending system journals exist; uninstall cannot choose ownership safely.'
+        })
+    if ((Test-Path -LiteralPath $candidateTransactionPath) -or
+        $candidateInstallTransactionArtifacts.Count -gt 0) {
+        throw "An install recovery transaction appeared after preflight at '$DataRoot'."
     }
-    if ($pendingSystemCandidates.Count -eq 1) {
-        $pendingCandidate = $pendingSystemCandidates[0]
+    if (Test-Path -LiteralPath $PendingSystemJournalPath) {
         $pendingState = Read-PendingSystemJournalForRecovery `
-            -Path $pendingCandidate.Path `
-            -ExpectedDataRoot $pendingCandidate.DataRoot
+            -Path $PendingSystemJournalPath `
+            -ExpectedDataRoot $DataRoot
         $pendingSystemRecoveryCandidate = [pscustomobject]@{
-            Path = $pendingCandidate.Path
+            Path = $PendingSystemJournalPath
             State = $pendingState
         }
     }
@@ -1771,7 +1643,6 @@ try {
         }
         Assert-OwnedInstallRoot `
             -Path $InstallRoot `
-            -AllowLegacyKnownLayout `
             -AllowCurrentTempTree:$allowInstallRootInCurrentTemp
     }
     foreach ($recognizedDataRoot in $RecognizedDataRoots) {
@@ -1866,10 +1737,7 @@ if ($runningSupervisors.Count -gt 0) {
 }
 $instanceMutex = [Threading.Mutex]::new(
     $false,
-    $script:LegacyCompatibilitySynchronizationInstanceMutexTemplate.Replace(
-        '{ownerSid}',
-        $OwnerSid,
-        [StringComparison]::Ordinal))
+    "Global\EverVigil-$OwnerSid-Mutex")
 try {
     $instanceLockTaken = $instanceMutex.WaitOne([TimeSpan]::FromSeconds(20))
 } catch [Threading.AbandonedMutexException] {
@@ -2083,17 +1951,12 @@ foreach ($ownershipStatePath in $ownershipStatePaths) {
     }
 }
 
-$currentStartupRemoved = Remove-EverVigilOwnedShortcut `
-        -Path $StartupShortcutPath `
-        -ExpectedTargetPath $CurrentStartupTargets `
-        -ExpectedArguments '--background'
-$legacyStartupRemoved = Remove-EverVigilOwnedShortcut `
-        -Path $LegacyStartupShortcutPath `
-        -ExpectedTargetPath $LegacyStartupTargets `
-        -ExpectedArguments '--background'
-if ((Test-Path -LiteralPath $StartupShortcutPath -PathType Leaf) -or
-    (Test-Path -LiteralPath $LegacyStartupShortcutPath -PathType Leaf)) {
-    throw 'A verified startup shortcut remained after uninstall cleanup.'
+[void](Remove-EverVigilOwnedShortcut `
+    -Path $StartupShortcutPath `
+    -ExpectedTargetPath $CurrentStartupTargets `
+    -ExpectedArguments '--background')
+if (Test-Path -LiteralPath $StartupShortcutPath -PathType Leaf) {
+    throw 'The verified EverVigil startup shortcut remained after uninstall cleanup.'
 }
 
 Remove-EverVigilSiblingTransactionResidue `
@@ -2109,7 +1972,6 @@ if (Test-Path -LiteralPath $InstallRoot) {
     }
     Assert-OwnedInstallRoot `
         -Path $resolved `
-        -AllowLegacyKnownLayout `
         -AllowCurrentTempTree:$allowInstallRootInCurrentTemp
     Remove-Item -LiteralPath $resolved -Recurse -Force
 }

@@ -35,10 +35,8 @@ var tests = new (string Name, Action Run)[]
     ("English and Japanese resources have matching complete keys", LocalizationResourcesAreComplete),
     ("application localization smoke check resolves both languages", ApplicationLocalizationSmokeCheck),
     ("display language selection is strict and switches at runtime", DisplayLanguageContract),
-    ("legacy migration discovers portable dependencies", LegacyMigrationDiscoversPortableDependencies),
+    ("product identity uses the EverVigil namespace", ProductIdentityUsesEverVigilNamespace),
     ("Even Terminal CLI discovery preserves PATH precedence", EvenTerminalCliDiscoveryPreservesPathPrecedence),
-    ("legacy defaults replace only newly created settings", LegacyDefaultsReplaceOnlyNewSettings),
-    ("incomplete legacy defaults remain configurable", IncompleteLegacyDefaultsRemainConfigurable),
     ("invalid ports are rejected", InvalidPortsAreRejected),
     ("service ports must be distinct", DuplicatePortsAreRejected),
     ("production settings reject a custom Tailscale executable", CustomTailscalePathIsRejected),
@@ -75,13 +73,12 @@ var tests = new (string Name, Action Run)[]
     ("startup waits for dependency configuration", StartupWaitsForDependencyConfiguration),
     ("installer health accepts the pre-commit runtime", InstallerHealthAcceptsPreCommitRuntime),
     ("concurrent token stores converge on one token", ConcurrentTokenStoresConvergeOnOneToken),
-    ("legacy import preserves an existing DPAPI token", LegacyImportPreservesExistingDpapiToken),
     ("DPAPI token storage does not contain plaintext", DpapiTokenStorageIsEncrypted),
     ("failed token persistence keeps the cached token", FailedTokenPersistenceKeepsCachedToken),
     ("unreadable DPAPI token is quarantined", UnreadableTokenIsQuarantined),
     ("missing settings require system configuration", MissingSettingsRequireSystemConfiguration),
     ("invalid settings require system configuration", InvalidSettingsRequireSystemConfiguration),
-    ("obsolete global workspace setting is removed", ObsoleteGlobalWorkspaceSettingIsRemoved),
+    ("obsolete global workspace setting is rejected", ObsoleteGlobalWorkspaceSettingIsRejected),
     ("applied system configuration is recorded before unblocking", AppliedSystemConfigurationIsRecordedBeforeUnblocking),
     ("pending system journal commits only after durable mutation phases", PendingSystemJournalCommitsAfterDurablePhases),
     ("pending system journal rejects premature commit and mismatched transaction", PendingSystemJournalRejectsUnsafeCompletion),
@@ -221,52 +218,42 @@ static void DisplayLanguageContract()
     }
 }
 
-static void LegacyMigrationDiscoversPortableDependencies()
+static void ProductIdentityUsesEverVigilNamespace()
 {
-    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Legacy-{Guid.NewGuid():N}");
-    var profileRoot = Path.Combine(root, "Profile");
-    var appsRoot = Path.Combine(profileRoot, "Apps");
-    var legacyRoot = Path.Combine(appsRoot, "even-terminal");
-    var nodePath = Path.Combine(appsRoot, "nodejs", "node.exe");
-    var cliPath = Path.Combine(
-        appsRoot,
-        "npm",
-        "node_modules",
-        "@evenrealities",
-        "even-terminal",
-        "bin",
-        "cli.js");
-    var tokenPath = Path.Combine(legacyRoot, "token.txt");
-    try
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(nodePath)!);
-        Directory.CreateDirectory(Path.GetDirectoryName(cliPath)!);
-        Directory.CreateDirectory(legacyRoot);
-        File.WriteAllText(nodePath, string.Empty);
-        File.WriteAllText(cliPath, string.Empty);
-        File.WriteAllText(tokenPath, new string('a', 32));
-
-        var settings = EverVigil.Program.CreateLegacyMigrationDefaults(tokenPath, legacyRoot);
-
-        Assert(settings.NodePath == nodePath, "Legacy portable Node.js was not discovered.");
-        Assert(settings.EvenTerminalCliPath == cliPath, "Legacy portable Even Terminal was not discovered.");
-        var outsideToken = Path.Combine(root, "token.txt");
-        File.WriteAllText(outsideToken, new string('b', 32));
-        AssertThrows<InvalidDataException>(() =>
-            EverVigil.Program.CreateLegacyMigrationDefaults(outsideToken, legacyRoot));
-        File.WriteAllText(tokenPath, "not-a-valid-token");
-        AssertThrows<InvalidDataException>(() =>
-            EverVigil.Program.CreateLegacyMigrationDefaults(tokenPath, legacyRoot));
-    }
-    finally
-    {
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
+    Assert(
+        EverVigil.Infrastructure.ProductIdentity.DataRootDirectoryName == "EverVigil",
+        "The application data root is outside the EverVigil namespace.");
+    var paths = EverVigil.Infrastructure.DataPaths.Create();
+    var expectedDataRoot = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "EverVigil");
+    Assert(
+        string.Equals(paths.DataRoot, expectedDataRoot, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(
+            paths.SettingsPath,
+            Path.Combine(expectedDataRoot, "settings.json"),
+            StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(
+            paths.TokenPath,
+            Path.Combine(expectedDataRoot, "token.dat"),
+            StringComparison.OrdinalIgnoreCase),
+        "DataPaths did not select the EverVigil-only data root.");
+    Assert(
+        EverVigil.Infrastructure.ProductIdentity.SettingsFileName == "settings.json" &&
+        EverVigil.Infrastructure.ProductIdentity.ProtectedTokenFileName == "token.dat" &&
+        EverVigil.Infrastructure.ProductIdentity.LogFileName == "evervigil.log" &&
+        EverVigil.Infrastructure.ProductIdentity.StartupShortcutFileName == "EverVigil.lnk",
+        "Persistent resources are outside the EverVigil namespace.");
+    Assert(
+        EverVigil.Infrastructure.ProductIdentity.TokenEntropyContext == "EverVigil/token/v1" &&
+        EverVigil.Infrastructure.ProductIdentity.TokenMutexNameTemplate ==
+            "Global\\EverVigil-Token-{ownerSid}" &&
+        EverVigil.Infrastructure.ProductIdentity.InstanceScopeNameTemplate ==
+            "Global\\EverVigil-{ownerSid}" &&
+        EverVigil.Infrastructure.ProductIdentity.SystemTransactionMutexName ==
+            "Global\\EverVigil.SystemTransaction",
+        "Process coordination is outside the EverVigil namespace.");
 }
-
 static void EvenTerminalCliDiscoveryPreservesPathPrecedence()
 {
     var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Path-{Guid.NewGuid():N}");
@@ -313,106 +300,6 @@ static void EvenTerminalCliDiscoveryPreservesPathPrecedence()
             "PATH",
             originalPath,
             EnvironmentVariableTarget.Process);
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-}
-
-static void IncompleteLegacyDefaultsRemainConfigurable()
-{
-    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Incomplete-{Guid.NewGuid():N}");
-    var paths = new EverVigil.Infrastructure.DataPaths(
-        root,
-        Path.Combine(root, "settings.json"),
-        Path.Combine(root, "token.dat"),
-        Path.Combine(root, "Logs"),
-        Path.Combine(root, "Logs", "evervigil.log"),
-        Path.Combine(root, "startup.lnk"));
-    try
-    {
-        Directory.CreateDirectory(root);
-        var store = new EverVigil.Infrastructure.SettingsStore(paths);
-        var incompleteDefaults = store.Current with
-        {
-            DisplayName = "LEGACY-INCOMPLETE",
-            NodePath = Path.Combine(root, "missing-node.exe"),
-            EvenTerminalCliPath = Path.Combine(root, "missing-cli.js"),
-            CodexPath = Path.Combine(root, "missing-codex.exe"),
-            TailscalePath = Path.Combine(root, "missing-tailscale.exe")
-        };
-
-        Assert(
-            AppSettingsValidator.Validate(
-                incompleteDefaults,
-                requireExistingPaths: false,
-                requireTrustedTailscalePath: false).Count == 0,
-            "Incomplete defaults were structurally invalid.");
-        Assert(
-            AppSettingsValidator.Validate(
-                incompleteDefaults,
-                requireTrustedTailscalePath: false).Count == 4,
-            "Missing runtime dependencies were not reported.");
-        Assert(
-            store.TryReplaceNewlyCreatedDefaults(incompleteDefaults),
-            "New settings rejected structurally valid migration defaults.");
-        Assert(
-            store.Current.DisplayName == "LEGACY-INCOMPLETE",
-            "Configurable migration defaults were not persisted.");
-    }
-    finally
-    {
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-}
-
-static void LegacyDefaultsReplaceOnlyNewSettings()
-{
-    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Settings-{Guid.NewGuid():N}");
-    var paths = new EverVigil.Infrastructure.DataPaths(
-        root,
-        Path.Combine(root, "settings.json"),
-        Path.Combine(root, "token.dat"),
-        Path.Combine(root, "Logs"),
-        Path.Combine(root, "Logs", "evervigil.log"),
-        Path.Combine(root, "startup.lnk"));
-    try
-    {
-        Directory.CreateDirectory(root);
-        var requiredFiles = new[] { "node.exe", "cli.js", "codex.exe", "tailscale.exe" }
-            .Select(fileName => Path.Combine(root, fileName))
-            .ToArray();
-        foreach (var path in requiredFiles)
-        {
-            File.WriteAllText(path, string.Empty);
-        }
-
-        var store = new EverVigil.Infrastructure.SettingsStore(paths);
-        var legacyDefaults = store.Current with
-        {
-            DisplayName = "LEGACY",
-            NodePath = requiredFiles[0],
-            EvenTerminalCliPath = requiredFiles[1],
-            CodexPath = requiredFiles[2],
-            TailscalePath = requiredFiles[3]
-        };
-        Assert(
-            store.TryReplaceNewlyCreatedDefaults(legacyDefaults),
-            "New settings rejected validated legacy defaults.");
-        Assert(store.Current.DisplayName == "LEGACY", "Legacy defaults were not persisted.");
-
-        var reopened = new EverVigil.Infrastructure.SettingsStore(paths);
-        Assert(
-            !reopened.TryReplaceNewlyCreatedDefaults(legacyDefaults with { DisplayName = "OVERWRITE" }),
-            "Existing settings were overwritten by migration defaults.");
-        Assert(reopened.Current.DisplayName == "LEGACY", "Existing settings changed during migration retry.");
-    }
-    finally
-    {
         if (Directory.Exists(root))
         {
             Directory.Delete(root, recursive: true);
@@ -1297,8 +1184,6 @@ static void HeadlessCommandsSuppressStartupErrorDialogs()
                  "--bridge-launcher",
                  "--health-check",
                  "--installer-runtime-check",
-                 "--import-token-file",
-                 "--initialize-legacy-settings",
                  "--commit-installer-system-config",
                  "--mark-system-configured",
                  "--register-startup",
@@ -1545,41 +1430,6 @@ static void ConcurrentTokenStoresConvergeOnOneToken()
     }
 }
 
-static void LegacyImportPreservesExistingDpapiToken()
-{
-    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.TokenImport-{Guid.NewGuid():N}");
-    var paths = new EverVigil.Infrastructure.DataPaths(
-        root,
-        Path.Combine(root, "settings.json"),
-        Path.Combine(root, "token.dat"),
-        Path.Combine(root, "Logs"),
-        Path.Combine(root, "Logs", "evervigil.log"),
-        Path.Combine(root, "startup.lnk"));
-    var legacyTokenPath = Path.Combine(root, "token.txt");
-    try
-    {
-        Directory.CreateDirectory(root);
-        var tokenStore = new EverVigil.Infrastructure.TokenStore(paths);
-        var existingToken = tokenStore.GetOrCreate();
-        File.WriteAllText(legacyTokenPath, new string('a', 32));
-
-        Assert(
-            !tokenStore.ImportLegacyFileIfMissing(legacyTokenPath),
-            "Legacy import replaced an existing DPAPI token.");
-        var reopened = new EverVigil.Infrastructure.TokenStore(paths);
-        Assert(
-            reopened.GetOrCreate() == existingToken,
-            "The persisted DPAPI token changed during legacy import.");
-    }
-    finally
-    {
-        if (Directory.Exists(root))
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-}
-
 static void DpapiTokenStorageIsEncrypted()
 {
     var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-{Guid.NewGuid():N}");
@@ -1751,7 +1601,7 @@ static void InvalidSettingsRequireSystemConfiguration()
     }
 }
 
-static void ObsoleteGlobalWorkspaceSettingIsRemoved()
+static void ObsoleteGlobalWorkspaceSettingIsRejected()
 {
     var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-{Guid.NewGuid():N}");
     var paths = new EverVigil.Infrastructure.DataPaths(
@@ -1764,38 +1614,6 @@ static void ObsoleteGlobalWorkspaceSettingIsRemoved()
     try
     {
         var created = new EverVigil.Infrastructure.SettingsStore(paths);
-        var nodePath = Path.Combine(root, "node.exe");
-        var cliPath = Path.Combine(root, "cli.js");
-        var codexPath = Path.Combine(root, "codex.exe");
-        var tailscalePath = Path.Combine(root, "tailscale.exe");
-        foreach (var dependencyPath in new[] { nodePath, cliPath, codexPath, tailscalePath })
-        {
-            File.WriteAllText(dependencyPath, string.Empty);
-        }
-        var expected = created.Current with
-        {
-            UiLanguage = "ja",
-            DisplayName = "CANONICAL-SETTINGS",
-            PublicPort = 45_601,
-            BackendPort = 45_602,
-            CodexAppServerPort = 45_603,
-            NodePath = nodePath,
-            EvenTerminalCliPath = cliPath,
-            CodexPath = codexPath,
-            TailscalePath = tailscalePath,
-            HealthIntervalSeconds = 41,
-            ProviderCheckIntervalSeconds = 401,
-            PublicCheckIntervalSeconds = 402,
-            StartupTimeoutSeconds = 131,
-            StableRunSeconds = 601,
-            FailureThreshold = 4,
-            LogFileSizeMb = 6,
-            LogFileCopies = 4,
-            ClipboardClearSeconds = 71,
-            DiagnosticLogging = true,
-            AutoStartService = false
-        };
-        created.Save(expected);
         var document = System.Text.Json.Nodes.JsonNode.Parse(
             File.ReadAllText(paths.SettingsPath))!.AsObject();
         document["projectDirectory"] = root;
@@ -1804,19 +1622,16 @@ static void ObsoleteGlobalWorkspaceSettingIsRemoved()
         var reopened = new EverVigil.Infrastructure.SettingsStore(paths);
 
         Assert(
-            reopened.LastRecoveryMessageResourceKey is null,
-            "Removing the obsolete global workspace discarded valid settings.");
+            reopened.LastRecoveryMessageResourceKey == "SettingsQuarantinedRecovery",
+            "A settings document with an obsolete workspace property was accepted.");
         Assert(
-            reopened.Current == expected,
-            "Removing the obsolete global workspace changed a supported setting.");
-        Assert(
-            !Directory.EnumerateFiles(root, "settings.json.invalid-*").Any(),
-            "Canonical settings cleanup incorrectly quarantined a valid settings file.");
+            Directory.EnumerateFiles(root, "settings.json.invalid-*").Count() == 1,
+            "The obsolete settings document was not quarantined exactly once.");
         Assert(
             !File.ReadAllText(paths.SettingsPath).Contains(
                 "projectDirectory",
                 StringComparison.Ordinal),
-            "Canonical settings retained the obsolete global workspace property.");
+            "Replacement settings retained the obsolete global workspace property.");
     }
     finally
     {
@@ -1826,7 +1641,6 @@ static void ObsoleteGlobalWorkspaceSettingIsRemoved()
         }
     }
 }
-
 static void AppliedSystemConfigurationIsRecordedBeforeUnblocking()
 {
     var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-{Guid.NewGuid():N}");

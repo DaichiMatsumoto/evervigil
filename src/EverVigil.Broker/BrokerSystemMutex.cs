@@ -2,15 +2,13 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
-using EverVigil.Compatibility;
 using Microsoft.Win32.SafeHandles;
 
 namespace EverVigil.Broker;
 
 internal static class BrokerSystemMutex
 {
-    internal const string Name =
-        LegacyCompatibility.Synchronization.SystemTransactionMutex;
+    internal const string Name = "Global\\EverVigil.SystemTransaction";
     private const string SecurityDescriptorSddl =
         "D:P(A;;0x00100001;;;AU)(A;;0x001F0001;;;SY)(A;;0x001F0001;;;BA)";
     private const uint MutexAllAccess = 0x001F0001;

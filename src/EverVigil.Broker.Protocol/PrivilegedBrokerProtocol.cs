@@ -127,8 +127,7 @@ public sealed record PrivilegedBrokerRequest(
     PrivilegedBrokerOperation Operation,
     PrivilegedBrokerInitiator Initiator,
     int? PublicPort,
-    int? BackendPort,
-    bool MigrateLegacySystemState = false);
+    int? BackendPort);
 
 public sealed record PrivilegedBrokerResponse(
     int SchemaVersion,
@@ -145,7 +144,6 @@ public enum PrivilegedBrokerOperation
     Rollback,
     Commit,
     UninstallCleanup,
-    LegacyTaskCleanup,
     Status
 }
 

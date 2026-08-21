@@ -153,13 +153,6 @@ internal static class AuthenticatedPipeServer
             throw new InvalidDataException(
                 "Only Privileged broker Apply accepts port fields.");
         }
-        if (request.MigrateLegacySystemState &&
-            (request.Operation != PrivilegedBrokerOperation.Apply ||
-             request.Initiator != PrivilegedBrokerInitiator.Installer))
-        {
-            throw new InvalidDataException(
-                "Legacy migration is allowed only for installer Apply.");
-        }
     }
 
     private static void ValidateResponse(PrivilegedBrokerResponse response, Guid transactionId)

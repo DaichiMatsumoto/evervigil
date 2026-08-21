@@ -23,9 +23,9 @@ $InteractiveTaskHelper = Join-Path $RepositoryRoot 'scripts\Invoke-InteractiveUs
 $InstallTransactionDataHelper = Join-Path `
     $RepositoryRoot `
     'scripts\InstallTransactionData.ps1'
-$LegacyCompatibilityHelper = Join-Path `
+$ProductIdentityHelper = Join-Path `
     $RepositoryRoot `
-    'scripts\LegacyCompatibility.generated.ps1'
+    'scripts\ProductIdentity.ps1'
 if (-not (Test-Path -LiteralPath $InstallPathResolver -PathType Leaf)) {
     throw "Required install-path validator not found: $InstallPathResolver"
 }
@@ -35,15 +35,14 @@ if (-not (Test-Path -LiteralPath $InteractiveTaskHelper -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $InstallTransactionDataHelper -PathType Leaf)) {
     throw "Required install-transaction data helper not found: $InstallTransactionDataHelper"
 }
-if (-not (Test-Path -LiteralPath $LegacyCompatibilityHelper -PathType Leaf)) {
-    throw "Required legacy-compatibility helper not found: $LegacyCompatibilityHelper"
+if (-not (Test-Path -LiteralPath $ProductIdentityHelper -PathType Leaf)) {
+    throw "Required product-identity helper not found: $ProductIdentityHelper"
 }
 . $InstallPathResolver
 . $InteractiveTaskHelper
 . $InstallTransactionDataHelper
 $installRootResolution = Resolve-EverVigilMaintenanceInstallRoot `
-    -Path $InstallRoot `
-    -AllowLegacyKnownLayout
+    -Path $InstallRoot
 $InstallRoot = [string]$installRootResolution.Path
 $allowInstallRootInCurrentTemp = [bool]$installRootResolution.AllowCurrentTempTree
 $allowPreviousInstallRootInCurrentTemp = $false
@@ -51,29 +50,11 @@ Assert-CompatibleInstallRoot `
     -Path $InstallRoot `
     -AllowCurrentTempTree:$allowInstallRootInCurrentTemp
 if ([string]::IsNullOrWhiteSpace($PreviousInstallRoot)) {
-    $legacyDefaultResolution = Resolve-EverVigilMaintenanceInstallRoot `
-        -Path (Join-Path `
-            $env:LOCALAPPDATA `
-            $script:LegacyCompatibilityApplicationInstallRootRelativeToLocalAppData) `
-        -AllowLegacyKnownLayout
-    $legacyDefaultRoot = [string]$legacyDefaultResolution.Path
-    $legacyDefaultOwned = -not [string]::Equals(
-        $InstallRoot,
-        $legacyDefaultRoot,
-        [StringComparison]::OrdinalIgnoreCase) -and
-        [bool]$legacyDefaultResolution.Owned
-    if ($legacyDefaultOwned) {
-        $PreviousInstallRoot = $legacyDefaultRoot
-        $allowPreviousInstallRootInCurrentTemp =
-            [bool]$legacyDefaultResolution.AllowCurrentTempTree
-    } else {
-        $PreviousInstallRoot = $InstallRoot
-        $allowPreviousInstallRootInCurrentTemp = $allowInstallRootInCurrentTemp
-    }
+    $PreviousInstallRoot = $InstallRoot
+    $allowPreviousInstallRootInCurrentTemp = $allowInstallRootInCurrentTemp
 } else {
     $previousInstallRootResolution = Resolve-EverVigilMaintenanceInstallRoot `
-        -Path $PreviousInstallRoot `
-        -AllowLegacyKnownLayout
+        -Path $PreviousInstallRoot
     $PreviousInstallRoot = [string]$previousInstallRootResolution.Path
     $allowPreviousInstallRootInCurrentTemp =
         [bool]$previousInstallRootResolution.AllowCurrentTempTree
@@ -90,7 +71,6 @@ if ($installRootChanged -and
 if ($installRootChanged -and (Test-Path -LiteralPath $PreviousInstallRoot -PathType Container)) {
     Assert-OwnedInstallRoot `
         -Path $PreviousInstallRoot `
-        -AllowLegacyKnownLayout `
         -AllowCurrentTempTree:$allowPreviousInstallRootInCurrentTemp
 }
 if ($installRootChanged -and (Test-Path -LiteralPath $InstallRoot -PathType Container) -and
@@ -103,19 +83,6 @@ $destinationOwnedInstallPresent = -not $installRootChanged -and
 $previousOwnedInstallPresent = $installRootChanged -and
     (Test-Path -LiteralPath $PreviousInstallRoot -PathType Container)
 $existingInstallPresent = $destinationOwnedInstallPresent -or $previousOwnedInstallPresent
-$legacySourceRoot = if ($previousOwnedInstallPresent) {
-    $PreviousInstallRoot
-} elseif ($destinationOwnedInstallPresent) {
-    $InstallRoot
-} else {
-    $null
-}
-$legacyCleanupAuthorized = $false
-if (-not [string]::IsNullOrWhiteSpace($legacySourceRoot)) {
-    $legacyCleanupAuthorized = $null -ne (Get-EverVigilLegacyInstallOwnership `
-            -Path $legacySourceRoot `
-            -AllowCurrentTempTree)
-}
 
 $principal = [Security.Principal.WindowsPrincipal]::new(
     [Security.Principal.WindowsIdentity]::GetCurrent())
@@ -130,51 +97,6 @@ $ownerSid = if ($null -eq $currentIdentity.User) {
 }
 if ([string]::IsNullOrWhiteSpace($ownerSid)) {
     throw 'The invoking user SID is unavailable.'
-}
-
-function Get-ProfilePathForSid {
-    param([Parameter(Mandatory)][string]$Sid)
-
-    $profileRegistryPath =
-        "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$Sid"
-    try {
-        $profileValue = Get-ItemPropertyValue `
-            -LiteralPath $profileRegistryPath `
-            -Name 'ProfileImagePath'
-        return [IO.Path]::GetFullPath(
-            [Environment]::ExpandEnvironmentVariables([string]$profileValue))
-    } catch {
-        throw "Could not resolve the invoking user's profile from SID '$Sid': $($_.Exception.Message)"
-    }
-}
-
-function Get-LegacyRootCandidatesForProfile {
-    param(
-        [Parameter(Mandatory)][string]$ProfilePath,
-        [Parameter(Mandatory)][string[]]$FileSystemRoots
-    )
-
-    $resolvedProfilePath = [IO.Path]::GetFullPath($ProfilePath)
-    $profileName = [IO.DirectoryInfo]::new($resolvedProfilePath).Name
-    if ([string]::IsNullOrWhiteSpace($profileName)) {
-        throw "The invoking user's profile path has no account-name segment: $resolvedProfilePath"
-    }
-    $portableTemplate =
-        $script:LegacyCompatibilityOlderEvenTerminalCodexDriveLauncherRelativeToProfileDirectory
-    $portableLauncher = $portableTemplate.Replace(
-        '{profileDirectory}',
-        $profileName,
-        [StringComparison]::Ordinal)
-    $portableSuffix = [IO.Path]::GetDirectoryName($portableLauncher)
-    $candidates = @(
-        [IO.Path]::Combine(
-            $resolvedProfilePath,
-            $script:LegacyCompatibilityOlderEvenTerminalCodexLocalAppDataRootRelativeToProfile)
-        foreach ($fileSystemRoot in $FileSystemRoots) {
-            [IO.Path]::Combine($fileSystemRoot, $portableSuffix)
-        }
-    )
-    return @($candidates | Select-Object -Unique)
 }
 
 $ProjectPath = Join-Path $RepositoryRoot 'src\EverVigil\EverVigil.csproj'
@@ -208,34 +130,12 @@ if (-not (Test-Path -LiteralPath $InstallTransactionScript -PathType Leaf)) {
 }
 $InstallParent = Split-Path -Parent $InstallRoot
 $InstalledExecutable = Join-Path $InstallRoot 'EverVigil.exe'
-$previousCurrentExecutable = Join-Path $PreviousInstallRoot 'EverVigil.exe'
-$previousLegacyExecutable = Join-Path `
-    $PreviousInstallRoot `
-    $script:LegacyCompatibilityApplicationExecutableFileName
-$PreviousInstalledExecutable = if (
-    Test-Path -LiteralPath $previousCurrentExecutable -PathType Leaf) {
-    $previousCurrentExecutable
-} elseif (Test-Path -LiteralPath $previousLegacyExecutable -PathType Leaf) {
-    $previousLegacyExecutable
-} else {
-    $previousCurrentExecutable
-}
+$PreviousInstalledExecutable = Join-Path $PreviousInstallRoot 'EverVigil.exe'
 $DataRoot = Get-EverVigilActiveDataRoot
-$legacyDataRoot = [IO.Path]::GetFullPath((Join-Path `
-        $env:LOCALAPPDATA `
-        $script:LegacyCompatibilityApplicationDataRootRelativeToLocalAppData))
-$usingLegacyDataRoot = [string]::Equals(
-    [IO.Path]::GetFullPath($DataRoot),
-    $legacyDataRoot,
-    [StringComparison]::OrdinalIgnoreCase)
-$tokenEntropyContext = if ($usingLegacyDataRoot) {
-    $script:LegacyCompatibilityCryptographyDpapiEntropyContext
-} else {
-    'EverVigil/token/v1'
-}
+$tokenEntropyContext = 'EverVigil/token/v1'
 $TransactionPath = Join-Path `
     $DataRoot `
-    $script:LegacyCompatibilityDataTransactionJournalFileName
+    $script:EverVigilTransactionJournalFileName
 $installTransactionRecoveryCandidates = @(
     Get-EverVigilInstallTransactionTemporaryFiles -DataRoot $DataRoot)
 if ((Test-Path -LiteralPath $TransactionPath) -or
@@ -249,21 +149,14 @@ if ((Test-Path -LiteralPath $TransactionPath) -or
             -DataRoot $DataRoot).Count -gt 0) {
     throw "An installer transaction could not be recovered before installation: $TransactionPath"
 }
-$SettingsPath = Join-Path $DataRoot $script:LegacyCompatibilityDataSettingsFileName
+$SettingsPath = Join-Path $DataRoot $script:EverVigilSettingsFileName
 $AppliedSystemConfigurationPath = Join-Path `
     $DataRoot `
-    $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
-$TokenPath = Join-Path $DataRoot $script:LegacyCompatibilityDataProtectedTokenFileName
+    $script:EverVigilAppliedSystemConfigurationFileName
+$TokenPath = Join-Path $DataRoot $script:EverVigilProtectedTokenFileName
 $SystemConfigurationRequiredPath = Join-Path `
     $DataRoot `
-    $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
-$ownerProfilePath = Get-ProfilePathForSid -Sid $ownerSid
-$fileSystemRoots = @(Get-PSDrive -PSProvider FileSystem | ForEach-Object { $_.Root })
-$LegacyRootCandidates = @(Get-LegacyRootCandidatesForProfile `
-        -ProfilePath $ownerProfilePath `
-        -FileSystemRoots $fileSystemRoots)
-$LegacyRoot = $null
-$LegacyTokenPath = $null
+    $script:EverVigilSystemConfigurationRequiredFileName
 $TransactionId = [guid]::NewGuid().ToString('N')
 $CleanupTransactionId = [guid]::NewGuid().ToString('N')
 while ([string]::Equals(
@@ -274,22 +167,17 @@ while ([string]::Equals(
 }
 $PublishRoot = Join-Path `
     $DataRoot `
-    "$($script:LegacyCompatibilityDataInstallerPublishDirectoryPrefix)$TransactionId"
+    "$($script:EverVigilInstallerPublishDirectoryPrefix)$TransactionId"
 $StagingRoot = "$InstallRoot.staging-$TransactionId"
 $BackupRoot = "$InstallRoot.backup-$TransactionId"
 $PreviousBackupRoot = "$PreviousInstallRoot.relocated-$TransactionId"
 $TransactionRecoveryRoot = Join-Path `
     $DataRoot `
-    "$($script:LegacyCompatibilityDataTransactionRecoveryDirectoryName)\$TransactionId"
-$RollbackTaskXml = Join-Path $TransactionRecoveryRoot 'legacy-task.xml'
+    "$($script:EverVigilTransactionRecoveryDirectoryName)\$TransactionId"
+$RollbackTaskXml = Join-Path $TransactionRecoveryRoot 'interactive-task.xml'
 $SystemResultPath = Join-Path $TransactionRecoveryRoot 'system.log'
 $PendingSystemJournalPath = Join-Path $DataRoot 'pending-system-configuration.json'
-$RecognizedDataRoots = @(
-    (Join-Path $env:LOCALAPPDATA 'EverVigil')
-    (Join-Path `
-        $env:LOCALAPPDATA `
-        $script:LegacyCompatibilityApplicationDataRootRelativeToLocalAppData)
-) | ForEach-Object { [IO.Path]::GetFullPath($_) } | Select-Object -Unique
+$RecognizedDataRoots = @([IO.Path]::GetFullPath($DataRoot))
 $PowerShellPath = 'C:\Program Files\PowerShell\7\pwsh.exe'
 
 function Write-InstallTransactionState {
@@ -376,8 +264,8 @@ $destinationBackupPlanned = Test-Path -LiteralPath $InstallRoot
 $previousBackupPlanned = $installRootChanged -and
     (Test-Path -LiteralPath $PreviousInstallRoot)
 $newInstallActivated = $false
-$migrationApplied = $false
-$migrationCommitted = $false
+$systemMutationApplied = $false
+$systemMutationCommitted = $false
 $preserveRecoveryArtifacts = $false
 $runtimeConfigurationReady = $false
 $systemConfigurationCanBePreserved = $false
@@ -390,66 +278,40 @@ $tokenWasPresent = Test-Path -LiteralPath $TokenPath -PathType Leaf
 $appliedSystemConfigurationWasPresent = Test-Path `
     -LiteralPath $AppliedSystemConfigurationPath `
     -PathType Leaf
-$migrateV121SystemState = [bool]$legacyCleanupAuthorized -and
-    $appliedSystemConfigurationWasPresent
 $systemConfigurationRequiredWasPresent = Test-Path `
     -LiteralPath $SystemConfigurationRequiredPath `
     -PathType Leaf
 $diagnosticLoggingWasPresent = Test-Path `
     -LiteralPath (Join-Path `
         $DataRoot `
-        $script:LegacyCompatibilityDataDiagnosticLoggingMarkerFileName) `
+        $script:EverVigilDiagnosticLoggingMarkerFileName) `
     -PathType Leaf
 $logsRootWasPresent = Test-Path `
-    -LiteralPath (Join-Path $DataRoot $script:LegacyCompatibilityDataLogDirectoryName) `
+    -LiteralPath (Join-Path $DataRoot $script:EverVigilLogDirectoryName) `
     -PathType Container
 $transactionsRootWasPresent = Test-Path `
     -LiteralPath (Join-Path `
         $DataRoot `
-        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName) `
+        $script:EverVigilTransactionRecoveryDirectoryName) `
     -PathType Container
 $systemConfigurationWasRequired = -not $settingsWasPresent -or
     $systemConfigurationRequiredWasPresent
-$legacyCredentialFound = $false
 $transactionState = $null
 $startupShortcutPath = Join-Path `
     ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) `
     'EverVigil.lnk'
-$legacyStartupShortcutPath = Join-Path `
-    ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) `
-    $script:LegacyCompatibilityApplicationStartupShortcutFileName
 $currentStartupTargets = @(
     (Join-Path $InstallRoot 'EverVigil.exe')
     (Join-Path $PreviousInstallRoot 'EverVigil.exe')
 ) | Select-Object -Unique
-$legacyStartupTargets = @(
-    (Join-Path `
-        $PreviousInstallRoot `
-        $script:LegacyCompatibilityApplicationExecutableFileName)
-    (Join-Path `
-        (Join-Path `
-            $env:LOCALAPPDATA `
-            $script:LegacyCompatibilityApplicationInstallRootRelativeToLocalAppData) `
-        $script:LegacyCompatibilityApplicationExecutableFileName)
-) | Select-Object -Unique
-$currentStartupOwned = Test-EverVigilShortcutIdentity `
+$startupWasRegistered = Test-EverVigilShortcutIdentity `
     -Path $startupShortcutPath `
     -ExpectedTargetPath $currentStartupTargets `
     -ExpectedArguments '--background'
-$legacyStartupOwned = Test-EverVigilShortcutIdentity `
-    -Path $legacyStartupShortcutPath `
-    -ExpectedTargetPath $legacyStartupTargets `
-    -ExpectedArguments '--background'
 if ((Test-Path -LiteralPath $startupShortcutPath -PathType Leaf) -and
-    -not $currentStartupOwned) {
+    -not $startupWasRegistered) {
     throw "The existing startup shortcut is not owned by EverVigil: $startupShortcutPath"
-}
-if ((Test-Path -LiteralPath $legacyStartupShortcutPath -PathType Leaf) -and
-    -not $legacyStartupOwned) {
-    throw "The legacy startup shortcut has an unexpected target or arguments: $legacyStartupShortcutPath"
-}
-$startupWasRegistered = $currentStartupOwned -or $legacyStartupOwned
-$existingSupervisorWasRunning = @(
+}$existingSupervisorWasRunning = @(
     Get-EverVigilProcessesAtRoot -Root $InstallRoot
     if ($installRootChanged) {
         Get-EverVigilProcessesAtRoot -Root $PreviousInstallRoot
@@ -523,8 +385,7 @@ function Invoke-SystemBrokerMaintenance {
     param(
         [ValidateSet('Install', 'Commit', 'Rollback')][string]$Mode,
         [int]$PublicPort = 0,
-        [int]$BackendPort = 0,
-        [switch]$MigrateV121SystemState
+        [int]$BackendPort = 0
     )
 
     if (-not $script:transactionLockTaken) {
@@ -544,7 +405,6 @@ function Invoke-SystemBrokerMaintenance {
             -Initiator Installer `
             -PublicPort $(if ($Mode -eq 'Install') { $PublicPort } else { 0 }) `
             -BackendPort $(if ($Mode -eq 'Install') { $BackendPort } else { 0 }) `
-            -MigrateV121SystemState:($Mode -eq 'Install' -and $MigrateV121SystemState) `
             -AllowBootstrap:($Mode -eq 'Install')
     } finally {
         try {
@@ -1230,45 +1090,6 @@ function Remove-UnmutatedInstallPendingSystemJournal {
     return $true
 }
 
-function Get-LegacyTokenCredential {
-    param([Parameter(Mandatory)][string[]]$CandidateRoots)
-
-    $credentials = @(
-        foreach ($candidateRoot in $CandidateRoots) {
-            $candidateTokenPath = Join-Path $candidateRoot 'token.txt'
-            if (-not (Test-Path -LiteralPath $candidateTokenPath -PathType Leaf)) {
-                continue
-            }
-
-            try {
-                $legacyToken = [IO.File]::ReadAllText(
-                    $candidateTokenPath,
-                    [Text.Encoding]::ASCII).Trim()
-                if ($legacyToken -cmatch '\A[0-9A-Fa-f]{32}\z') {
-                    [pscustomobject]@{
-                        Root = [IO.Path]::GetFullPath($candidateRoot)
-                        TokenPath = [IO.Path]::GetFullPath($candidateTokenPath)
-                    }
-                }
-            } catch {
-                # An unreadable candidate is not accepted as migration ownership evidence.
-            }
-        }
-    )
-    if ($credentials.Count -gt 1) {
-        throw 'Multiple valid legacy credentials were found. Remove the ambiguity before installing.'
-    }
-
-    return $credentials | Select-Object -First 1
-}
-
-$legacyCredential = Get-LegacyTokenCredential -CandidateRoots $LegacyRootCandidates
-if ($legacyCredential) {
-    $LegacyRoot = $legacyCredential.Root
-    $LegacyTokenPath = $legacyCredential.TokenPath
-    $legacyCredentialFound = $true
-}
-
 function Restore-SystemConfigurationRequirement {
     if (-not $systemConfigurationWasRequired -or
         (Test-Path -LiteralPath $SystemConfigurationRequiredPath -PathType Leaf)) {
@@ -1451,12 +1272,12 @@ function Remove-NewApplicationData {
     Remove-EverVigilNewBridgeHostDirectory `
         -DataRoot $DataRoot `
         -BridgeHostWasPresent $bridgeHostWasPresent
-    $logRoot = Join-Path $DataRoot $script:LegacyCompatibilityDataLogDirectoryName
+    $logRoot = Join-Path $DataRoot $script:EverVigilLogDirectoryName
     if (-not $logsRootWasPresent -and
         (Test-Path -LiteralPath $logRoot -PathType Container)) {
         $ownedLogNames = @(
             'evervigil.log'
-            $script:LegacyCompatibilityDataLogFileName
+            $script:EverVigilLogFileName
         ) | Select-Object -Unique
         Get-ChildItem -LiteralPath $logRoot -File -Force |
             Where-Object {
@@ -1520,8 +1341,7 @@ try {
         $existingSupervisorWasRunning -and
         $appliedSystemConfigurationWasPresent -and
         $tokenWasPresent -and
-        -not $systemConfigurationRequiredWasPresent -and
-        -not $legacyCredentialFound) {
+        -not $systemConfigurationRequiredWasPresent) {
         try {
             $existingSupervisorWasHealthy = Test-ExistingSupervisorHealth `
                 -TokenPath $TokenPath `
@@ -1539,7 +1359,7 @@ try {
     foreach ($requiredPath in @(
             $SystemScript
             $InstallTransactionScript
-            $LegacyCompatibilityHelper
+            $ProductIdentityHelper
             $PowerShellPath
         )) {
         if (-not (Test-Path -LiteralPath $requiredPath)) {
@@ -1577,7 +1397,7 @@ try {
         $protectedBrokerWasPresentBefore = $true
     }
     $transactionState = [ordered]@{
-        schemaVersion = [int]$script:LegacyCompatibilityDataTransactionSchemaVersion
+        schemaVersion = [int]$script:EverVigilTransactionSchemaVersion
         appId = $script:EverVigilAppId
         ownerSid = $ownerSid
         status = 'staging'
@@ -1599,8 +1419,7 @@ try {
         destinationOwnedInstallPresent = $destinationOwnedInstallPresent
         previousOwnedInstallPresent = $previousOwnedInstallPresent
         existingInstallPresent = $existingInstallPresent
-        legacyCleanupAuthorized = $legacyCleanupAuthorized
-        migrationApplied = $false
+        systemMutationApplied = $false
         runtimeConfigurationReady = $false
         dataRootExisted = $dataRootExisted
         bridgeHostWasPresent = $bridgeHostWasPresent
@@ -1623,15 +1442,12 @@ try {
         logsRootWasPresent = $logsRootWasPresent
         transactionsRootWasPresent = $transactionsRootWasPresent
         systemConfigurationWasRequired = $systemConfigurationWasRequired
-        legacyCredentialFound = $legacyCredentialFound
-        migrateV121SystemState = $migrateV121SystemState
         # This durable intent is written before bootstrap. If bootstrap creates
         # protected state and the process then stops, rollback may invoke only
         # the fixed broker cleanup operation with its separate transaction ID.
         protectedBrokerWasPresentBefore = $protectedBrokerWasPresentBefore
         protectedBrokerCleanupAuthorized = -not $protectedBrokerWasPresentBefore
         protectedBrokerReady = $protectedBrokerWasPresentBefore
-        legacyTokenPath = if ($LegacyTokenPath) { $LegacyTokenPath } else { '' }
         startupWasRegistered = $startupWasRegistered
         existingSupervisorWasRunning = $existingSupervisorWasRunning
         publicPort = $effectivePublicPort
@@ -1709,7 +1525,7 @@ try {
             $InstallTransactionScript
             $InstallTransactionDataHelper
             $InteractiveTaskHelper
-            $LegacyCompatibilityHelper
+            $ProductIdentityHelper
         )) {
         Copy-Item -LiteralPath $supportScript -Destination (Join-Path $StagingRoot 'scripts')
     }
@@ -1792,26 +1608,6 @@ try {
         -AllowCurrentTempTree:$allowInstallRootInCurrentTemp
     Assert-TargetExecutableVersion -Path $InstalledExecutable
 
-    if ($LegacyRoot -and
-        $LegacyTokenPath -and
-        (Test-Path -LiteralPath $LegacyTokenPath -PathType Leaf) -and
-        -not $settingsWasPresent) {
-        $legacySettingsArguments = @(
-            '--initialize-legacy-settings'
-            '--legacy-token-file', $LegacyTokenPath
-            '--legacy-root', $LegacyRoot
-        )
-        if ((Invoke-AppCommand -Arguments $legacySettingsArguments) -ne 0) {
-            throw 'Legacy settings initialization failed.'
-        }
-    }
-    if ($LegacyTokenPath -and
-        (Test-Path -LiteralPath $LegacyTokenPath -PathType Leaf) -and
-        -not (Test-Path -LiteralPath $TokenPath -PathType Leaf)) {
-        if ((Invoke-AppCommand -Arguments @('--import-token-file', $LegacyTokenPath)) -ne 0) {
-            throw 'Legacy token import failed.'
-        }
-    }
     $runtimeConfigurationReady = (Invoke-EverVigilInteractiveCommand `
             -TransactionId $TransactionId `
             -OwnerSid $ownerSid `
@@ -1826,8 +1622,7 @@ try {
     }
 
     if ($runtimeConfigurationReady) {
-        if (-not $systemConfigurationCanBePreserved -or
-            $migrateV121SystemState) {
+        if (-not $systemConfigurationCanBePreserved) {
             $previousConfiguration = if ($appliedSystemConfigurationWasPresent) {
                 Read-PersistedSystemConfiguration `
                     -Path $AppliedSystemConfigurationPath `
@@ -1850,12 +1645,6 @@ try {
                     tailscalePath = [IO.Path]::GetFullPath(
                         [string]$previousConfiguration.TailscalePath)
                 }
-            } elseif ($legacyCredentialFound) {
-                [ordered]@{
-                    publicPort = 3456
-                    backendPort = 3457
-                    tailscalePath = [IO.Path]::GetFullPath($effectiveTailscalePath)
-                }
             } else {
                 $null
             }
@@ -1871,14 +1660,13 @@ try {
                 -Mode Install `
                 -PublicPort $effectivePublicPort `
                 -BackendPort $effectiveBackendPort `
-                -MigrateV121SystemState:$migrateV121SystemState
             $pendingSystemState = Read-InstallerPendingSystemJournal
             if (-not $pendingSystemState -or
                 [string]$pendingSystemState.phase -cne 'MutationsCompleted') {
                 throw 'System maintenance returned without durable completion evidence.'
             }
-            $migrationApplied = $true
-            $transactionState.migrationApplied = $true
+            $systemMutationApplied = $true
+            $transactionState.systemMutationApplied = $true
             $transactionState.protectedBrokerReady = $true
             Write-InstallTransactionState -State $transactionState
             Commit-InstallerSystemConfigurationLocally `
@@ -1893,10 +1681,8 @@ try {
         if ((Invoke-AppCommand -Arguments @('--register-startup')) -ne 0) {
             throw 'Startup registration failed.'
         }
-        # The verified legacy startup entry remains intact until the protected
-        # system commit is durable. Complete-InstallTransaction retires it as a
-        # resumable post-commit cleanup, so every pre-finalization failure can
-        # still restore the exact previous environment.
+        # The transaction snapshots the current shortcut before updating it,
+        # so a pre-commit failure can restore the exact pre-installation state.
     }
     if ($runtimeConfigurationReady -and
         (Invoke-EverVigilInteractiveCommand `
@@ -1909,7 +1695,7 @@ try {
         throw 'The installed runtime did not become healthy within three minutes.'
     }
 
-    $transactionState.migrationApplied = $migrationApplied
+    $transactionState.systemMutationApplied = $systemMutationApplied
     $transactionState.runtimeConfigurationReady = $runtimeConfigurationReady
     if ($DeferCommit) {
         Write-InstallTransactionState -State $transactionState
@@ -1918,19 +1704,13 @@ try {
         $transactionState.status = 'committed'
         Write-InstallTransactionState -State $transactionState
         $preserveRecoveryArtifacts = $true
-        $migrationCommitted = $true
-        if ($migrationApplied -and
+        $systemMutationCommitted = $true
+        if ($systemMutationApplied -and
             (Test-Path -LiteralPath $PendingSystemJournalPath -PathType Leaf)) {
             Invoke-SystemBrokerMaintenance -Mode Commit
             if (Test-Path -LiteralPath $PendingSystemJournalPath) {
                 throw 'The installer-owned pending system journal remained after commit.'
             }
-        }
-        if ($runtimeConfigurationReady -and
-            $legacyCredentialFound -and
-            $LegacyTokenPath -and
-            (Test-Path -LiteralPath $LegacyTokenPath -PathType Leaf)) {
-            Remove-Item -LiteralPath $LegacyTokenPath -Force
         }
         if ($destinationBackupPlanned) {
             $validateDestinationBackup = {
@@ -1967,14 +1747,6 @@ try {
 
     "Installed: $InstalledExecutable"
     "Startup: $(if ($shouldRegisterStartup) { 'registered' } else { 'preserved disabled' })"
-    $legacyCredentialStatus = if (-not $legacyCredentialFound) {
-        'not found'
-    } elseif ($runtimeConfigurationReady) {
-        'plaintext token retired'
-    } else {
-        'preserved until system migration completes'
-    }
-    "Legacy credential: $legacyCredentialStatus"
     "System configuration: $(if ($runtimeConfigurationReady) { 'reconciled by protected broker' } else { 'deferred until configuration completes' })"
     "Health: $(if ($runtimeConfigurationReady) { 'ONLINE' } else { 'CONFIGURATION REQUIRED' })"
     "Transaction: $(if ($DeferCommit) { 'pending setup completion' } else { 'committed' })"
@@ -1983,8 +1755,8 @@ try {
     }
 } catch {
     $installError = $_.Exception
-    if ($migrationCommitted) {
-        throw "The new tray supervisor remains active, but legacy cleanup failed: $($installError.Message)"
+    if ($systemMutationCommitted) {
+        throw "The validated installation remains active, but final cleanup failed: $($installError.Message)"
     }
     if ($null -ne $transactionState -and
         [string]$transactionState.status -ne 'staging') {
@@ -1995,7 +1767,7 @@ try {
         (Test-Path -LiteralPath $TransactionPath)) {
         try {
             $transactionState.status = 'rollingBack'
-            $transactionState.migrationApplied = $migrationApplied
+            $transactionState.systemMutationApplied = $systemMutationApplied
             $transactionState.runtimeConfigurationReady = $runtimeConfigurationReady
             Write-InstallTransactionState -State $transactionState
         } catch {
@@ -2022,11 +1794,11 @@ try {
     }
     $remaining = @(Get-InstalledSupervisorProcesses)
     if ($newInstallActivated -and $remaining.Count -gt 0) {
-        $preserveRecoveryArtifacts = $migrationApplied -or
+        $preserveRecoveryArtifacts = $systemMutationApplied -or
             (Test-Path -LiteralPath $PendingSystemJournalPath -PathType Leaf)
         throw "Installation failed: $($installError.Message) The new supervisor is still running, so system rollback was not attempted. PID(s): $($remaining.Id -join ', ')."
     }
-    if ($migrationApplied -or
+    if ($systemMutationApplied -or
         (Test-Path -LiteralPath $PendingSystemJournalPath -PathType Leaf)) {
         $preserveRecoveryArtifacts = $true
     }
@@ -2049,7 +1821,7 @@ try {
     } catch {
         $rollbackError = $_.Exception
     }
-    if (-not $migrationApplied -and $pendingSystemJournalExists) {
+    if (-not $systemMutationApplied -and $pendingSystemJournalExists) {
         try {
             [void](Remove-UnmutatedInstallPendingSystemJournal)
             $pendingSystemJournalExists = Test-Path `
@@ -2060,13 +1832,12 @@ try {
         }
     }
     if (-not $rollbackError -and
-        ($migrationApplied -or
+        ($systemMutationApplied -or
             $pendingSystemJournalExists -or
             $systemJournalTemporaries.Count -gt 0)) {
         try {
             Invoke-SystemBrokerMaintenance `
                 -Mode Rollback `
-                -MigrateV121SystemState:$migrateV121SystemState
         } catch {
             $rollbackError = $_.Exception
         }

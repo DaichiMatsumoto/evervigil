@@ -26,8 +26,15 @@ $testRoot = Join-Path $repositoryRoot 'artifacts\install-transaction-test'
 $originalLocalAppData = $env:LOCALAPPDATA
 $originalTemp = $env:TEMP
 $testLocalAppData = Join-Path $testRoot 'LocalAppData'
+$testPrograms = Join-Path $testRoot 'KnownFolders\Programs'
+$testStartup = Join-Path $testRoot 'KnownFolders\Startup'
 $transactionId = '0123456789abcdef0123456789abcdef'
+$testRegistrySubKey =
+    "Software\EverVigil.Tests\InstallTransaction\$transactionId"
 $cleanupTransactionId = 'fedcba9876543210fedcba9876543210'
+$originalProgramsFolder = $null
+$originalStartupFolder = $null
+$originalUninstallRegistrySubKey = $null
 $startupFolder = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::Startup)
 if ([string]::IsNullOrWhiteSpace($startupFolder)) {
@@ -84,13 +91,12 @@ function New-TransactionState {
         [bool]$LogsRootWasPresent = $false,
         [bool]$TransactionsRootWasPresent = $false,
         [ValidateSet('staging', 'pending', 'readyToCommit', 'committed', 'rollingBack', 'rolledBack')]
-        [string]$Status = 'pending',
-        [switch]$CurrentTransaction
+        [string]$Status = 'pending'
     )
 
     $state = [ordered]@{
-        schemaVersion = 3
-        appId = 'D1ACB787-2308-4AC4-91BD-A6A3856E7AF0'
+        schemaVersion = $script:EverVigilTransactionSchemaVersion
+        appId = $script:EverVigilProductAppId
         ownerSid = Get-EverVigilOwnerSid
         status = $Status
         deletionIntent = 'none'
@@ -105,14 +111,14 @@ function New-TransactionState {
         backupRoot = $BackupRoot
         previousBackupRoot = $PreviousBackupRoot
         recoveryRoot = $RecoveryRoot
-        rollbackTaskXml = Join-Path $RecoveryRoot 'legacy-task.xml'
+        rollbackTaskXml = Join-Path $RecoveryRoot 'interactive-task.xml'
         systemResultPath = Join-Path $RecoveryRoot 'system.log'
         destinationBackupPlanned = $DestinationBackupPlanned
         previousBackupPlanned = $PreviousBackupPlanned
         destinationOwnedInstallPresent = $DestinationOwnedInstallPresent
         previousOwnedInstallPresent = $PreviousBackupPlanned
         existingInstallPresent = $ExistingInstallPresent
-        migrationApplied = $false
+        systemMutationApplied = $false
         runtimeConfigurationReady = $false
         dataRootExisted = $DataRootExisted
         bridgeHostWasPresent = $BridgeHostWasPresent
@@ -128,8 +134,6 @@ function New-TransactionState {
         logsRootWasPresent = $LogsRootWasPresent
         transactionsRootWasPresent = $TransactionsRootWasPresent
         systemConfigurationWasRequired = $false
-        legacyCredentialFound = $false
-        legacyTokenPath = ''
         startupWasRegistered = $StartupWasRegistered
         existingSupervisorWasRunning = $false
         protectedBrokerWasPresentBefore = $false
@@ -139,16 +143,48 @@ function New-TransactionState {
         backendPort = 3457
         tailscalePath = 'C:\Program Files\Tailscale\tailscale.exe'
     }
-    if ($CurrentTransaction) {
-        $state.cleanupTransactionId = $cleanupTransactionId
-        $state.externalArtifactSnapshotReady = $false
-        $state.externalArtifactSnapshots = @()
-        $state.uninstallRegistryWasPresent = $false
-        $state.uninstallRegistrySnapshotReady = $false
-        $state.uninstallRegistrySnapshotSha256 = ''
-        $state.uninstallRegistryMutationMarkerSha256 = ''
-        $state.externalCommitPhase = 'None'
-        $state.targetVersion = '2.0.0'
+    $state['cleanupTransactionId'] = $cleanupTransactionId
+    $state['externalArtifactSnapshotReady'] = $false
+    $state['externalArtifactSnapshots'] = @()
+    $state['uninstallRegistryWasPresent'] = $false
+    $state['uninstallRegistrySnapshotReady'] = $false
+    $state['uninstallRegistrySnapshotSha256'] = ''
+    $state['uninstallRegistryMutationMarkerSha256'] = ''
+    $state['externalCommitPhase'] = 'None'
+    $state['targetVersion'] = '2.0.0'
+    if ($Status -cne 'staging') {
+        if (Test-Path -LiteralPath $RecoveryRoot -PathType Container) {
+            foreach ($item in @(Get-ChildItem `
+                        -LiteralPath $RecoveryRoot `
+                        -Force `
+                        -ErrorAction Stop)) {
+                if (-not $item.PSIsContainer -and
+                    (Test-EverVigilExternalArtifactRecoveryFileName `
+                        -Name $item.Name `
+                        -ExpectedTransactionId $transactionId)) {
+                    Remove-Item `
+                        -LiteralPath $item.FullName `
+                        -Force `
+                        -ErrorAction Stop
+                }
+            }
+        }
+        $registrySnapshot = New-EverVigilUninstallRegistrySnapshot `
+            -RecoveryRoot $RecoveryRoot `
+            -TransactionId $transactionId
+        $state.externalArtifactSnapshots = @(
+            New-EverVigilExternalArtifactSnapshots `
+                -RecoveryRoot $RecoveryRoot `
+                -State $state)
+        $state.uninstallRegistryWasPresent = [bool]$registrySnapshot.WasPresent
+        $state.uninstallRegistrySnapshotSha256 = [string]$registrySnapshot.Sha256
+        $state.uninstallRegistryMutationMarkerSha256 =
+            New-EverVigilUninstallRegistryMutationMarker `
+                -RecoveryRoot $RecoveryRoot `
+                -TransactionId $transactionId
+        $state.externalArtifactSnapshotReady = $true
+        $state.uninstallRegistrySnapshotReady = $true
+        $state.externalCommitPhase = 'SnapshotReady'
     }
     return $state
 }
@@ -169,6 +205,26 @@ try {
     $env:LOCALAPPDATA = $testLocalAppData
     . $resolverScript
     . $transactionDataScript
+    . $transactionScript
+    $originalProgramsFolder = (Get-Command Get-EverVigilProgramsFolderPath).ScriptBlock
+    $originalStartupFolder = (Get-Command Get-EverVigilStartupFolderPath).ScriptBlock
+    $originalUninstallRegistrySubKey =
+        $script:EverVigilProductUninstallRegistrySubKey
+    $script:EverVigilProductUninstallRegistrySubKey = $testRegistrySubKey
+    New-Item -ItemType Directory -Path $testPrograms -Force | Out-Null
+    New-Item -ItemType Directory -Path $testStartup -Force | Out-Null
+    function Get-EverVigilProgramsFolderPath { return $testPrograms }
+    function Get-EverVigilStartupFolderPath { return $testStartup }
+    function Invoke-TestTransactionScript {
+        param(
+            [Parameter(Mandatory)][string]$Action,
+            [Parameter(Mandatory)][string]$TransactionPath
+        )
+
+        Invoke-EverVigilInstallTransaction `
+            -RequestedAction $Action `
+            -Path $TransactionPath
+    }
 
     $knownInstallPaths = @(Get-EverVigilKnownRelativePaths)
     $unknownDocumentationPaths = @(Get-ChildItem `
@@ -218,7 +274,7 @@ try {
         'immediate-clean-rollback-data-root'
     $immediateRollbackTransactionsRoot = Join-Path `
         $immediateRollbackDataRoot `
-        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
+        $script:EverVigilTransactionRecoveryDirectoryName
     New-Item `
         -ItemType Directory `
         -Path $immediateRollbackTransactionsRoot `
@@ -227,7 +283,7 @@ try {
     New-Item -ItemType Directory -Path $immediateRollbackBridgeHost -Force | Out-Null
     $immediateRollbackJournal = Join-Path `
         $immediateRollbackDataRoot `
-        $script:LegacyCompatibilityDataTransactionJournalFileName
+        $script:EverVigilTransactionJournalFileName
     [IO.File]::WriteAllText(
         $immediateRollbackJournal,
         '{}',
@@ -340,8 +396,9 @@ try {
     Remove-Item -LiteralPath $reparseBridgeHostTarget -Recurse -Force -ErrorAction Stop
 
     $transactionPath = Join-Path $testLocalAppData 'EverVigil\install-transaction.json'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $transactionPath) -Force | Out-Null
     $phaseDispatchTransactionPath = [IO.Path]::GetFullPath($transactionPath)
-    $typeGuardRoot = Join-Path $testRoot 'legacy-cleanup-type-guard'
+    $typeGuardRoot = Join-Path $testRoot 'transaction-type-guard'
     $typeGuardState = New-TransactionState `
         -InstallRoot $typeGuardRoot `
         -PreviousInstallRoot $typeGuardRoot `
@@ -353,29 +410,7 @@ try {
         -DestinationBackupPlanned $false `
         -PreviousBackupPlanned $false `
         -DestinationOwnedInstallPresent $false `
-        -InstallRootChanged $false `
-        -CurrentTransaction
-    $typeGuardState.legacyCleanupAuthorized = 'false'
-    New-Item -ItemType Directory -Path (Split-Path -Parent $transactionPath) -Force | Out-Null
-    [IO.File]::WriteAllText(
-        $transactionPath,
-        (($typeGuardState | ConvertTo-Json -Depth 6) + "`n"),
-        [Text.UTF8Encoding]::new($false))
-    $stringBooleanRejected = $false
-    try {
-        & $transactionScript `
-            -Action Seal `
-            -TransactionPath $transactionPath
-    } catch {
-        $stringBooleanRejected = $_.Exception.Message -match
-            'legacy cleanup authorization must be a JSON boolean'
-    }
-    if (-not $stringBooleanRejected) {
-        throw 'A string-valued legacyCleanupAuthorized property was not rejected fail-closed.'
-    }
-    Remove-Item -LiteralPath $transactionPath -Force
-
-    $typeGuardState.legacyCleanupAuthorized = $false
+        -InstallRootChanged $false
     $typeGuardState.bridgeHostWasPresent = 'false'
     [IO.File]::WriteAllText(
         $transactionPath,
@@ -383,7 +418,7 @@ try {
         [Text.UTF8Encoding]::new($false))
     $bridgeHostBooleanRejected = $false
     try {
-        & $transactionScript `
+        Invoke-TestTransactionScript `
             -Action Seal `
             -TransactionPath $transactionPath
     } catch {
@@ -401,7 +436,6 @@ try {
         foreach ($entry in $typeGuardState.GetEnumerator()) {
             $cleanupIdentityGuardState[$entry.Key] = $entry.Value
         }
-        $cleanupIdentityGuardState.legacyCleanupAuthorized = $false
         $cleanupIdentityGuardState.protectedBrokerCleanupAuthorized = $true
         $cleanupIdentityGuardState.protectedBrokerReady = $false
         if ($null -eq $invalidCleanupIdentity) {
@@ -416,145 +450,45 @@ try {
             [Text.UTF8Encoding]::new($false))
         $cleanupIdentityRejected = $false
         try {
-            & $transactionScript `
+            Invoke-TestTransactionScript `
                 -Action Seal `
                 -TransactionPath $transactionPath
         } catch {
             $cleanupIdentityRejected = $_.Exception.Message -match
-                'cleanup transaction identifier|separate cleanup transaction identifier'
+                'exact recognized schema|cleanup transaction identifier|separate cleanup transaction identifier'
         }
         if (-not $cleanupIdentityRejected) {
             throw "Install transaction validation accepted unsafe cleanup identity '$invalidCleanupIdentity'."
         }
         Remove-Item -LiteralPath $transactionPath -Force
     }
-    $legacyCleanupSentinel = Join-Path `
-        (Join-Path `
-            $testLocalAppData `
-            $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData) `
-        'must-remain-without-legacy-cleanup-authorization.txt'
-    New-Item `
-        -ItemType Directory `
-        -Path (Split-Path -Parent $legacyCleanupSentinel) `
-        -Force | Out-Null
-    [IO.File]::WriteAllText(
-        $legacyCleanupSentinel,
-        'schema-3 fixture without the optional authorization property',
-        [Text.UTF8Encoding]::new($false))
 
-    $commitInstallRoot = Join-Path $testRoot 'commit-install'
-    $commitBackupRoot = "$commitInstallRoot.backup-$transactionId"
-    $commitPreviousBackupRoot = "$commitInstallRoot.relocated-$transactionId"
-    $commitRecoveryRoot = Join-Path `
-        $testLocalAppData `
-        "EverVigil\install-transactions\$transactionId"
-    New-KnownInstallLayout -Root $commitInstallRoot
-    Write-EverVigilInstallOwnership -Path $commitInstallRoot
-    New-Item -ItemType Directory -Path $commitBackupRoot -Force | Out-Null
-    New-Item -ItemType Directory -Path $commitRecoveryRoot -Force | Out-Null
-    $commitBridgeHost = Join-Path (Split-Path -Parent $transactionPath) 'BridgeHost'
-    New-Item -ItemType Directory -Path $commitBridgeHost -Force | Out-Null
-    $commitState = New-TransactionState `
-        -InstallRoot $commitInstallRoot `
-        -PreviousInstallRoot $commitInstallRoot `
-        -BackupRoot $commitBackupRoot `
-        -PreviousBackupRoot $commitPreviousBackupRoot `
-        -RecoveryRoot $commitRecoveryRoot `
-        -DestinationBackupPlanned $true `
-        -PreviousBackupPlanned $false `
-        -DestinationOwnedInstallPresent $false `
-        -InstallRootChanged $false
-    New-Item -ItemType Directory -Path (Split-Path -Parent $transactionPath) -Force | Out-Null
-    [IO.File]::WriteAllText(
-        $transactionPath,
-        (($commitState | ConvertTo-Json -Depth 6) + "`n"),
-        [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
-        -Action Seal `
-        -TransactionPath $transactionPath
-    $sealedState = Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json
-    if ([string]$sealedState.status -ne 'readyToCommit') {
-        throw 'Seal did not persist the ready-to-commit state.'
-    }
+    $maintenancePolicyRoot = Join-Path $testRoot 'maintenance-policy-install'
+    New-KnownInstallLayout -Root $maintenancePolicyRoot
+    Write-EverVigilInstallOwnership -Path $maintenancePolicyRoot
     try {
         $env:TEMP = $testRoot
         $newDestinationPolicyRejectedExistingRoot = $false
         try {
-            [void](Resolve-SafeInstallRoot -Path $commitInstallRoot)
+            [void](Resolve-SafeInstallRoot -Path $maintenancePolicyRoot)
         } catch {
             $newDestinationPolicyRejectedExistingRoot = $true
         }
         $maintenanceRoot = Resolve-EverVigilMaintenanceInstallRoot `
-            -Path $commitInstallRoot `
-            -AllowLegacyKnownLayout
+            -Path $maintenancePolicyRoot
         if (-not $newDestinationPolicyRejectedExistingRoot -or
             -not [bool]$maintenanceRoot.Owned -or
             -not [bool]$maintenanceRoot.AllowCurrentTempTree -or
             -not [string]::Equals(
                 [string]$maintenanceRoot.Path,
-                $commitInstallRoot,
+                $maintenancePolicyRoot,
                 [StringComparison]::OrdinalIgnoreCase)) {
             throw 'A current TEMP ancestor was not limited to the verified maintenance path.'
         }
-        & $transactionScript `
-            -Action Recover `
-            -TransactionPath $transactionPath
     } finally {
         $env:TEMP = $originalTemp
+        Remove-Item -LiteralPath $maintenancePolicyRoot -Recurse -Force
     }
-    if ((Test-Path -LiteralPath $transactionPath) -or
-        (Test-Path -LiteralPath $commitBackupRoot) -or
-        -not (Test-Path -LiteralPath $commitInstallRoot -PathType Container) -or
-        -not (Test-Path -LiteralPath $commitBridgeHost -PathType Container)) {
-        throw 'Commit did not retain the new installation and BridgeHost while retiring transaction artifacts.'
-    }
-    if (-not (Test-Path -LiteralPath $legacyCleanupSentinel -PathType Leaf)) {
-        throw 'A schema-3 transaction without legacyCleanupAuthorized retired legacy artifacts.'
-    }
-
-    Remove-Item -LiteralPath $commitBridgeHost -Recurse -Force
-    Remove-Item -LiteralPath $commitInstallRoot -Recurse -Force
-
-    $interruptedCommitRoot = Join-Path $testRoot 'interrupted-commit-install'
-    $interruptedCommitBackupRoot = "$interruptedCommitRoot.backup-$transactionId"
-    $interruptedCommitPreviousBackupRoot = "$interruptedCommitRoot.relocated-$transactionId"
-    $interruptedCommitRecoveryRoot = Join-Path `
-        $testLocalAppData `
-        "EverVigil\install-transactions\$transactionId"
-    New-KnownInstallLayout -Root $interruptedCommitRoot
-    Write-EverVigilInstallOwnership -Path $interruptedCommitRoot
-    New-Item -ItemType Directory -Path $interruptedCommitBackupRoot -Force | Out-Null
-    [IO.File]::WriteAllText(
-        (Join-Path $interruptedCommitBackupRoot 'remaining-after-interruption.bin'),
-        'partial backup tree',
-        [Text.UTF8Encoding]::new($false))
-    New-Item -ItemType Directory -Path $interruptedCommitRecoveryRoot -Force | Out-Null
-    $interruptedCommitState = New-TransactionState `
-        -InstallRoot $interruptedCommitRoot `
-        -PreviousInstallRoot $interruptedCommitRoot `
-        -BackupRoot $interruptedCommitBackupRoot `
-        -PreviousBackupRoot $interruptedCommitPreviousBackupRoot `
-        -RecoveryRoot $interruptedCommitRecoveryRoot `
-        -DestinationBackupPlanned $true `
-        -PreviousBackupPlanned $false `
-        -DestinationOwnedInstallPresent $true `
-        -InstallRootChanged $false `
-        -ExistingInstallPresent $true `
-        -Status committed
-    $interruptedCommitState.deletionIntent = 'backupRoot'
-    [IO.File]::WriteAllText(
-        $transactionPath,
-        (($interruptedCommitState | ConvertTo-Json -Depth 6) + "`n"),
-        [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
-        -Action Recover `
-        -TransactionPath $transactionPath
-    if ((Test-Path -LiteralPath $transactionPath) -or
-        (Test-Path -LiteralPath $interruptedCommitBackupRoot) -or
-        -not (Test-Path -LiteralPath $interruptedCommitRoot -PathType Container)) {
-        throw 'Commit recovery could not resume a previously authorized partial backup deletion.'
-    }
-    Remove-Item -LiteralPath $interruptedCommitRoot -Recurse -Force
 
     $interruptedRollbackRoot = Join-Path $testRoot 'interrupted-rollback-install'
     $interruptedRollbackBackupRoot = "$interruptedRollbackRoot.backup-$transactionId"
@@ -609,7 +543,7 @@ try {
         $transactionPath,
         (($interruptedRollbackState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
@@ -641,27 +575,27 @@ try {
         -PreviousBackupPlanned $true `
         -DestinationOwnedInstallPresent $false `
         -InstallRootChanged $true
-    [void]$rollbackState.Remove('bridgeHostWasPresent')
-    $legacyJournalBridgeHost = Join-Path `
+    $rollbackState.bridgeHostWasPresent = $true
+    $rollbackBridgeHost = Join-Path `
         (Split-Path -Parent $transactionPath) `
         'BridgeHost'
-    New-Item -ItemType Directory -Path $legacyJournalBridgeHost -Force | Out-Null
+    New-Item -ItemType Directory -Path $rollbackBridgeHost -Force | Out-Null
     [IO.File]::WriteAllText(
         $transactionPath,
         (($rollbackState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
         (Test-Path -LiteralPath $rollbackPreviousBackupRoot) -or
         -not (Test-Path -LiteralPath $rollbackPreviousRoot -PathType Container) -or
-        -not (Test-Path -LiteralPath $legacyJournalBridgeHost -PathType Container)) {
-        throw 'Rollback did not restore the previous installation or preserve BridgeHost for an older journal.'
+        -not (Test-Path -LiteralPath $rollbackBridgeHost -PathType Container)) {
+        throw 'Rollback did not restore the previous installation or preserve BridgeHost for the current transaction.'
     }
     Assert-OwnedInstallRoot -Path $rollbackPreviousRoot
 
-    Remove-Item -LiteralPath $legacyJournalBridgeHost -Force
+    Remove-Item -LiteralPath $rollbackBridgeHost -Force
     Remove-Item -LiteralPath $rollbackPreviousRoot -Recurse -Force
     $writeAheadRoot = Join-Path $testRoot 'write-ahead-install'
     $writeAheadBackupRoot = "$writeAheadRoot.backup-$transactionId"
@@ -697,7 +631,7 @@ try {
         [Text.UTF8Encoding]::new($false))
     $incompleteSealRejected = $false
     try {
-        & $transactionScript `
+        Invoke-TestTransactionScript `
             -Action Seal `
             -TransactionPath $transactionPath
     } catch {
@@ -706,7 +640,7 @@ try {
     if (-not $incompleteSealRejected) {
         throw 'Seal accepted a transaction whose application-data snapshot was incomplete.'
     }
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
@@ -750,7 +684,7 @@ try {
         $transactionPath,
         (($stagingRecoveryState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
@@ -774,8 +708,7 @@ try {
         -DestinationOwnedInstallPresent $false `
         -InstallRootChanged $false `
         -ApplicationDataSnapshotReady $false `
-        -Status staging `
-        -CurrentTransaction
+        -Status staging
     New-Item -ItemType Directory -Path $partialExternalRecoveryRoot -Force |
         Out-Null
     $partialExternalRecoveryFiles = @(
@@ -801,7 +734,7 @@ try {
         $transactionPath,
         (($partialExternalState | ConvertTo-Json -Depth 8) + "`n"),
         [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
@@ -877,8 +810,7 @@ try {
             -DestinationOwnedInstallPresent $false `
             -InstallRootChanged $false `
             -ApplicationDataSnapshotReady $false `
-            -Status staging `
-            -CurrentTransaction
+            -Status staging
         & $invalidPartialCase.Configure $invalidPartialState $partialExternalRecoveryRoot
         [IO.File]::WriteAllText(
             $transactionPath,
@@ -886,7 +818,7 @@ try {
             [Text.UTF8Encoding]::new($false))
         $invalidPartialRejected = $false
         try {
-            & $transactionScript `
+            Invoke-TestTransactionScript `
                 -Action Recover `
                 -TransactionPath $transactionPath
         } catch {
@@ -934,7 +866,7 @@ try {
         -Status rolledBack
     New-Item -ItemType Directory -Path $rolledBackCleanupEvidenceRoot -Force | Out-Null
     [IO.File]::WriteAllText(
-        (Join-Path $rolledBackCleanupEvidenceRoot 'legacy-task.xml'),
+        (Join-Path $rolledBackCleanupEvidenceRoot 'interactive-task.xml'),
         'rollback evidence',
         [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText(
@@ -948,7 +880,7 @@ try {
         $postRollbackMarkerPath,
         'created after rollback became durable',
         [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
@@ -961,7 +893,7 @@ try {
     $reparseRecoveryDataRoot = Join-Path $testLocalAppData 'EverVigil'
     $reparseRecoveryTransactionsRoot = Join-Path `
         $reparseRecoveryDataRoot `
-        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
+        $script:EverVigilTransactionRecoveryDirectoryName
     $reparseRecoveryTarget = Join-Path `
         $testRoot `
         'reparse-recovery-target'
@@ -992,7 +924,7 @@ try {
         -Status rolledBack
     $reparseRecoveryTransactionPath = Join-Path `
         $reparseRecoveryDataRoot `
-        $script:LegacyCompatibilityDataTransactionJournalFileName
+        $script:EverVigilTransactionJournalFileName
     [IO.File]::WriteAllText(
         $reparseRecoveryTransactionPath,
         (($reparseRecoveryState | ConvertTo-Json -Depth 6) + "`n"),
@@ -1000,7 +932,7 @@ try {
     $reparseRecoveryRejected = $false
     $reparseRecoveryError = ''
     try {
-        & $transactionScript `
+        Invoke-TestTransactionScript `
             -Action Recover `
             -TransactionPath $reparseRecoveryTransactionPath
     } catch {
@@ -1009,7 +941,7 @@ try {
     }
     if (-not $reparseRecoveryRejected -or
         -not $reparseRecoveryError.Contains(
-            'transaction recovery root is a reparse point',
+            'reparse point',
             [StringComparison]::Ordinal) -or
         -not (Test-Path -LiteralPath $reparseRecoveryTransactionPath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $reparseRecoveryTransactionsRoot -PathType Container) -or
@@ -1062,7 +994,7 @@ try {
     try {
         $lockedCleanupFailure = $null
         try {
-            & $transactionScript `
+            Invoke-TestTransactionScript `
                 -Action Recover `
                 -TransactionPath $transactionPath
         } catch {
@@ -1079,7 +1011,7 @@ try {
     } finally {
         $lockedMarkerStream.Dispose()
     }
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
@@ -1117,7 +1049,7 @@ try {
         $transactionPath,
         (($stagingCleanupState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
@@ -1174,7 +1106,7 @@ try {
         $transactionPath,
         (($dataRollbackState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     $generatedFilesRemaining = @(@(
@@ -1292,7 +1224,7 @@ try {
         $transactionPath,
         (($snapshotRollbackState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
-    & $transactionScript `
+    Invoke-TestTransactionScript `
         -Action Recover `
         -TransactionPath $transactionPath
     foreach ($entry in $snapshotFiles.GetEnumerator()) {
@@ -1312,30 +1244,35 @@ try {
     }
 
     $atomicInstallRoot = Join-Path $testRoot 'atomic-journal-recovery'
-    $atomicState = New-TransactionState `
-        -InstallRoot $atomicInstallRoot `
-        -PreviousInstallRoot $atomicInstallRoot `
-        -BackupRoot "$atomicInstallRoot.backup-$transactionId" `
-        -PreviousBackupRoot "$atomicInstallRoot.relocated-$transactionId" `
-        -RecoveryRoot (Join-Path `
-            $testLocalAppData `
-            "EverVigil\install-transactions\$transactionId") `
-        -DestinationBackupPlanned $false `
-        -PreviousBackupPlanned $false `
-        -DestinationOwnedInstallPresent $false `
-        -InstallRootChanged $false `
-        -Status rolledBack
+    function New-AtomicJournalState {
+        return New-TransactionState `
+            -InstallRoot $atomicInstallRoot `
+            -PreviousInstallRoot $atomicInstallRoot `
+            -BackupRoot "$atomicInstallRoot.backup-$transactionId" `
+            -PreviousBackupRoot "$atomicInstallRoot.relocated-$transactionId" `
+            -RecoveryRoot (Join-Path `
+                $testLocalAppData `
+                "EverVigil\install-transactions\$transactionId") `
+            -DestinationBackupPlanned $false `
+            -PreviousBackupPlanned $false `
+            -DestinationOwnedInstallPresent $false `
+            -InstallRootChanged $false `
+            -Status rolledBack
+    }
+
+    $atomicState = New-AtomicJournalState
     $uniqueAtomicPath = "$transactionPath.new-$([guid]::NewGuid().ToString('N'))"
     [IO.File]::WriteAllText(
         $uniqueAtomicPath,
         (($atomicState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
     Set-EverVigilAtomicJournalFileAcl -Path $uniqueAtomicPath
-    & $transactionScript -Action Recover -TransactionPath $transactionPath
+    Invoke-TestTransactionScript -Action Recover -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $uniqueAtomicPath) -or
         (Test-Path -LiteralPath $transactionPath)) {
         throw 'A unique complete atomic install journal was not promoted and recovered.'
     }
+    $atomicState = New-AtomicJournalState
 
     [IO.File]::WriteAllText(
         $transactionPath,
@@ -1348,12 +1285,13 @@ try {
         (($atomicState | ConvertTo-Json -Depth 6) + "`n"),
         [Text.UTF8Encoding]::new($false))
     Set-EverVigilAtomicJournalFileAcl -Path $nonAuthoritativeAtomicPath
-    & $transactionScript -Action Recover -TransactionPath $transactionPath
+    Invoke-TestTransactionScript -Action Recover -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $nonAuthoritativeAtomicPath) -or
         (Test-Path -LiteralPath $transactionPath)) {
         throw 'A same-transaction non-authoritative atomic journal was not retired before recovery.'
     }
 
+    $atomicState = New-AtomicJournalState
     $ambiguousAtomicPaths = @(
         "$transactionPath.new-$([guid]::NewGuid().ToString('N'))"
         "$transactionPath.new-$([guid]::NewGuid().ToString('N'))")
@@ -1366,7 +1304,7 @@ try {
     }
     $ambiguousAtomicRejected = $false
     try {
-        & $transactionScript -Action Recover -TransactionPath $transactionPath
+        Invoke-TestTransactionScript -Action Recover -TransactionPath $transactionPath
     } catch {
         $ambiguousAtomicRejected = $_.Exception.Message -match
             'Multiple atomic install transactions'
@@ -1413,7 +1351,7 @@ try {
         }
         $invalidAtomicRejected = $false
         try {
-            & $transactionScript -Action Recover -TransactionPath $transactionPath
+            Invoke-TestTransactionScript -Action Recover -TransactionPath $transactionPath
         } catch {
             $invalidAtomicRejected = $true
         }
@@ -1434,7 +1372,7 @@ try {
         'InstallTransactionData.ps1'
         'Invoke-InteractiveUserTask.ps1'
         'Invoke-SystemMaintenance.ps1'
-        'LegacyCompatibility.generated.ps1'
+        'ProductIdentity.ps1'
         'Resolve-SafeInstallRoot.ps1')
     foreach ($supportScriptName in $requiredSupportScriptNames) {
         Copy-Item `
@@ -1528,10 +1466,10 @@ try {
     }
     Remove-Item -LiteralPath $transactionPath -Force
 
-    . $transactionScript
     # The dot-sourced script declares a case-insensitive TransactionPath
     # parameter. Restore this test fixture path before dispatching phases.
     $transactionPath = Join-Path $testLocalAppData 'EverVigil\install-transaction.json'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $transactionPath) -Force | Out-Null
     $originalAtomicResolver = (Get-Command `
             Resolve-EverVigilInstallTransactionAtomicState `
             -CommandType Function).ScriptBlock
@@ -1652,54 +1590,6 @@ try {
             -ErrorAction SilentlyContinue
     }
 
-    $legacyV121SupportRoot = Join-Path `
-        $env:LOCALAPPDATA `
-        $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData
-    if (Test-Path -LiteralPath $legacyV121SupportRoot) {
-        Remove-Item -LiteralPath $legacyV121SupportRoot -Recurse -Force
-    }
-    $legacyV121SupportFiles = @(
-        'unins000.dat'
-        'unins000.exe'
-        'Support\Uninstall.ps1'
-        'Support\scripts\Invoke-SystemMaintenance.ps1'
-        'Support\scripts\Resolve-SafeInstallRoot.ps1')
-    foreach ($legacyV121SupportFile in $legacyV121SupportFiles) {
-        $legacyV121SupportPath = Join-Path `
-            $legacyV121SupportRoot `
-            $legacyV121SupportFile
-        New-Item `
-            -ItemType Directory `
-            -Path (Split-Path -Parent $legacyV121SupportPath) `
-            -Force | Out-Null
-        [IO.File]::WriteAllText(
-            $legacyV121SupportPath,
-            "frozen v1.2.1 support fixture: $legacyV121SupportFile",
-            [Text.UTF8Encoding]::new($false))
-    }
-    $currentOnlyLegacySupportPath = Join-Path `
-        $legacyV121SupportRoot `
-        'Support\scripts\Complete-InstallTransaction.ps1'
-    [IO.File]::WriteAllText(
-        $currentOnlyLegacySupportPath,
-        'must not be accepted as part of the frozen v1.2.1 manifest',
-        [Text.UTF8Encoding]::new($false))
-    $mixedLegacyManifestRejected = $false
-    try {
-        Remove-EverVigilLegacyUninstallSupport
-    } catch {
-        $mixedLegacyManifestRejected = $_.Exception.Message -match
-            'unexpected entry'
-    }
-    if (-not $mixedLegacyManifestRejected -or
-        -not (Test-Path -LiteralPath $legacyV121SupportRoot -PathType Container)) {
-        throw 'Legacy support cleanup did not keep the frozen three-script manifest separate from the current seven-script manifest.'
-    }
-    Remove-Item -LiteralPath $currentOnlyLegacySupportPath -Force
-    Remove-EverVigilLegacyUninstallSupport
-    if (Test-Path -LiteralPath $legacyV121SupportRoot) {
-        throw 'The exact frozen v1.2.1 uninstall-support tree did not retire.'
-    }
     $originalBrokerInvoker = (Get-Command `
             Invoke-EverVigilSystemBroker `
             -CommandType Function).ScriptBlock
@@ -1824,7 +1714,7 @@ try {
                     ExpectedProductPresent = $true
                 }
                 [pscustomobject]@{
-                    Name = 'v1.2.1 install without a prior protected broker'
+                    Name = 'existing installation without a prior protected broker'
                     Failures = 0
                     Disposition = 'RetirementRequired'
                     ReceiptFallback = $false
@@ -1878,8 +1768,7 @@ try {
                 -DestinationOwnedInstallPresent $false `
                 -InstallRootChanged $false `
                 -ExistingInstallPresent:$bootstrapCleanupScenario.ExistingInstallPresent `
-                -Status rolledBack `
-                -CurrentTransaction
+                -Status rolledBack
             $bootstrapCleanupState['protectedBrokerWasPresentBefore'] =
                 [bool]$bootstrapCleanupScenario.BrokerWasPresentBefore
             $bootstrapCleanupState['protectedBrokerCleanupAuthorized'] = $true
@@ -1961,8 +1850,7 @@ try {
                 -DestinationOwnedInstallPresent $false `
                 -InstallRootChanged $false `
                 -ExistingInstallPresent $false `
-                -Status rolledBack `
-                -CurrentTransaction
+                -Status rolledBack
             $invalidCleanupState['protectedBrokerCleanupAuthorized'] = $true
             $invalidCleanupState['protectedBrokerReady'] = $false
             if ($null -eq $invalidCleanupIdentity) {
@@ -2225,8 +2113,30 @@ try {
     }
     Remove-Item -LiteralPath $runtimeRetryRoot -Recurse -Force
 
-    'Install transaction tests passed: TEMP-independent commit, strict JSON types, distinct durable broker-cleanup identity and pre-bootstrap cleanup intent, schema-3 fail-closed recovery, durable deletion recovery, two-phase write-ahead recovery, resumable cleanup, relocation rollback, exact SHA-256 data restoration, exit-race-safe process matching and command waiting, stable task retries, exact uninstall-support manifest, and uninstall refusal.'
+    'Install transaction tests passed: TEMP-independent commit, strict JSON types, distinct durable broker-cleanup identity and pre-bootstrap cleanup intent, strict current-schema fail-closed recovery, durable deletion recovery, two-phase write-ahead recovery, resumable cleanup, relocation rollback, exact SHA-256 data restoration, exit-race-safe process matching and command waiting, stable task retries, exact uninstall-support manifest, and uninstall refusal.'
 } finally {
+    if ($null -ne $originalUninstallRegistrySubKey) {
+        $script:EverVigilProductUninstallRegistrySubKey =
+            $originalUninstallRegistrySubKey
+    }
+    $testRegistryKey =
+        [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($testRegistrySubKey, $false)
+    if ($testRegistryKey) {
+        $testRegistryKey.Dispose()
+        [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree(
+            $testRegistrySubKey,
+            $false)
+    }
+    if ($originalProgramsFolder) {
+        Set-Item `
+            -LiteralPath Function:\Get-EverVigilProgramsFolderPath `
+            -Value $originalProgramsFolder
+    }
+    if ($originalStartupFolder) {
+        Set-Item `
+            -LiteralPath Function:\Get-EverVigilStartupFolderPath `
+            -Value $originalStartupFolder
+    }
     $env:LOCALAPPDATA = $originalLocalAppData
     $env:TEMP = $originalTemp
     if ($startupWasPresentBeforeTest) {
