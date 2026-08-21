@@ -38,8 +38,8 @@
     },
     {
       "path": "Install.ps1",
-      "length": 89002,
-      "sha256": "d951dbfcbd603470d29a2b225711b5597125e51b6a8f6e6e38b62bd8df856474"
+      "length": 88998,
+      "sha256": "b7aef38161f031e72505e6ab7e6c5f07e61afed029a8d02f92bcd358475fc3a4"
     },
     {
       "path": "LICENSE",
@@ -733,8 +733,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 283219,
-      "sha256": "6ab616a9b96a721e8214c369d6113158fa87794beb51d96555dc15d4bf9e2fd6"
+      "length": 284542,
+      "sha256": "27131a9da3951624ce88499bfccf76695ca6f7c416f1b44fcd4b5d0918b43fd5"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",

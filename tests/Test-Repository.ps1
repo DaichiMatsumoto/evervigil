@@ -3166,6 +3166,17 @@ foreach ($file in $powerShellFiles) {
         $relativePath = [IO.Path]::GetRelativePath($RepositoryRoot, $file.FullName)
         $failures.Add("PowerShell parse error: ${relativePath}:$($parseError.Extent.StartLineNumber): $($parseError.Message)")
     }
+    $powerShellContent = [IO.File]::ReadAllText($file.FullName)
+    foreach ($orphanedContinuation in [regex]::Matches(
+            $powerShellContent,
+            '(?m)`\r?\n\s*(?:[})]|catch\b|finally\b)')) {
+        $relativePath = [IO.Path]::GetRelativePath($RepositoryRoot, $file.FullName)
+        $lineNumber = 1 + [regex]::Matches(
+            $powerShellContent.Substring(0, $orphanedContinuation.Index),
+            '\n').Count
+        $failures.Add(
+            "Orphaned PowerShell line continuation: ${relativePath}:$lineNumber")
+    }
 }
 
 $forbiddenNames = @(
@@ -5542,6 +5553,23 @@ $installAst = [Management.Automation.Language.Parser]::ParseFile(
     (Join-Path $RepositoryRoot 'Install.ps1'),
     [ref]$installTokens,
     [ref]$installParseErrors)
+$installerApplyCommands = @($installAst.FindAll(
+        {
+            param($node)
+            $node -is [Management.Automation.Language.CommandAst] -and
+                $node.GetCommandName() -eq 'Invoke-SystemBrokerMaintenance' -and
+                $node.Extent.Text.Contains('-Mode Install', [StringComparison]::Ordinal)
+        },
+        $true))
+if ($installerApplyCommands.Count -ne 1) {
+    $failures.Add(
+        "Install must contain exactly one system broker Apply command; found $($installerApplyCommands.Count).")
+} elseif ($installerApplyCommands[0].Extent.Text.Contains(
+        '$pendingSystemState',
+        [StringComparison]::Ordinal)) {
+    $failures.Add(
+        'The system broker Apply command must end before the pending system journal assignment.')
+}
 $healthValidatorAst = $installAst.Find(
     {
         param($node)

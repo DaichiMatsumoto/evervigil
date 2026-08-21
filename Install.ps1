@@ -1659,7 +1659,7 @@ try {
             Invoke-SystemBrokerMaintenance `
                 -Mode Install `
                 -PublicPort $effectivePublicPort `
-                -BackendPort $effectiveBackendPort `
+                -BackendPort $effectiveBackendPort
             $pendingSystemState = Read-InstallerPendingSystemJournal
             if (-not $pendingSystemState -or
                 [string]$pendingSystemState.phase -cne 'MutationsCompleted') {
@@ -1837,7 +1837,7 @@ try {
             $systemJournalTemporaries.Count -gt 0)) {
         try {
             Invoke-SystemBrokerMaintenance `
-                -Mode Rollback `
+                -Mode Rollback
         } catch {
             $rollbackError = $_.Exception
         }
