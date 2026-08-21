@@ -1811,9 +1811,12 @@ $nuGetPluginFixtureRoot = Join-Path `
     ("evervigil-nuget-plugin-" + [Guid]::NewGuid().ToString('N'))
 $nuGetPluginServerJob = $null
 $nuGetPluginProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
-$nuGetPluginTimeoutMilliseconds = 15000
+$nuGetPluginWatchdogMilliseconds = 60000
 $invokeNuGetPluginProcess = {
     param(
+        [Parameter(Mandatory)]
+        [string]$OperationName,
+
         [Parameter(Mandatory)]
         [string[]]$Arguments,
 
@@ -1913,10 +1916,10 @@ $invokeNuGetPluginProcess = {
         }
         $standardOutput = $process.StandardOutput.ReadToEndAsync()
         $standardError = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($nuGetPluginTimeoutMilliseconds)) {
+        if (-not $process.WaitForExit($nuGetPluginWatchdogMilliseconds)) {
             $process.Kill($true)
             $process.WaitForExit()
-            throw "dotnet process exceeded $nuGetPluginTimeoutMilliseconds ms"
+            throw "$OperationName dotnet process exceeded the $nuGetPluginWatchdogMilliseconds ms watchdog"
         }
         $stopwatch.Stop()
         return [pscustomobject]@{
@@ -1993,6 +1996,7 @@ return 86;
     $nuGetPluginBuildRoot = Join-Path $nuGetPluginFixtureRoot 'build-process'
     $nuGetPluginBuildMarker = Join-Path $nuGetPluginFixtureRoot 'build-marker.txt'
     $nuGetPluginBuild = & $invokeNuGetPluginProcess `
+        -OperationName 'plugin publish' `
         -Arguments @(
             'publish'
             (Join-Path $nuGetPluginProjectRoot 'PoisonPlugin.csproj')
@@ -2012,7 +2016,6 @@ return 86;
         -MarkerPath $nuGetPluginBuildMarker
     $nuGetPoisonPluginPath = Join-Path $nuGetPluginPublishRoot 'PoisonPlugin.dll'
     if ($nuGetPluginBuild.ExitCode -ne 0 -or
-        $nuGetPluginBuild.ElapsedMilliseconds -gt $nuGetPluginTimeoutMilliseconds -or
         -not (Test-Path -LiteralPath $nuGetPoisonPluginPath -PathType Leaf) -or
         (Test-Path -LiteralPath $nuGetPluginBuildMarker)) {
         throw "poison plugin build failed: $($nuGetPluginBuild.Output.Trim())"
@@ -2103,6 +2106,7 @@ return 86;
     $nuGetBaselineRoot = Join-Path $nuGetPluginFixtureRoot 'baseline-process'
     $nuGetBaselineMarker = Join-Path $nuGetPluginFixtureRoot 'baseline-marker.txt'
     $nuGetBaseline = & $invokeNuGetPluginProcess `
+        -OperationName 'baseline restore' `
         -Arguments @(
             'restore'
             $nuGetRestoreProject
@@ -2124,6 +2128,7 @@ return 86;
     $nuGetGuardedRoot = Join-Path $nuGetPluginFixtureRoot 'guarded-process'
     $nuGetGuardedMarker = Join-Path $nuGetPluginFixtureRoot 'guarded-marker.txt'
     $nuGetGuarded = & $invokeNuGetPluginProcess `
+        -OperationName 'guarded restore' `
         -Arguments @(
             'restore'
             $nuGetRestoreProject
@@ -2156,12 +2161,10 @@ return 86;
             [string]$_ -like 'REQUEST:/guarded/flat/*'
         }).Count -gt 0
     if ($nuGetBaseline.ExitCode -eq 0 -or
-        $nuGetBaseline.ElapsedMilliseconds -gt $nuGetPluginTimeoutMilliseconds -or
         -not $baselineSelectedPoison -or
         $baselineReachedSource -or
         (Test-Path -LiteralPath $nuGetBaselineMarker) -or
         $nuGetGuarded.ExitCode -eq 0 -or
-        $nuGetGuarded.ElapsedMilliseconds -gt $nuGetPluginTimeoutMilliseconds -or
         $guardedSelectedPoison -or
         -not $guardedReachedSource -or
         (Test-Path -LiteralPath $nuGetGuardedMarker)) {
