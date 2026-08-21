@@ -31,8 +31,7 @@ dependencies but does not bundle, fork, patch, or redistribute
 telemetry, proprietary cloud backend, or external relay.
 
 The product name, executable, startup entry, install folder, Start menu folder,
-process, and window title are all `EverVigil`. Compatibility-only identifiers
-from the predecessor are internal migration data, not product names.
+process, and window title are all `EverVigil`.
 
 ## 2. Process supervision
 
@@ -88,9 +87,9 @@ fixed protected installation path; caller-supplied programs and scripts are not
 executed at high integrity.
 
 The canonical broker, not the unelevated process, owns the authoritative,
-write-through `pending-system-configuration.json`, applied ledger, previous
+write-through `pending-system-configuration.json`, applied ledger, pre-change
 ledger snapshot, and transaction receipt under the ACL-protected ProgramData
-state directory for the original user SID. The journal records exact previous
+state directory for the original user SID. The journal records exact pre-change
 and target ports, preflight route ownership, full Firewall-rule identity, and a
 monotonic mutation phase. Each external mutation is authorized durably
 immediately before it runs. Receipt replay makes a lost response or a crash
@@ -98,7 +97,7 @@ between commit writes idempotent. LocalAppData transaction data coordinates the
 installer but is never privileged ownership evidence.
 
 A crash therefore leaves enough protected evidence to finalize an exactly
-verified completed change or restore only the verified previous state. Funnel
+verified completed change or restore only the verified pre-change state. Funnel
 exposure, an unknown route, a duplicate or mismatched Firewall rule, an
 untrusted Tailscale executable, and a journal or client-identity mismatch all
 fail closed and leave the backend blocked for recovery.
@@ -201,31 +200,33 @@ EverVigil does not log or collect Codex authentication data.
 
 ## 8. Update mechanism
 
-EverVigil has no automatic updater. The user manually downloads the versioned
-`EverVigil-<version>-Setup.exe` from GitHub Releases, compares its SHA-256 with
-the published value, and runs it over the existing installation. Community
-binaries are unsigned and may trigger Microsoft Defender SmartScreen.
+EverVigil v2.0.0 is the first and currently only public Release. EverVigil has
+no automatic updater. For a future Release, the user manually downloads the
+versioned `EverVigil-<version>-Setup.exe` from GitHub Releases, compares its
+SHA-256 with the published value, and runs it over a verified EverVigil
+installation. Community binaries are unsigned and may trigger Microsoft
+Defender SmartScreen.
 
 The checksum establishes that a file matches the value published by the
 repository. When the installer and checksum are obtained from the same Release,
 the checksum does not independently authenticate the publisher; users must also
 confirm the repository and Release identity.
 
-Before mutation, setup records a durable transaction, snapshots mutable data,
-and retains the previous working application. Settings, the DPAPI-protected
-token, and startup preference are preserved. All fallible external retirement
-(legacy shortcuts, support, plaintext credentials, and temporary trees) is
-completed while those snapshots can still restore the prior version. A failure
-before the durable `SystemCommitPrepared` boundary restores the verified
-snapshots, prior program, system configuration, startup state, and running
-state. An unverified rollback leaves startup blocked rather than starting a
-partially installed service.
+Before mutating a verified EverVigil installation, setup records a durable
+transaction, snapshots mutable data, and retains the verified pre-update
+application. Settings, the DPAPI-protected token, and startup preference are
+preserved. Fallible replacement cleanup of owned support and temporary
+resources completes while the verified pre-update state remains restorable. A
+failure before the durable `SystemCommitPrepared` boundary restores the
+snapshots, program, system configuration, startup state, and running state. An
+unverified rollback leaves startup blocked rather than starting a partially
+installed service.
 
 `SystemCommitPrepared` is recorded only after the replacement and all external
 post-state have been validated. From that point the protected broker may have
 committed even if its response is lost, so recovery proceeds forward and never
 guesses that rollback is safe. If final evidence cleanup is interrupted, setup
-returns its recovery-required code, keeps the validated new installation
+returns its recovery-required code, keeps the validated updated installation
 active, and requires the same installer to resume the exact transaction. Only
 backup and transaction evidence removal remains after the protected commit.
 
@@ -238,39 +239,7 @@ elevated. Setup schedules the tray only after Commit, and the tray waits for
 the Setup process to exit before starting, so protected Tailscale identity is
 available on its first visible launch.
 
-## 9. Upgrade from Even Terminal Supervisor
-
-EverVigil v2.0.0 adopts an in-place upgrade from legacy v1.2.1. Keeping the
-existing Inno Setup AppId is the preferred design because it lets Windows treat
-v2.0.0 as the replacement installation and preserves supported same-user
-settings and the DPAPI-protected token. The retained AppId, entropy compatibility,
-old paths, mutexes, task names, and other predecessor identifiers are centralized in the
-implementation's `LegacyCompatibility` boundary. They are not shown as the
-EverVigil product name.
-
-Migration validates the predecessor installation and resource ownership before
-any stop, move, or deletion. It preserves supported settings, the token, and
-startup choice; changes user-visible names to EverVigil; and removes only owned predecessor
-processes, startup entries, shortcuts, Firewall rules, Serve mappings,
-transaction data, support files, and install files after EverVigil is healthy.
-Unrelated resources are retained. Ambiguous ownership fails closed.
-
-Legacy conversion participates in the same durable transaction as activation.
-The predecessor program and verified snapshots remain available until setup
-commits; a failure restores the pre-migration state before the prior runtime is
-restarted.
-
-The validated predecessor data root, DPAPI entropy context, and synchronization
-names may remain active while required to decrypt and coordinate v1.2.1 state.
-They are compatibility internals, not user-facing branding. If both current and
-predecessor data roots contain persistent state, startup fails closed rather
-than choosing one implicitly.
-
-Release approval requires a real v1.2.1-to-v2.0.0 migration test confirming
-that supported settings and the token remain usable and no duplicate owned
-process, route, rule, shortcut, startup entry, or installation directory remains.
-
-## 10. Uninstall process
+## 9. Uninstall process
 
 Uninstall is available through Windows Installed Apps and the EverVigil Start
 menu shortcut. It:
@@ -316,7 +285,7 @@ It never removes Tailscale, Node.js, Codex,
 unverified directory, or settings created independently by the user. A failed
 ownership check stops cleanup before destructive work.
 
-## 11. Security limitations
+## 10. Security limitations
 
 - The project is a community utility, not a vendor security product or audit.
 - With the tested Even Terminal 0.8.1, a request with neither an explicit nor a
@@ -340,7 +309,7 @@ ownership check stops cleanup before destructive work.
 - External dependencies retain their own security, update, and availability risks.
 - Ownership checks intentionally fail closed and may require manual repair.
 
-## 12. No affiliation statement
+## 11. No affiliation statement
 
 This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.
 

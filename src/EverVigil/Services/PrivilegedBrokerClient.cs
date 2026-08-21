@@ -44,7 +44,6 @@ internal static class PrivilegedBrokerClient
         PrivilegedBrokerOperation operation,
         int? publicPort = null,
         int? backendPort = null,
-        bool migrateLegacySystemState = false,
         CancellationToken cancellationToken = default)
     {
         if (transactionId == Guid.Empty)
@@ -62,10 +61,10 @@ internal static class PrivilegedBrokerClient
                     "Privileged broker ports are invalid.");
             }
         }
-        else if (publicPort is not null || backendPort is not null || migrateLegacySystemState)
+        else if (publicPort is not null || backendPort is not null)
         {
             throw new ArgumentException(
-                "Only privileged broker Apply accepts ports or migration authorization.");
+                "Only privileged broker Apply accepts ports.");
         }
 
         var executable = ValidateCanonicalInstallation();
@@ -78,8 +77,7 @@ internal static class PrivilegedBrokerClient
             operation,
             PrivilegedBrokerInitiator.Interactive,
             publicPort,
-            backendPort,
-            migrateLegacySystemState);
+            backendPort);
 
         using var process = StartCanonicalBroker(
             executable,

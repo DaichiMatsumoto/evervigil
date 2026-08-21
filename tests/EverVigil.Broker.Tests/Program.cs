@@ -26,7 +26,7 @@ var tests = new (string Name, Action Run)[]
     ("Serve parser rejects Web extra fields", ServeRejectsWebExtraFields),
     ("Serve parser rejects unrelated root", ServeRejectsUnrelatedRoot),
     ("Serve parser detects Funnel", ServeDetectsFunnel),
-    ("Serve parser supports custom v1 ports", ServeSupportsCustomPorts),
+    ("Serve parser supports custom ports", ServeSupportsCustomPorts),
     ("Tailnet identity accepts only ts.net and CGNAT or ULA", TailnetIdentityIsStrict),
     ("Protocol framing round trips", ProtocolFramingRoundTrips),
     ("Protocol framing rejects unknown fields", ProtocolFramingRejectsUnknownFields),
@@ -68,10 +68,6 @@ var tests = new (string Name, Action Run)[]
     ("Bootstrap rejects receipt-less hard-linked canonical", BootstrapRejectsHardLinkedCanonical),
     ("Bootstrap rejects an orphaned installation receipt", BootstrapRejectsOrphanedInstallationReceipt),
     ("Bootstrap cleans only strict protected temporaries", BootstrapCleansStrictTemporaries),
-    ("Legacy custom install root is discovered", LegacyCustomInstallRootIsDiscovered),
-    ("Legacy owner paths use the authenticated profile only", LegacyOwnerPathsUseAuthenticatedProfile),
-    ("Legacy task accepts redirected owner launcher paths", LegacyTaskAcceptsRedirectedOwnerLauncherPaths),
-    ("Legacy custom ports are read exactly", LegacyCustomPortsAreReadExactly),
     ("Tailscale installation validates when present", InstalledTailscaleValidationProbe)
 };
 
@@ -337,9 +333,7 @@ static void NativeComAutomationProbe()
 static void FirewallPreflightEnumerationProbe()
 {
     var probe = new BrokerFirewall($"S-1-5-21-1-2-3-{Random.Shared.Next(20000, 60000)}");
-    var snapshot = probe.CapturePreflight(
-        applied: null,
-        allowLegacyMigration: false);
+    var snapshot = probe.CapturePreflight(applied: null);
     Assert(snapshot.Count == 0,
         "Random-owner Firewall preflight unexpectedly captured product rules.");
 }
@@ -463,7 +457,7 @@ static void ServeSupportsCustomPorts()
         ServeStatus(4566, 4567),
         4566,
         [4567]);
-    Assert(snapshot.State == ServeRootState.Owned, "Custom v1 ports were not recognized.");
+    Assert(snapshot.State == ServeRootState.Owned, "Custom ports were not recognized.");
 }
 
 static void TailnetIdentityIsStrict()
@@ -496,7 +490,7 @@ static void ProtocolFramingRejectsUnknownFields()
         "{\"schemaVersion\":1,\"transactionId\":\"00000000-0000-0000-0000-000000000001\"," +
         "\"nonce\":\"" + new string('a', 64) + "\",\"operation\":\"Status\"," +
         "\"initiator\":\"Interactive\",\"publicPort\":null,\"backendPort\":null," +
-        "\"migrateLegacySystemState\":false,\"unexpected\":true}");
+        "\"unexpected\":true}");
     using var stream = new MemoryStream();
     var header = new byte[sizeof(int)];
     BinaryPrimitives.WriteInt32LittleEndian(header, payload.Length);
@@ -756,7 +750,7 @@ static void PreparedUninstallIsDiscardable()
         var store = BrokerStateStore.ForTests(root, sid);
         var target = Target(3456, 3457);
         var request = Request(Guid.NewGuid(), PrivilegedBrokerOperation.UninstallCleanup);
-        var pending = store.Begin(request, target, target, null, Self());
+        var pending = store.Begin(request, target, target, Self());
         store.DiscardUnmutatedPending(pending);
         Assert(!store.PendingExists, "Mutation-free uninstall Prepared journal remained.");
     }
@@ -922,7 +916,6 @@ static void GlobalOwnerStateRejectsUnsafeEntries()
             Request(Guid.NewGuid(), PrivilegedBrokerOperation.Apply, 3456, 3457),
             Target(3456, 3457),
             previous: null,
-            legacyTask: null,
             Self());
         AssertThrows<BrokerRefusalException>(() =>
             storeA.LoadOtherOwnerAppliedLedgersForGlobalMutation());
@@ -1536,165 +1529,6 @@ static void BootstrapCleansStrictTemporaries()
     }
 }
 
-static void LegacyCustomInstallRootIsDiscovered()
-{
-    var transactionId = Guid.NewGuid();
-    var localAppData = Path.Combine(Path.GetTempPath(), "profile", "AppData", "Local");
-    var custom = Path.Combine(Path.GetTempPath(), "custom-v121");
-    var candidates = LegacyV121Evidence.BuildInstallCandidatePathsForTests(
-        localAppData,
-        custom,
-        transactionId);
-    Assert(candidates.Contains(Path.GetFullPath(custom), StringComparer.OrdinalIgnoreCase),
-        "Registered custom v1.2.1 install root was not discovered.");
-    Assert(candidates.Contains(
-            Path.GetFullPath(custom) + ".backup-" + transactionId.ToString("N"),
-            StringComparer.OrdinalIgnoreCase),
-        "Custom v1.2.1 transaction backup root was not discovered.");
-}
-
-static void LegacyOwnerPathsUseAuthenticatedProfile()
-{
-    var root = NewTestRoot();
-    try
-    {
-        var profile = Path.Combine(root, "Profiles", "Dawn");
-        var systemDrive = Path.GetPathRoot(root)?.TrimEnd(Path.DirectorySeparatorChar) ??
-            throw new InvalidOperationException("The test drive root is unavailable.");
-        var redirected = Path.Combine(root, "Redirected", "LocalAppData");
-        Assert(
-            string.Equals(
-                LegacyV121Evidence.ExpandOwnerDataPathForTests(
-                    @"%USERPROFILE%\AppData\Local",
-                    profile,
-                    systemDrive),
-                Path.Combine(profile, "AppData", "Local"),
-                StringComparison.OrdinalIgnoreCase),
-            "Original-user USERPROFILE expansion used a different account profile.");
-        Assert(
-            string.Equals(
-                LegacyV121Evidence.ExpandOwnerDataPathForTests(
-                    @"%HOMEDRIVE%%HOMEPATH%\LocalState",
-                    profile,
-                    systemDrive),
-                Path.Combine(profile, "LocalState"),
-                StringComparison.OrdinalIgnoreCase),
-            "Original-user HOMEDRIVE/HOMEPATH expansion was not deterministic.");
-        Assert(
-            string.Equals(
-                LegacyV121Evidence.ExpandOwnerDataPathForTests(
-                    redirected,
-                    profile,
-                    systemDrive),
-                redirected,
-                StringComparison.OrdinalIgnoreCase),
-            "A fixed-drive redirected Local AppData path was not preserved.");
-        AssertThrows<InvalidDataException>(() =>
-            LegacyV121Evidence.ExpandOwnerDataPathForTests(
-                @"%USERPROFILE%\%ADMINPROFILE%\Local",
-                profile,
-                systemDrive));
-        AssertThrows<InvalidDataException>(() =>
-            LegacyV121Evidence.ExpandOwnerDataPathForTests(
-                "relative\\Local",
-                profile,
-                systemDrive));
-    }
-    finally
-    {
-        Directory.Delete(root, recursive: true);
-    }
-}
-
-static void LegacyTaskAcceptsRedirectedOwnerLauncherPaths()
-{
-    const string ownerName = "FixtureOwner";
-    var profile = FixedDrivePath('D', "Profiles", ownerName);
-    var redirectedLocalAppData = FixedDrivePath('E', "Redirected", ownerName, "Local");
-    Assert(
-        LegacyScheduledTask.IsAllowedLauncherPathForTests(
-            profile,
-            redirectedLocalAppData,
-            Path.Combine(
-                redirectedLocalAppData,
-                "EvenTerminalCodex",
-                "Start-EvenTerminalCodex.ps1")),
-        "A redirected original-user Local AppData launcher was rejected.");
-    Assert(
-        LegacyScheduledTask.IsAllowedLauncherPathForTests(
-            profile,
-            redirectedLocalAppData,
-            Path.Combine(
-                profile,
-                "AppData",
-                "Local",
-                "EvenTerminalCodex",
-                "Start-EvenTerminalCodex.ps1")),
-        "The original-profile legacy launcher was rejected.");
-    Assert(
-        LegacyScheduledTask.IsAllowedLauncherPathForTests(
-            profile,
-            redirectedLocalAppData,
-            FixedDrivePath(
-                'F',
-                "Users",
-                ownerName,
-                "Apps",
-                "even-terminal",
-                "Start-EvenTerminalCodex.ps1")),
-        "A fixed-drive legacy launcher was rejected.");
-    Assert(
-        !LegacyScheduledTask.IsAllowedLauncherPathForTests(
-            profile,
-            redirectedLocalAppData,
-            FixedDrivePath(
-                'C',
-                "Users",
-                "DifferentOwner",
-                "AppData",
-                "Local",
-                "EvenTerminalCodex",
-                "Start-EvenTerminalCodex.ps1")),
-        "A different account launcher was accepted.");
-}
-
-static string FixedDrivePath(char driveLetter, params string[] segments)
-{
-    var root = string.Concat(
-        char.ToUpperInvariant(driveLetter),
-        Path.VolumeSeparatorChar,
-        Path.DirectorySeparatorChar);
-    return Path.Combine([root, .. segments]);
-}
-
-static void LegacyCustomPortsAreReadExactly()
-{
-    var root = NewTestRoot();
-    try
-    {
-        var dataRoot = Path.Combine(root, "AppData", "Local", "legacy");
-        Directory.CreateDirectory(dataRoot);
-        var path = Path.Combine(dataRoot, "applied.json");
-        var tailscalePath = @"C:\Program Files\Tailscale\tailscale.exe";
-        File.WriteAllText(
-            path,
-            "{\"publicPort\":4566,\"backendPort\":4567,\"tailscalePath\":\"" +
-            tailscalePath.Replace("\\", "\\\\", StringComparison.Ordinal) + "\"}",
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-        var configuration = LegacyV121Evidence.ReadAppliedForTests(
-            root,
-            path,
-            tailscalePath);
-        Assert(
-            configuration.PublicPort == 4566 && configuration.BackendPort == 4567,
-            "Custom v1.2.1 ports were not preserved from exact applied evidence.");
-    }
-    finally
-    {
-        Directory.Delete(root, recursive: true);
-    }
-}
-
 static void InstalledTailscaleValidationProbe()
 {
     var path = Path.Combine(
@@ -1783,7 +1617,6 @@ static BrokerPendingJournal PrepareCompletedApply(
         Request(transactionId, PrivilegedBrokerOperation.Apply, target.PublicPort, target.BackendPort),
         target,
         previous,
-        null,
         Self());
     return store.Update(transactionId, current => current with
     {
@@ -1862,8 +1695,7 @@ static PrivilegedBrokerRequest Request(
         operation,
         PrivilegedBrokerInitiator.Interactive,
         publicPort,
-        backendPort,
-        false);
+        backendPort);
 
 static BrokerSystemConfiguration Target(int publicPort, int backendPort) =>
     new(publicPort, backendPort, @"C:\Program Files\Tailscale\tailscale.exe");

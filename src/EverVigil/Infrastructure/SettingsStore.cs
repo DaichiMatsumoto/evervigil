@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Security.Principal;
 using EverVigil.Core;
 using EverVigil.Core.Localization;
@@ -9,12 +10,15 @@ namespace EverVigil.Infrastructure;
 
 internal sealed class SettingsStore
 {
-    internal const string SystemConfigurationRequiredFileName = "system-configuration-required";
-    internal const string AppliedSystemConfigurationFileName = "applied-system-configuration.json";
+    internal const string SystemConfigurationRequiredFileName =
+        ProductIdentity.SystemConfigurationRequiredFileName;
+    internal const string AppliedSystemConfigurationFileName =
+        ProductIdentity.AppliedSystemConfigurationFileName;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         WriteIndented = true
     };
 
@@ -24,7 +28,6 @@ internal sealed class SettingsStore
     private readonly string _appliedSystemConfigurationPath;
     private AppSettings _current;
     private bool _requiresSystemConfiguration;
-    private bool _createdSettingsDuringInitialization;
 
     public SettingsStore(DataPaths paths)
     {
@@ -124,33 +127,6 @@ internal sealed class SettingsStore
         {
             WriteAtomically(settings);
             _current = settings with { };
-            _createdSettingsDuringInitialization = false;
-        }
-    }
-
-    public bool TryReplaceNewlyCreatedDefaults(AppSettings settings)
-    {
-        settings = NormalizeProductionSettings(settings);
-        var errors = AppSettingsValidator.Validate(
-            settings,
-            requireExistingPaths: false,
-            requireTrustedTailscalePath: _paths.IsProductionDataRoot);
-        if (errors.Count > 0)
-        {
-            throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
-        }
-
-        lock (_gate)
-        {
-            if (!_createdSettingsDuringInitialization)
-            {
-                return false;
-            }
-
-            WriteAtomically(settings);
-            _current = settings with { };
-            _createdSettingsDuringInitialization = false;
-            return true;
         }
     }
 
@@ -234,7 +210,6 @@ internal sealed class SettingsStore
     {
         if (!File.Exists(_paths.SettingsPath))
         {
-            _createdSettingsDuringInitialization = true;
             return CreateFailClosedDefaults("SettingsCreatedRecovery");
         }
 
@@ -272,7 +247,6 @@ internal sealed class SettingsStore
         }
         catch (Exception exception) when (exception is JsonException or IOException or InvalidDataException)
         {
-            _createdSettingsDuringInitialization = false;
             var invalidPath =
                 $"{_paths.SettingsPath}.invalid-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}";
             File.Move(_paths.SettingsPath, invalidPath, overwrite: true);

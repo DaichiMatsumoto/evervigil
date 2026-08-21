@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
-using EverVigil.Compatibility;
 
 namespace EverVigil.Broker;
 
@@ -8,68 +7,31 @@ internal sealed class BrokerFirewall
 {
     private const string CurrentMainPrefix = "EverVigil - block direct backend access";
     private const string CurrentTemporaryPrefix = "EverVigil - pending backend block";
-    private const string LegacyMainPrefix =
-        LegacyCompatibility.Firewall.RulePrefix;
-    private const string LegacyTemporaryPrefix =
-        LegacyCompatibility.Firewall.TemporaryRulePrefix;
-
-    private readonly string _ownerSid;
 
     internal BrokerFirewall(string ownerSid)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerSid);
-        _ownerSid = ownerSid;
         CurrentMainName = $"{CurrentMainPrefix} [{ownerSid}]";
         CurrentTemporaryName = $"{CurrentTemporaryPrefix} [{ownerSid}]";
-        LegacyMainName = $"{LegacyMainPrefix} [{ownerSid}]";
-        LegacyTemporaryName = $"{LegacyTemporaryPrefix} [{ownerSid}]";
     }
 
     internal string CurrentMainName { get; }
 
     internal string CurrentTemporaryName { get; }
 
-    internal string LegacyMainName { get; }
-
-    internal string LegacyTemporaryName { get; }
-
     internal IReadOnlyList<FirewallRuleIdentity> CapturePreflight(
-        BrokerAppliedLedger? applied,
-        bool allowLegacyMigration,
-        int legacyBackendPort = 3457)
+        BrokerAppliedLedger? applied)
     {
-        ValidatePort(legacyBackendPort);
         var snapshots = new List<FirewallRuleIdentity>();
         var currentMain = ReadSingleByName(CurrentMainName);
         var currentTemporary = ReadSingleByName(CurrentTemporaryName);
         if (applied is null)
         {
-            if (!allowLegacyMigration &&
-                (currentMain is not null || currentTemporary is not null))
+            if (currentMain is not null || currentTemporary is not null)
             {
                 throw new BrokerRefusalException(
                     "Current Firewall rules exist without a protected applied ledger.",
                     Protocol.PrivilegedBrokerErrorCode.OwnershipMismatch);
-            }
-            if (allowLegacyMigration)
-            {
-                foreach (var current in new[] { currentMain, currentTemporary })
-                {
-                    if (current is null)
-                    {
-                        continue;
-                    }
-                    var expectedName = ReferenceEquals(current, currentMain)
-                        ? CurrentMainName
-                        : CurrentTemporaryName;
-                    if (!IsExpectedIdentity(current, expectedName, legacyBackendPort))
-                    {
-                        throw new BrokerRefusalException(
-                            "Current Firewall rule cannot be adopted as fixed v1.2.1 state.",
-                            Protocol.PrivilegedBrokerErrorCode.OwnershipMismatch);
-                    }
-                    snapshots.Add(current);
-                }
             }
         }
         else
@@ -92,42 +54,12 @@ internal sealed class BrokerFirewall
                 snapshots.Add(currentTemporary);
             }
         }
-
-        var legacyMain = ReadSingleByName(LegacyMainName);
-        var legacyTemporary = ReadSingleByName(LegacyTemporaryName);
-        if (!allowLegacyMigration && (legacyMain is not null || legacyTemporary is not null))
-        {
-            throw new BrokerRefusalException(
-                "Legacy Firewall rules exist outside an authorized migration.",
-                Protocol.PrivilegedBrokerErrorCode.OwnershipMismatch);
-        }
-        if (allowLegacyMigration)
-        {
-            foreach (var legacy in new[] { legacyMain, legacyTemporary })
-            {
-                if (legacy is null)
-                {
-                    continue;
-                }
-                var expectedName = ReferenceEquals(legacy, legacyMain)
-                    ? LegacyMainName
-                    : LegacyTemporaryName;
-                if (!IsExpectedIdentity(legacy, expectedName, legacyBackendPort))
-                {
-                    throw new BrokerRefusalException(
-                        "Legacy Firewall rule does not match its fixed v1 identity.",
-                        Protocol.PrivilegedBrokerErrorCode.OwnershipMismatch);
-                }
-                snapshots.Add(legacy);
-            }
-        }
         return snapshots;
     }
 
     internal void ConfigureTarget(
         int backendPort,
-        IReadOnlyList<FirewallRuleIdentity> originalRules,
-        bool removeLegacy)
+        IReadOnlyList<FirewallRuleIdentity> originalRules)
     {
         ValidatePort(backendPort);
         RequireMatchesSnapshot(originalRules);
@@ -140,26 +72,8 @@ internal sealed class BrokerFirewall
                 .Append(backendPort)
                 .ToArray());
         AddExpected(CurrentMainName, backendPort);
-        if (removeLegacy)
-        {
-            DeleteExpectedIfPresent(
-                LegacyTemporaryName,
-                originalRules,
-                originalRules.Where(rule => rule.Name == LegacyTemporaryName)
-                    .Select(rule => rule.BackendPort).ToArray());
-            DeleteExpectedIfPresent(
-                LegacyMainName,
-                originalRules,
-                originalRules.Where(rule => rule.Name == LegacyMainName)
-                    .Select(rule => rule.BackendPort).ToArray());
-        }
         RequireExpected(CurrentMainName, backendPort);
         RequireAbsent(CurrentTemporaryName);
-        if (removeLegacy)
-        {
-            RequireAbsent(LegacyMainName);
-            RequireAbsent(LegacyTemporaryName);
-        }
     }
 
     internal void RestoreSnapshot(
@@ -170,9 +84,7 @@ internal sealed class BrokerFirewall
         foreach (var name in new[]
                  {
                      CurrentTemporaryName,
-                     CurrentMainName,
-                     LegacyTemporaryName,
-                     LegacyMainName
+                     CurrentMainName
                  })
         {
             var current = ReadSingleByName(name);
@@ -216,23 +128,10 @@ internal sealed class BrokerFirewall
         RequireAbsent(CurrentTemporaryName);
     }
 
-    internal void VerifyTarget(int backendPort, bool requireLegacyAbsent)
+    internal void VerifyTarget(int backendPort)
     {
         RequireExpected(CurrentMainName, backendPort);
         RequireAbsent(CurrentTemporaryName);
-        if (requireLegacyAbsent)
-        {
-            RequireAbsent(LegacyMainName);
-            RequireAbsent(LegacyTemporaryName);
-        }
-    }
-
-    internal void RemoveLegacyRules(IReadOnlyList<FirewallRuleIdentity> durableSnapshot)
-    {
-        DeleteExpectedIfPresent(LegacyTemporaryName, durableSnapshot, [3457]);
-        DeleteExpectedIfPresent(LegacyMainName, durableSnapshot, [3457]);
-        RequireAbsent(LegacyMainName);
-        RequireAbsent(LegacyTemporaryName);
     }
 
     private void RequireMatchesSnapshot(IReadOnlyList<FirewallRuleIdentity> snapshot)
@@ -240,9 +139,7 @@ internal sealed class BrokerFirewall
         foreach (var name in new[]
                  {
                      CurrentMainName,
-                     CurrentTemporaryName,
-                     LegacyMainName,
-                     LegacyTemporaryName
+                     CurrentTemporaryName
                  })
         {
             var expected = snapshot.SingleOrDefault(rule =>

@@ -27,7 +27,7 @@ EverVigilはCodex認証情報を読取り・保存しません。
 | 起動禁止marker | `%LOCALAPPDATA%\EverVigil\system-configuration-required` |
 | DPAPI token | `%LOCALAPPDATA%\EverVigil\token.dat` |
 | ログ | `%LOCALAPPDATA%\EverVigil\Logs\evervigil.log` |
-| 内部bridge host | active data root配下の`BridgeHost`。通常は`%LOCALAPPDATA%\EverVigil\BridgeHost`、in-place upgrade継続中は検証済み旧data root配下です。ACLを制限したprocess current directoryであり、project/task directory設定ではありません |
+| 内部bridge host | `%LOCALAPPDATA%\EverVigil\BridgeHost`。ACLを制限したprocess current directoryであり、project/task directory設定ではありません |
 | Startup shortcut | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\EverVigil.lnk` |
 
 設定、token、ログ、transaction状態、machine-local設定をRelease assetへ含めません。
@@ -92,27 +92,23 @@ process内でcanonical imageの導入とApplyを行います。以後の操作�
 ## TokenとQRの取扱い
 
 `TokenUtility`は16 CSPRNG bytesを生成し、32桁の小文字16進文字列へencodeします。
-`TokenStore`はapplication-specific entropy label `EverVigil/token/v1`付きDPAPI
-`CurrentUser`と制限ACLでtokenを保護します。bridgeへは`BRIDGE_TOKEN`で渡し、
-command-line argumentへ含めません。
+`TokenStore`はapplication-specific entropy付きDPAPI `CurrentUser`と制限ACLでtokenを
+保護します。bridgeへは`BRIDGE_TOKEN`で渡し、command-line argumentへ含めません。
 
 QRCoderは接続URLをローカル描画します。表示には明示操作が必要で、約60秒後および
 window非アクティブ時に隠します。copy時はclipboard履歴を警告します。URL query token、
 Bearer credential、既知token、32桁16進token形式値を秘匿化します。
 
-## 手動更新とv1.2.1互換性
+## 手動更新
 
-自動更新機能はありません。GitHub Release installerを手動取得し、SHA-256を確認して
+EverVigil v2.0.0が最初で現在唯一の公開Releaseです。自動更新機能はありません。将来の
+Releaseでは、installerを手動取得し、公開SHA-256を確認して、検証済みEverVigilへ
 上書き実行します。binaryは未署名でSmartScreenが警告する場合があります。
 
-v1.2.1からのin-place upgradeに限り、旧AppIdと必要な暗号・path互換情報を専用
-`LegacyCompatibility`境界で保持します。これらはユーザー向け名称ではありません。
-transactionは対応する設定、暗号化token bytes、自動起動設定を保持し、EverVigil正常化後に
-所有確認済み旧resourceだけを撤去します。rollbackは検証済みsnapshotと旧稼働状態を復元します。
-
-新規導入は上表のEverVigil pathを使用します。検証済みv1.2.1 upgradeでは安全な互換性に
-必要な間、旧data root、DPAPI entropy、同期名を使用する場合があります。tokenを手動移動
-しないでください。currentと旧rootの両方に永続状態がある場合は曖昧としてfail-closedにします。
+更新transactionは対応する設定、暗号化token bytes、自動起動設定を保持します。保護commit
+より前の失敗では、検証済みの更新前snapshotと稼働状態を復元します。所有権が曖昧な場合、
+またはrollbackを検証できない場合はfail-closedで停止します。Release固有の要件は対応する
+Releaseへ記載します。
 
 ## Uninstall contract
 
@@ -153,16 +149,16 @@ AMDとIntelで1台ずつ使用し、両方のreportが全check成功、failure 0
 publish jobは開始しません。監査対象はclean installと正確な
 `CONFIGURATION REQUIRED`状態、通常runtime（Windows login startup、tray、Even Terminal、
 Codex app-server、異常終了後restart、Tailscale Serve所有権、QR接続、reveal timeout、
-token永続化、normal update）、v1.2.1の既定／custom path・port移行、commit境界前rollback、
-境界後forward recovery、Start menu・ARP・support登録、設定保持／完全uninstall、別の
-administrator資格情報を使うover-the-shoulder昇格、residue／system snapshotです。
+token永続化）、将来のEverVigil更新に対するcommit境界前rollbackと境界後forward recovery、
+Start menu・ARP・support登録、設定保持／完全uninstall、別のadministrator資格情報を使う
+over-the-shoulder昇格、residue／system snapshotです。
 
 clean installのreport契約は`schemaVersion=2`です。report直下の`cleanInstall`と
 `clean-install-execution-attestation` JSON evidenceは、同じexact objectを保持します。
-外部監査harnessの既存CLIは変更しませんが、AMD／Intelの両方でv2を出力できなければ
-旧schemaを受理せずfail-closedにします。`cleanInstall`は次をすべて証明します。
+AMD／Intelの両方がこのexact schemaを出力できなければ、gateはその他のschemaを
+fail-closedで拒否します。`cleanInstall`は次をすべて証明します。
 
-- 実行前に現行／legacy data root、install root、transaction journal／temporary file、
+- 実行前にEverVigil data root、install root、transaction journal／temporary file、
   `C:\ProgramData\EverVigil` protected broker root全体（`protectedBrokerRootAbsent=true`）、
   protected broker executable／receipt、Start menu、ARP、uninstall supportが存在しない。
 - candidate名とSHA-256へ実行前後とも一致する本番Setup pathをstandard userで直接実行し、
@@ -175,7 +171,7 @@ clean installのreport契約は`schemaVersion=2`です。report直下の`cleanIn
   Application Error Event 1000、.NET Runtime Event 1023、WER Event 1001、`0x80131506`を0件にする。
 - exact version、`CONFIGURATION REQUIRED`、installed executable、Start menu、ARP、support、
   完了済みtransactionをpost-stateで確認し、journal／temporary file、installer error、
-  `PrepareToInstall` failure、legacy data rootが残らない。
+  `PrepareToInstall` failureが残らない。
 
 各targetにはGitHub Actions runnerを登録せず、GitHub job token、runner登録credential、
 tailnet auth keyを配置しません。外部監査harnessは固定hashと保護済みProgram Files pathを

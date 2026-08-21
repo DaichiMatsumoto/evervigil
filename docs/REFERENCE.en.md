@@ -27,7 +27,7 @@ ACLs. EverVigil does not read or store Codex credentials.
 | Startup block marker | `%LOCALAPPDATA%\EverVigil\system-configuration-required` |
 | DPAPI token | `%LOCALAPPDATA%\EverVigil\token.dat` |
 | Logs | `%LOCALAPPDATA%\EverVigil\Logs\evervigil.log` |
-| Internal bridge host | `BridgeHost` below the active data root; normally `%LOCALAPPDATA%\EverVigil\BridgeHost`, or the validated predecessor data root while an in-place upgrade remains active. It is an ACL-restricted process current directory, not a configured project/task directory |
+| Internal bridge host | `%LOCALAPPDATA%\EverVigil\BridgeHost`; an ACL-restricted process current directory, not a configured project/task directory |
 | Startup shortcut | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\EverVigil.lnk` |
 
 Settings, tokens, logs, transaction state, and machine-local configuration are
@@ -97,33 +97,27 @@ tray supervisor, PowerShell scripts, and child applications remain unelevated.
 
 `TokenUtility` generates 16 CSPRNG bytes and encodes them as 32 lowercase
 hexadecimal characters. `TokenStore` protects the token with DPAPI
-`CurrentUser`, the application-specific entropy label `EverVigil/token/v1`, and
-a restrictive ACL. The bridge receives plaintext through `BRIDGE_TOKEN`; the
-token is absent from command-line arguments.
+`CurrentUser`, application-specific entropy, and a restrictive ACL. The bridge
+receives plaintext through `BRIDGE_TOKEN`; the token is absent from command-line
+arguments.
 
 QRCoder renders the connection URL locally. Reveal is explicit, expires after
 approximately 60 seconds, and is cancelled on window deactivation. Copying
 warns about clipboard history. Redaction covers URL query tokens, bearer
 credentials, known token values, and 32-hex token-shaped values.
 
-## Manual update and v1.2.1 compatibility
+## Manual update
 
-There is no automatic updater. Users download a GitHub Release installer,
-verify its SHA-256, and run it over the installation. Binaries are unsigned and
-may trigger SmartScreen.
+EverVigil v2.0.0 is the first and currently only public Release. There is no
+automatic updater. For a future Release, users download its installer, verify
+the published SHA-256, and run it over a verified EverVigil installation.
+Binaries are unsigned and may trigger SmartScreen.
 
-For the v1.2.1 in-place upgrade only, the installer retains the predecessor's
-AppId and necessary cryptographic/path compatibility through the dedicated
-`LegacyCompatibility` boundary. These values are not user-facing names. The
-transaction preserves supported settings, encrypted token bytes, and startup
-preference, then removes only ownership-verified predecessor resources after EverVigil is
-healthy. Rollback restores verified snapshots and the previous runnable state.
-
-New installations use the EverVigil paths listed above. A validated v1.2.1
-upgrade may use its predecessor data root, DPAPI entropy, and synchronization
-names while required for safe compatibility. Do not move the token manually.
-Persistent state in both current and predecessor roots is ambiguous and fails
-closed.
+An update transaction preserves supported settings, encrypted token bytes, and
+the startup preference. A failure before protected commit restores verified
+pre-update snapshots and runnable state. Ambiguous ownership or unverified
+rollback fails closed. Release-specific requirements are documented in the
+corresponding Release.
 
 ## Uninstall contract
 
@@ -164,23 +158,23 @@ bound to the same candidate-manifest `sourceSha`, version, and installer
 SHA-256. The Actions job is a controller only and never executes the candidate.
 One separate dedicated ephemeral physical Windows 11 Pro target with an AMD CPU
 and one with an Intel CPU must each report every check passed, zero failed, and
-zero skipped before the publishing job can start. The contract covers a
-clean install and the exact `CONFIGURATION REQUIRED` state; normal runtime
+zero skipped before the publishing job can start. The contract covers a clean
+install and the exact `CONFIGURATION REQUIRED` state; normal runtime
 (Windows-login startup, tray operation, Even Terminal and Codex app-server
 launch, abnormal-child restart, Tailscale Serve ownership, QR connection,
-reveal timeout, token persistence, and a normal update); v1.2.1 default and
-custom-path/port migrations; pre-boundary rollback; post-boundary forward
-recovery; exact Start menu, ARP, and support registration; preserve and complete
-uninstall; over-the-shoulder elevation using separate administrator credentials;
-and residue/system snapshots.
+reveal timeout, and token persistence); a future EverVigil update with
+pre-boundary rollback and post-boundary forward recovery; exact Start menu, ARP,
+and support registration; preserve and complete uninstall; over-the-shoulder
+elevation using separate administrator credentials; and residue/system
+snapshots.
 
 The clean-install report contract is `schemaVersion=2`. The top-level
 `cleanInstall` object and the `clean-install-execution-attestation` JSON evidence
-must carry the same exact object. The existing external audit-harness CLI remains
-unchanged, but both AMD and Intel harness runs must emit v2; the gate rejects an
-older schema fail-closed. `cleanInstall` attests all of the following:
+must carry the same exact object. Both AMD and Intel harness runs must emit this
+exact schema; the gate rejects any other schema fail-closed. `cleanInstall`
+attests all of the following:
 
-- Before execution, the current and legacy data roots, install root, transaction
+- Before execution, the EverVigil data root, install root, transaction
   journal/temporary files, the entire `C:\ProgramData\EverVigil` protected broker
   root (`protectedBrokerRootAbsent=true`), protected broker executable/receipts,
   Start menu, ARP, and uninstall support are absent.
@@ -197,8 +191,8 @@ older schema fail-closed. `cleanInstall` attests all of the following:
   Runtime Event 1023, WER Event 1001, and `0x80131506` must each have zero events.
 - Post-state verifies the exact installed version, `CONFIGURATION REQUIRED`, the
   installed executable, Start menu, ARP, support, and a completed transaction,
-  with no remaining journal/temporary files, installer errors,
-  `PrepareToInstall` failures, or legacy data root.
+  with no remaining journal/temporary files, installer errors, or
+  `PrepareToInstall` failures.
 
 No GitHub Actions runner is registered on either target, and no GitHub job
 token, runner registration credential, or Tailnet auth key is placed there. The

@@ -121,30 +121,14 @@ suppression.
 
 ## Manual update
 
-EverVigil has no automatic updater. For future releases, download the newer
-installer from the GitHub Release page and verify its SHA-256 before running
-it. Release-specific update requirements will be documented in that Release.
-
-## Upgrade from legacy v1.2.1
-
-EverVigil v2.0.0 uses an in-place upgrade because preserving the established
-installer identity allows supported existing settings and the DPAPI-protected
-token to remain usable by the same Windows user. The preserved identity is an
-internal migration key, not a user-facing product name.
-
-During migration, the installer validates ownership before stopping or removing
-legacy resources. It preserves supported settings, the token, and startup choice;
-replaces user-facing names with EverVigil; and removes only owned duplicate
-process, startup, shortcut, Firewall, Serve, transaction, support, and program
-resources after the new installation is healthy. Ambiguous ownership fails
-closed and requires manual resolution.
-
-To preserve DPAPI decryptability, a validated v1.2.1 installation may continue
-to use its compatibility data root, entropy context, and synchronization names
-while migration is active. These values remain inside `LegacyCompatibility`;
-do not manually move `token.dat`. If both current and predecessor data roots
-contain persistent state, EverVigil fails closed instead of guessing which copy
-is authoritative.
+EverVigil v2.0.0 is the first and currently only public Release. EverVigil has
+no automatic updater. For a future Release, download the newer installer from
+the GitHub Release page and verify its SHA-256 before running it. The installer
+preserves supported settings, the DPAPI-protected token, and the startup choice
+when updating a verified EverVigil installation. A failure before the protected
+commit boundary restores the verified pre-update state; ambiguous or unverified
+state fails closed. Release-specific requirements will be documented in that
+Release.
 
 ## Uninstall
 

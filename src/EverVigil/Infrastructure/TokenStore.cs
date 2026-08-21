@@ -23,9 +23,9 @@ internal sealed class TokenStore
     public TokenStore(DataPaths paths)
     {
         _paths = paths;
-        _entropy = SHA256.HashData(Encoding.UTF8.GetBytes(paths.TokenEntropyContext));
+        _entropy = SHA256.HashData(Encoding.UTF8.GetBytes(ProductIdentity.TokenEntropyContext));
         var userScope = WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
-        _crossProcessMutexName = paths.TokenMutexNameTemplate.Replace(
+        _crossProcessMutexName = ProductIdentity.TokenMutexNameTemplate.Replace(
             "{ownerSid}",
             userScope,
             StringComparison.Ordinal);
@@ -76,32 +76,6 @@ internal sealed class TokenStore
                 Persist(generatedToken);
                 _cachedToken = generatedToken;
                 return _cachedToken;
-            });
-        }
-    }
-
-    public bool ImportLegacyFileIfMissing(string path)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var token = File.ReadAllText(path, Encoding.ASCII).Trim();
-        if (!TokenUtility.IsValid(token))
-        {
-            throw new InvalidDataException("Legacy token must contain exactly 32 hexadecimal characters.");
-        }
-
-        lock (_gate)
-        {
-            return WithCrossProcessLock(() =>
-            {
-                if (File.Exists(_paths.TokenPath))
-                {
-                    return false;
-                }
-
-                var normalizedToken = token.ToLowerInvariant();
-                Persist(normalizedToken);
-                _cachedToken = normalizedToken;
-                return true;
             });
         }
     }

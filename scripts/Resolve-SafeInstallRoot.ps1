@@ -1,18 +1,18 @@
 Set-StrictMode -Version Latest
 
-$legacyCompatibilityPath = Join-Path $PSScriptRoot 'LegacyCompatibility.generated.ps1'
-if (-not (Test-Path -LiteralPath $legacyCompatibilityPath -PathType Leaf)) {
-    throw "Required legacy-compatibility constants not found: $legacyCompatibilityPath"
+$productIdentityPath = Join-Path $PSScriptRoot 'ProductIdentity.ps1'
+if (-not (Test-Path -LiteralPath $productIdentityPath -PathType Leaf)) {
+    throw "Required product-identity constants not found: $productIdentityPath"
 }
-. $legacyCompatibilityPath
+. $productIdentityPath
 
-$script:EverVigilAppId = $script:LegacyCompatibilityApplicationAppId
+$script:EverVigilAppId = $script:EverVigilProductAppId
 $script:EverVigilOwnershipFileName = '.evervigil-install.json'
 
 function New-EverVigilSystemTransactionMutex {
     param(
         [string]$Name =
-            $script:LegacyCompatibilitySynchronizationSystemTransactionMutex
+            $script:EverVigilSystemTransactionMutex
     )
 
     $requiredRights =
@@ -602,12 +602,7 @@ function Get-EverVigilProcessLocations {
     )
 
     if (-not $PSBoundParameters.ContainsKey('Process')) {
-        $processNames = @(
-            'EverVigil'
-            [IO.Path]::GetFileNameWithoutExtension(
-                $script:LegacyCompatibilityApplicationExecutableFileName)
-        ) | Select-Object -Unique
-        $Process = @(Get-Process -Name $processNames -ErrorAction SilentlyContinue)
+        $Process = @(Get-Process -Name 'EverVigil' -ErrorAction SilentlyContinue)
     }
     $prefix = "{0}\" -f ([IO.Path]::GetFullPath($Root).TrimEnd('\'))
     return @($Process | ForEach-Object {
@@ -626,36 +621,14 @@ function Get-EverVigilActiveDataRoot {
     [CmdletBinding()]
     param()
 
-    $currentDataRoot = Join-Path $env:LOCALAPPDATA 'EverVigil'
-    $legacyDataRoot = Join-Path `
-        $env:LOCALAPPDATA `
-        $script:LegacyCompatibilityApplicationDataRootRelativeToLocalAppData
-    $currentHasState = Test-EverVigilPersistentDataState -Path $currentDataRoot
-    $legacyHasState = Test-EverVigilPersistentDataState -Path $legacyDataRoot
-    if ($currentHasState -and $legacyHasState) {
-        throw 'Both current and legacy application data contain persistent state. Resolve the interrupted migration before continuing.'
-    }
-    if ($legacyHasState) {
-        return [IO.Path]::GetFullPath($legacyDataRoot)
-    }
-    return [IO.Path]::GetFullPath($currentDataRoot)
+    return [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'EverVigil'))
 }
 
 function Get-EverVigilExecutableAtRoot {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Root)
 
-    $resolvedRoot = [IO.Path]::GetFullPath($Root)
-    foreach ($fileName in @(
-            'EverVigil.exe'
-            $script:LegacyCompatibilityApplicationExecutableFileName
-        ) | Select-Object -Unique) {
-        $candidate = Join-Path $resolvedRoot $fileName
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return $candidate
-        }
-    }
-    return (Join-Path $resolvedRoot 'EverVigil.exe')
+    return (Join-Path ([IO.Path]::GetFullPath($Root)) 'EverVigil.exe')
 }
 
 function Test-EverVigilShortcutIdentity {
@@ -741,7 +714,7 @@ function Test-EverVigilPersistentDataState {
         return $false
     }
     $installTransactionTemporaryPrefix =
-        "$($script:LegacyCompatibilityDataTransactionJournalFileName).new-"
+        "$($script:EverVigilTransactionJournalFileName).new-"
     $hasInstallTransactionTemporary = @(
         Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop |
             Where-Object {
@@ -751,19 +724,19 @@ function Test-EverVigilPersistentDataState {
             }).Count -gt 0
     return $hasInstallTransactionTemporary -or
         (Test-Path -LiteralPath (
-            Join-Path $Path $script:LegacyCompatibilityDataSettingsFileName) -PathType Leaf) -or
+            Join-Path $Path $script:EverVigilSettingsFileName) -PathType Leaf) -or
         (Test-Path -LiteralPath (
-            Join-Path $Path $script:LegacyCompatibilityDataProtectedTokenFileName) -PathType Leaf) -or
+            Join-Path $Path $script:EverVigilProtectedTokenFileName) -PathType Leaf) -or
         (Test-Path -LiteralPath (
-            Join-Path $Path $script:LegacyCompatibilityDataTransactionJournalFileName) -PathType Leaf) -or
+            Join-Path $Path $script:EverVigilTransactionJournalFileName) -PathType Leaf) -or
         (Test-Path -LiteralPath (
-            Join-Path $Path $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName) -PathType Leaf) -or
+            Join-Path $Path $script:EverVigilAppliedSystemConfigurationFileName) -PathType Leaf) -or
         (Test-Path -LiteralPath (
-            Join-Path $Path $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName) -PathType Leaf) -or
+            Join-Path $Path $script:EverVigilSystemConfigurationRequiredFileName) -PathType Leaf) -or
         (Test-Path -LiteralPath (
-            Join-Path $Path $script:LegacyCompatibilityDataDiagnosticLoggingMarkerFileName) -PathType Leaf) -or
+            Join-Path $Path $script:EverVigilDiagnosticLoggingMarkerFileName) -PathType Leaf) -or
         (Test-Path -LiteralPath (
-            Join-Path $Path $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName) -PathType Container)
+            Join-Path $Path $script:EverVigilTransactionRecoveryDirectoryName) -PathType Container)
 }
 
 function Resolve-EverVigilFinalFileSystemPath {
@@ -921,7 +894,7 @@ function Get-EverVigilKnownRelativePaths {
         'scripts\InstallTransactionData.ps1'
         'scripts\Invoke-InteractiveUserTask.ps1'
         'scripts\Invoke-SystemMaintenance.ps1'
-        'scripts\LegacyCompatibility.generated.ps1'
+        'scripts\ProductIdentity.ps1'
         'scripts\Resolve-SafeInstallRoot.ps1'
         $script:EverVigilOwnershipFileName
     )
@@ -955,52 +928,7 @@ function Get-EverVigilRequiredCurrentPaths {
         'scripts\InstallTransactionData.ps1'
         'scripts\Invoke-InteractiveUserTask.ps1'
         'scripts\Invoke-SystemMaintenance.ps1'
-        'scripts\LegacyCompatibility.generated.ps1'
-    )
-}
-
-function Get-EverVigilLegacyKnownRelativePaths {
-    @(
-        $script:LegacyCompatibilityApplicationExecutableFileName
-        'LICENSE'
-        'NOTICE.md'
-        'README.md'
-        'SECURITY.md'
-        'THIRD-PARTY-NOTICES.md'
-        'Uninstall.ps1'
-        'docs\README.en.md'
-        'docs\README.ja.md'
-        'docs\REFERENCE.en.md'
-        'docs\REFERENCE.ja.md'
-        'docs\SECURITY.en.md'
-        'docs\SECURITY.ja.md'
-        'licenses\DOTNET-LICENSE.txt'
-        'licenses\DOTNET-THIRD-PARTY-NOTICES.txt'
-        'licenses\INNO-SETUP-LICENSE.txt'
-        'licenses\QRCODER-LICENSE.txt'
-        'scripts\Invoke-SystemMaintenance.ps1'
-        'scripts\Resolve-SafeInstallRoot.ps1'
-        $script:LegacyCompatibilityApplicationOwnershipMarkerFileName
-    )
-}
-
-function Get-EverVigilRequiredLegacyPaths {
-    @(
-        $script:LegacyCompatibilityApplicationExecutableFileName
-        'LICENSE'
-        'NOTICE.md'
-        'README.md'
-        'SECURITY.md'
-        'THIRD-PARTY-NOTICES.md'
-        'Uninstall.ps1'
-        'docs\README.en.md'
-        'docs\README.ja.md'
-        'docs\REFERENCE.en.md'
-        'docs\REFERENCE.ja.md'
-        'docs\SECURITY.en.md'
-        'docs\SECURITY.ja.md'
-        'licenses\QRCODER-LICENSE.txt'
-        'scripts\Invoke-SystemMaintenance.ps1'
+        'scripts\ProductIdentity.ps1'
     )
 }
 
@@ -1070,132 +998,6 @@ function Test-EverVigilKnownLayout {
     }
 }
 
-function Test-EverVigilLegacyKnownLayout {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [scriptblock]$ExecutableIdentityTest,
-        [switch]$AllowCurrentTempTree
-    )
-
-    $resolvedPath = Resolve-SafeInstallRoot `
-        -Path $Path `
-        -AllowCurrentTempTree:$AllowCurrentTempTree
-    if (-not (Test-Path -LiteralPath $resolvedPath -PathType Container)) {
-        return $false
-    }
-
-    $allowedPaths = @(Get-EverVigilLegacyKnownRelativePaths)
-    $allowedDirectories = @('docs', 'licenses', 'scripts')
-    $directories = @(Get-ChildItem -LiteralPath $resolvedPath -Directory -Recurse -Force -ErrorAction Stop)
-    foreach ($directory in $directories) {
-        if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            return $false
-        }
-        $relativePath = [IO.Path]::GetRelativePath($resolvedPath, $directory.FullName)
-        if ($relativePath -notin $allowedDirectories) {
-            return $false
-        }
-    }
-    $files = @(Get-ChildItem -LiteralPath $resolvedPath -File -Recurse -Force -ErrorAction Stop)
-    if ($files.Count -eq 0) {
-        return $false
-    }
-    foreach ($file in $files) {
-        if (($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            return $false
-        }
-        $relativePath = [IO.Path]::GetRelativePath($resolvedPath, $file.FullName)
-        if ($relativePath -notin $allowedPaths) {
-            return $false
-        }
-    }
-    $actualPaths = @($files | ForEach-Object {
-        [IO.Path]::GetRelativePath($resolvedPath, $_.FullName)
-    })
-    foreach ($requiredPath in @(Get-EverVigilRequiredLegacyPaths)) {
-        if ($requiredPath -notin $actualPaths) {
-            return $false
-        }
-    }
-
-    $executable = Join-Path `
-        $resolvedPath `
-        $script:LegacyCompatibilityApplicationExecutableFileName
-    if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
-        return $false
-    }
-    try {
-        if ($null -ne $ExecutableIdentityTest) {
-            return [bool](& $ExecutableIdentityTest $executable)
-        }
-        $versionInfo = (Get-Item -LiteralPath $executable -ErrorAction Stop).VersionInfo
-        return [string]::Equals(
-                $versionInfo.ProductName,
-                $script:LegacyCompatibilityApplicationProductName,
-                [StringComparison]::Ordinal) -and
-            [string]::Equals(
-                $versionInfo.OriginalFilename,
-                $script:LegacyCompatibilityApplicationExecutableOriginalFileName,
-                [StringComparison]::OrdinalIgnoreCase) -and
-            [string]::Equals(
-                $versionInfo.FileVersion,
-                $script:LegacyCompatibilityApplicationExecutableFileVersion,
-                [StringComparison]::Ordinal)
-    } catch {
-        return $false
-    }
-}
-
-function Get-EverVigilLegacyInstallOwnership {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [switch]$AllowCurrentTempTree
-    )
-
-    $resolvedPath = Resolve-SafeInstallRoot `
-        -Path $Path `
-        -AllowCurrentTempTree:$AllowCurrentTempTree
-    $markerPath = Join-Path `
-        $resolvedPath `
-        $script:LegacyCompatibilityApplicationOwnershipMarkerFileName
-    if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
-        return $null
-    }
-
-    try {
-        $marker = Get-Content -LiteralPath $markerPath -Raw -Encoding UTF8 -ErrorAction Stop |
-            ConvertFrom-Json
-        $markerRoot = Resolve-SafeInstallRoot `
-            -Path ([string]$marker.installRoot) `
-            -AllowCurrentTempTree:$AllowCurrentTempTree
-    } catch {
-        throw "The legacy installation ownership marker is invalid at '$markerPath': $($_.Exception.Message)"
-    }
-    if (-not [string]::Equals(
-            [string]$marker.appId,
-            $script:LegacyCompatibilityApplicationAppId,
-            [StringComparison]::OrdinalIgnoreCase) -or
-        -not [string]::Equals(
-            [string]$marker.ownerSid,
-            (Get-EverVigilOwnerSid),
-            [StringComparison]::OrdinalIgnoreCase) -or
-        -not [string]::Equals(
-            $markerRoot,
-            $resolvedPath,
-            [StringComparison]::OrdinalIgnoreCase)) {
-        throw "The legacy installation ownership marker does not match this user and path: $markerPath"
-    }
-    if (-not (Test-EverVigilLegacyKnownLayout `
-                -Path $resolvedPath `
-                -AllowCurrentTempTree:$AllowCurrentTempTree)) {
-        throw "The legacy installation contains files outside the owned layout: $resolvedPath"
-    }
-
-    return $marker
-}
-
 function Get-EverVigilInstallOwnership {
     [CmdletBinding()]
     param(
@@ -1251,7 +1053,6 @@ function Assert-OwnedInstallRoot {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Path,
-        [switch]$AllowLegacyKnownLayout,
         [switch]$AllowCurrentTempTree
     )
 
@@ -1261,19 +1062,9 @@ function Assert-OwnedInstallRoot {
     $ownership = Get-EverVigilInstallOwnership `
         -Path $resolvedPath `
         -AllowCurrentTempTree:$AllowCurrentTempTree
-    if ($null -ne $ownership) {
-        return
+    if ($null -eq $ownership) {
+        throw "The directory is not an owned EverVigil installation: $resolvedPath"
     }
-    if ($AllowLegacyKnownLayout) {
-        $legacyOwnership = Get-EverVigilLegacyInstallOwnership `
-            -Path $resolvedPath `
-            -AllowCurrentTempTree:$AllowCurrentTempTree
-        if ($null -ne $legacyOwnership) {
-            return
-        }
-    }
-
-    throw "The directory is not an owned EverVigil installation: $resolvedPath"
 }
 
 function Assert-OwnedInstallBackup {
@@ -1290,25 +1081,12 @@ function Assert-OwnedInstallBackup {
     $resolvedOriginalRoot = Resolve-SafeInstallRoot `
         -Path $OriginalInstallRoot `
         -AllowCurrentTempTree:$AllowCurrentTempTree
-    $knownCurrentLayout = Test-EverVigilKnownLayout `
-        -Path $resolvedPath `
-        -AllowCurrentTempTree:$AllowCurrentTempTree
-    $knownLegacyLayout = if ($knownCurrentLayout) {
-        $false
-    } else {
-        Test-EverVigilLegacyKnownLayout `
+    if (-not (Test-EverVigilKnownLayout `
             -Path $resolvedPath `
-            -AllowCurrentTempTree:$AllowCurrentTempTree
-    }
-    if (-not $knownCurrentLayout -and -not $knownLegacyLayout) {
+            -AllowCurrentTempTree:$AllowCurrentTempTree)) {
         throw "The backup does not match the known EverVigil layout: $resolvedPath"
     }
-    $markerName = if ($knownLegacyLayout) {
-        $script:LegacyCompatibilityApplicationOwnershipMarkerFileName
-    } else {
-        $script:EverVigilOwnershipFileName
-    }
-    $markerPath = Join-Path $resolvedPath $markerName
+    $markerPath = Join-Path $resolvedPath $script:EverVigilOwnershipFileName
     if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
         throw "The owned installation backup has no ownership marker: $markerPath"
     }
@@ -1532,7 +1310,7 @@ function Get-EverVigilRegisteredInstallRoot {
     param()
 
     $registryPath = 'HKCU:\' +
-        $script:LegacyCompatibilityApplicationUninstallRegistrySubKey
+        $script:EverVigilProductUninstallRegistrySubKey
     try {
         $registeredPath = [string](Get-ItemPropertyValue `
                 -LiteralPath $registryPath `
@@ -1556,10 +1334,7 @@ function Get-EverVigilRegisteredInstallRoot {
 
 function Resolve-EverVigilMaintenanceInstallRoot {
     [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [switch]$AllowLegacyKnownLayout
-    )
+    param([Parameter(Mandatory)][string]$Path)
 
     $candidate = Resolve-SafeInstallRoot -Path $Path -AllowCurrentTempTree
     $registeredRoot = Get-EverVigilRegisteredInstallRoot
@@ -1571,10 +1346,7 @@ function Resolve-EverVigilMaintenanceInstallRoot {
     $owned = $false
     if (Test-Path -LiteralPath $candidate -PathType Container) {
         try {
-            Assert-OwnedInstallRoot `
-                -Path $candidate `
-                -AllowLegacyKnownLayout:$AllowLegacyKnownLayout `
-                -AllowCurrentTempTree
+            Assert-OwnedInstallRoot -Path $candidate -AllowCurrentTempTree
             $owned = $true
         } catch {
             $owned = $false
@@ -1614,7 +1386,6 @@ function Assert-CompatibleInstallRoot {
 
     Assert-OwnedInstallRoot `
         -Path $resolvedPath `
-        -AllowLegacyKnownLayout `
         -AllowCurrentTempTree:$AllowCurrentTempTree
 }
 
@@ -2480,7 +2251,6 @@ function Invoke-EverVigilSystemBroker {
             'Rollback',
             'Commit',
             'UninstallCleanup',
-            'LegacyTaskCleanup',
             'Status')]
         [string]$Operation,
         [Parameter(Mandatory)][guid]$TransactionId,
@@ -2488,7 +2258,6 @@ function Invoke-EverVigilSystemBroker {
         [string]$Initiator,
         [ValidateRange(0, 65535)][int]$PublicPort = 0,
         [ValidateRange(0, 65535)][int]$BackendPort = 0,
-        [switch]$MigrateV121SystemState,
         [switch]$AllowBootstrap
     )
 
@@ -2499,9 +2268,6 @@ function Invoke-EverVigilSystemBroker {
         }
     } elseif ($PublicPort -ne 0 -or $BackendPort -ne 0) {
         throw "System broker $Operation must not receive port fields."
-    }
-    if ($MigrateV121SystemState -and $Operation -ne 'Apply') {
-        throw 'v1.2.1 system-state migration can be requested only with Apply.'
     }
 
     function Invoke-ProtectedBrokerOnce {
@@ -2529,11 +2295,6 @@ function Invoke-EverVigilSystemBroker {
             initiator = $Initiator
             publicPort = if ($Operation -eq 'Apply') { $PublicPort } else { $null }
             backendPort = if ($Operation -eq 'Apply') { $BackendPort } else { $null }
-            # The wire name is retained for protocol v1 compatibility. This
-            # authorization is derived only from a strictly owned v1.2.1
-            # install plus its validated local applied-system record; it is
-            # never inferred from an older plaintext credential.
-            migrateLegacySystemState = [bool]$MigrateV121SystemState
         }
         $requestBytes = [Text.UTF8Encoding]::new(
             $false,

@@ -1,6 +1,5 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
-using EverVigil.Compatibility;
 
 namespace EverVigil.Infrastructure;
 
@@ -18,7 +17,7 @@ internal sealed class SingleInstanceCoordinator : IDisposable
     internal static string CreateDefaultScope()
     {
         var userScope = WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
-        return LegacyCompatibility.Synchronization.InstanceScopeTemplate.Replace(
+        return ProductIdentity.InstanceScopeNameTemplate.Replace(
             "{ownerSid}",
             userScope,
             StringComparison.Ordinal);

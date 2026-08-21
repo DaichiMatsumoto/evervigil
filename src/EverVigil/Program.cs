@@ -39,35 +39,6 @@ internal static class Program
                 logger.Warn(settingsStore.LastRecoveryMessage);
             }
 
-            if (HasArgument(arguments, "--initialize-legacy-settings"))
-            {
-                var legacyTokenPath = GetArgument(arguments, "--legacy-token-file") ??
-                    throw new ArgumentException("--legacy-token-file is required.");
-                var legacyRoot = GetArgument(arguments, "--legacy-root") ??
-                    throw new ArgumentException("--legacy-root is required.");
-                var legacyDefaults = CreateLegacyMigrationDefaults(legacyTokenPath, legacyRoot);
-                if (settingsStore.TryReplaceNewlyCreatedDefaults(legacyDefaults))
-                {
-                    logger.Info("New settings initialized from the validated legacy layout.");
-                }
-
-                return 0;
-            }
-
-            var importPath = GetArgument(arguments, "--import-token-file");
-            if (importPath is not null)
-            {
-                if (tokenStore.ImportLegacyFileIfMissing(importPath))
-                {
-                    logger.Info("Legacy token imported into DPAPI storage.");
-                }
-                else
-                {
-                    logger.Info("Existing DPAPI token preserved; legacy token import skipped.");
-                }
-                return 0;
-            }
-
             if (HasArgument(arguments, "--validate-settings"))
             {
                 var errors = AppSettingsValidator.Validate(settingsStore.Current);
@@ -246,8 +217,6 @@ internal static class Program
             "--bridge-launcher",
             "--health-check",
             "--installer-runtime-check",
-            "--import-token-file",
-            "--initialize-legacy-settings",
             "--commit-installer-system-config",
             "--mark-system-configured",
             "--register-startup",
@@ -326,13 +295,6 @@ internal static class Program
                 (forceStartRequested || AppSettingsValidator.Validate(settings).Count == 0));
     }
 
-    private static string? GetArgument(string[] arguments, string name)
-    {
-        var index = Array.FindIndex(arguments, argument =>
-            string.Equals(argument, name, StringComparison.OrdinalIgnoreCase));
-        return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : null;
-    }
-
     internal static Guid ParseRequiredTransactionId(string[] arguments, string name)
     {
         ArgumentNullException.ThrowIfNull(arguments);
@@ -355,34 +317,6 @@ internal static class Program
             throw new ArgumentException($"{name} must be a lowercase 32-character GUID.");
         }
         return transactionId;
-    }
-
-    internal static AppSettings CreateLegacyMigrationDefaults(string tokenPath, string legacyRoot)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(tokenPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(legacyRoot);
-        var fullTokenPath = Path.GetFullPath(tokenPath);
-        var fullLegacyRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(legacyRoot));
-        if (!File.Exists(fullTokenPath) ||
-            !Directory.Exists(fullLegacyRoot) ||
-            !string.Equals(Path.GetFileName(fullTokenPath), "token.txt", StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(
-                Path.TrimEndingDirectorySeparator(Path.GetDirectoryName(fullTokenPath) ?? string.Empty),
-                fullLegacyRoot,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException(
-                "Legacy migration requires token.txt directly inside the validated legacy directory.");
-        }
-
-        var legacyToken = File.ReadAllText(fullTokenPath, System.Text.Encoding.ASCII).Trim();
-        if (!TokenUtility.IsValid(legacyToken))
-        {
-            throw new InvalidDataException(
-                "Legacy migration requires token.txt to contain exactly 32 hexadecimal characters.");
-        }
-
-        return AppSettings.CreateDefault(fullLegacyRoot);
     }
 
     private static void LogTokenRecovery(TokenStore tokenStore, BoundedLogger logger)

@@ -760,7 +760,7 @@ foreach ($supportScript in @(
         'scripts\InstallTransactionData.ps1'
         'scripts\Invoke-InteractiveUserTask.ps1'
         'scripts\Invoke-SystemMaintenance.ps1'
-        'scripts\LegacyCompatibility.generated.ps1'
+        'scripts\ProductIdentity.ps1'
         'scripts\Resolve-SafeInstallRoot.ps1'
     )) {
     Copy-Item `

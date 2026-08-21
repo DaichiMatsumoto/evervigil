@@ -76,10 +76,9 @@ EverVigil has no automatic updater. Community builds are not
 Authenticode-signed and may trigger Microsoft Defender SmartScreen. Verify the
 SHA-256 before running an installer.
 
-Future releases will use the same manual download and checksum-verification
-flow. The separate migration from the legacy v1.2.1 product remains an
-authenticated in-place migration. See [Upgrade from the legacy
-application](docs/TECHNICAL_OVERVIEW.en.md#9-upgrade-from-even-terminal-supervisor).
+Future EverVigil releases will use the same manual download and
+checksum-verification flow. Release-specific update requirements will be
+documented in each Release.
 
 ## Connection credentials
 

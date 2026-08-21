@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
-using EverVigil.Compatibility;
 
 namespace EverVigil.Infrastructure;
 
@@ -12,16 +11,16 @@ internal sealed class StartupRegistration
 
     public event Action<bool>? RegistrationChanged;
 
-    public bool IsRegistered => IsCurrentShortcutOwned() || IsLegacyShortcutOwned();
+    public bool IsRegistered => IsCurrentShortcutOwned();
 
     public void Register()
     {
         var executable = Environment.ProcessPath ??
             throw new InvalidOperationException("Application executable path is unavailable.");
 
-        // Upgrades can encounter a valid shortcut that is already pointing at
-        // this executable.  Re-saving it is unnecessary and can be rejected by
-        // Windows policies that allow reading the Startup folder but deny
+        // Repeated registration can encounter a valid shortcut that is already
+        // pointing at this executable. Re-saving it is unnecessary and can be
+        // rejected by Windows policies that allow reading the Startup folder but deny
         // replacing an existing file.  Treat the owned, exact shortcut as the
         // desired durable state and avoid the write entirely.
         if (IsShortcutOwnedBy(_paths.StartupShortcutPath, executable))
@@ -70,7 +69,6 @@ internal sealed class StartupRegistration
                 binder: null,
                 target: shortcut,
                 args: null);
-            DeleteLegacyShortcut();
             RegistrationChanged?.Invoke(true);
         }
         finally
@@ -91,28 +89,11 @@ internal sealed class StartupRegistration
     {
         DeleteOwnedShortcut(_paths.StartupShortcutPath, Environment.ProcessPath);
 
-        DeleteLegacyShortcut();
-
         RegistrationChanged?.Invoke(false);
     }
 
     private bool IsCurrentShortcutOwned() =>
         IsShortcutOwnedBy(_paths.StartupShortcutPath, Environment.ProcessPath);
-
-    private bool IsLegacyShortcutOwned() =>
-        IsShortcutOwnedBy(_paths.LegacyStartupShortcutPath, GetLegacyExecutablePath());
-
-    private void DeleteLegacyShortcut()
-    {
-        DeleteOwnedShortcut(_paths.LegacyStartupShortcutPath, GetLegacyExecutablePath());
-    }
-
-    private static string GetLegacyExecutablePath()
-    {
-        return Path.Combine(
-            AppContext.BaseDirectory,
-            LegacyCompatibility.Application.ExecutableFileName);
-    }
 
     private static void DeleteOwnedShortcut(string? shortcutPath, string? expectedTargetPath)
     {

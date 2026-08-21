@@ -3,31 +3,31 @@ param()
 
 Set-StrictMode -Version Latest
 
-$legacyCompatibilityPath = Join-Path $PSScriptRoot 'LegacyCompatibility.generated.ps1'
-if (-not (Test-Path -LiteralPath $legacyCompatibilityPath -PathType Leaf)) {
-    throw "Required legacy-compatibility constants not found: $legacyCompatibilityPath"
+$productIdentityPath = Join-Path $PSScriptRoot 'ProductIdentity.ps1'
+if (-not (Test-Path -LiteralPath $productIdentityPath -PathType Leaf)) {
+    throw "Required product-identity constants not found: $productIdentityPath"
 }
-. $legacyCompatibilityPath
+. $productIdentityPath
 
 $script:EverVigilApplicationDataDefinitions = @(
     [pscustomobject]@{
-        Name = $script:LegacyCompatibilityDataSettingsFileName
+        Name = $script:EverVigilSettingsFileName
         PresenceProperty = 'settingsWasPresent'
     }
     [pscustomobject]@{
-        Name = $script:LegacyCompatibilityDataProtectedTokenFileName
+        Name = $script:EverVigilProtectedTokenFileName
         PresenceProperty = 'tokenWasPresent'
     }
     [pscustomobject]@{
-        Name = $script:LegacyCompatibilityDataAppliedSystemConfigurationFileName
+        Name = $script:EverVigilAppliedSystemConfigurationFileName
         PresenceProperty = 'appliedSystemConfigurationWasPresent'
     }
     [pscustomobject]@{
-        Name = $script:LegacyCompatibilityDataSystemConfigurationRequiredFileName
+        Name = $script:EverVigilSystemConfigurationRequiredFileName
         PresenceProperty = 'systemConfigurationRequiredWasPresent'
     }
     [pscustomobject]@{
-        Name = $script:LegacyCompatibilityDataDiagnosticLoggingMarkerFileName
+        Name = $script:EverVigilDiagnosticLoggingMarkerFileName
         PresenceProperty = 'diagnosticLoggingWasPresent'
     }
 )
@@ -50,20 +50,11 @@ $script:EverVigilExternalArtifactRoles = @(
     'current-support-data-script'
     'current-support-interactive-script'
     'current-support-system-script'
-    'current-support-legacy-script'
+    'current-support-identity-script'
     'current-support-resolver-script'
     'current-menu-application'
     'current-menu-uninstall'
     'current-startup'
-    'legacy-startup'
-    'legacy-menu-application'
-    'legacy-menu-uninstall'
-    'legacy-support-unins-dat'
-    'legacy-support-unins-exe'
-    'legacy-support-uninstall-script'
-    'legacy-support-system-script'
-    'legacy-support-resolver-script'
-    'legacy-plaintext-token'
 )
 $script:EverVigilUninstallRegistryRecoveryFileName =
     'external-uninstall-registry.json.rollback'
@@ -168,7 +159,7 @@ function Remove-EverVigilEmptyApplicationDataContainers {
 
     $transactionsRoot = Join-Path `
         $DataRoot `
-        $script:LegacyCompatibilityDataTransactionRecoveryDirectoryName
+        $script:EverVigilTransactionRecoveryDirectoryName
     if (-not $TransactionsRootWasPresent -and
         (Test-Path -LiteralPath $transactionsRoot)) {
         if (-not (Test-Path -LiteralPath $transactionsRoot -PathType Container)) {
@@ -212,7 +203,7 @@ function Get-EverVigilInstallTransactionTemporaryFiles {
     }
 
     $temporaryPrefix =
-        "$($script:LegacyCompatibilityDataTransactionJournalFileName).new-"
+        "$($script:EverVigilTransactionJournalFileName).new-"
     return @(Get-ChildItem `
             -LiteralPath $resolvedRoot `
             -Force `
@@ -237,55 +228,22 @@ function Get-EverVigilExternalArtifactDefinitions {
     param([Parameter(Mandatory)]$State)
 
     $currentSupportRoot = Join-Path $env:LOCALAPPDATA 'EverVigil.Uninstall'
-    $legacySupportRoot = Join-Path `
-        $env:LOCALAPPDATA `
-        $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData
     $programsRoot = Get-EverVigilProgramsFolderPath
     $startupRoot = Get-EverVigilStartupFolderPath
     $currentGroup = Join-Path $programsRoot 'EverVigil'
-    $legacyGroup = Join-Path `
-        $programsRoot `
-        $script:LegacyCompatibilityApplicationProductName
-    $legacyTokenPath = [string](Get-EverVigilTransactionValue `
-            -State $State `
-            -Name 'legacyTokenPath')
-    $legacyCleanupProperty = if ($State -is [Collections.IDictionary]) {
-        if ($State.Contains('legacyCleanupAuthorized')) {
-            $State['legacyCleanupAuthorized']
-        } else {
-            $false
-        }
-    } else {
-        $property = $State.PSObject.Properties['legacyCleanupAuthorized']
-        $null -ne $property -and $property.Value -eq $true
-    }
-    $legacyCleanupAuthorized = $legacyCleanupProperty -eq $true
-    $legacyCredentialFound = [bool](Get-EverVigilTransactionValue `
-            -State $State `
-            -Name 'legacyCredentialFound')
-
     $definitions = @(
-        [pscustomobject]@{ Role = 'current-support-unins-dat'; Path = (Join-Path $currentSupportRoot 'unins000.dat'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-support-unins-exe'; Path = (Join-Path $currentSupportRoot 'unins000.exe'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-support-uninstall-script'; Path = (Join-Path $currentSupportRoot 'Support\Uninstall.ps1'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-support-complete-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Complete-InstallTransaction.ps1'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-support-data-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\InstallTransactionData.ps1'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-support-interactive-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Invoke-InteractiveUserTask.ps1'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-support-system-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Invoke-SystemMaintenance.ps1'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-support-legacy-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\LegacyCompatibility.generated.ps1'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-support-resolver-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Resolve-SafeInstallRoot.ps1'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-menu-application'; Path = (Join-Path $currentGroup 'EverVigil.lnk'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-menu-uninstall'; Path = (Join-Path $currentGroup 'Uninstall EverVigil.lnk'); InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'current-startup'; Path = if ([string]::IsNullOrWhiteSpace($startupRoot)) { '' } else { Join-Path $startupRoot 'EverVigil.lnk' }; InstallerManaged = $true }
-        [pscustomobject]@{ Role = 'legacy-startup'; Path = if ([string]::IsNullOrWhiteSpace($startupRoot)) { '' } else { Join-Path $startupRoot $script:LegacyCompatibilityApplicationStartupShortcutFileName }; InstallerManaged = $false }
-        [pscustomobject]@{ Role = 'legacy-menu-application'; Path = (Join-Path $legacyGroup "$($script:LegacyCompatibilityApplicationProductName).lnk"); InstallerManaged = $false }
-        [pscustomobject]@{ Role = 'legacy-menu-uninstall'; Path = (Join-Path $legacyGroup "Uninstall $($script:LegacyCompatibilityApplicationProductName).lnk"); InstallerManaged = $false }
-        [pscustomobject]@{ Role = 'legacy-support-unins-dat'; Path = (Join-Path $legacySupportRoot 'unins000.dat'); InstallerManaged = $false }
-        [pscustomobject]@{ Role = 'legacy-support-unins-exe'; Path = (Join-Path $legacySupportRoot 'unins000.exe'); InstallerManaged = $false }
-        [pscustomobject]@{ Role = 'legacy-support-uninstall-script'; Path = (Join-Path $legacySupportRoot 'Support\Uninstall.ps1'); InstallerManaged = $false }
-        [pscustomobject]@{ Role = 'legacy-support-system-script'; Path = (Join-Path $legacySupportRoot 'Support\scripts\Invoke-SystemMaintenance.ps1'); InstallerManaged = $false }
-        [pscustomobject]@{ Role = 'legacy-support-resolver-script'; Path = (Join-Path $legacySupportRoot 'Support\scripts\Resolve-SafeInstallRoot.ps1'); InstallerManaged = $false }
-        [pscustomobject]@{ Role = 'legacy-plaintext-token'; Path = $legacyTokenPath; InstallerManaged = $false }
+        [pscustomobject]@{ Role = 'current-support-unins-dat'; Path = (Join-Path $currentSupportRoot 'unins000.dat') }
+        [pscustomobject]@{ Role = 'current-support-unins-exe'; Path = (Join-Path $currentSupportRoot 'unins000.exe') }
+        [pscustomobject]@{ Role = 'current-support-uninstall-script'; Path = (Join-Path $currentSupportRoot 'Support\Uninstall.ps1') }
+        [pscustomobject]@{ Role = 'current-support-complete-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Complete-InstallTransaction.ps1') }
+        [pscustomobject]@{ Role = 'current-support-data-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\InstallTransactionData.ps1') }
+        [pscustomobject]@{ Role = 'current-support-interactive-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Invoke-InteractiveUserTask.ps1') }
+        [pscustomobject]@{ Role = 'current-support-system-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Invoke-SystemMaintenance.ps1') }
+        [pscustomobject]@{ Role = 'current-support-identity-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\ProductIdentity.ps1') }
+        [pscustomobject]@{ Role = 'current-support-resolver-script'; Path = (Join-Path $currentSupportRoot 'Support\scripts\Resolve-SafeInstallRoot.ps1') }
+        [pscustomobject]@{ Role = 'current-menu-application'; Path = (Join-Path $currentGroup 'EverVigil.lnk') }
+        [pscustomobject]@{ Role = 'current-menu-uninstall'; Path = (Join-Path $currentGroup 'Uninstall EverVigil.lnk') }
+        [pscustomobject]@{ Role = 'current-startup'; Path = if ([string]::IsNullOrWhiteSpace($startupRoot)) { '' } else { Join-Path $startupRoot 'EverVigil.lnk' } }
     )
     return @($definitions | ForEach-Object {
             [pscustomobject]@{
@@ -295,14 +253,8 @@ function Get-EverVigilExternalArtifactDefinitions {
                 } else {
                     [IO.Path]::GetFullPath([string]$_.Path)
                 }
-                InstallerManaged = [bool]$_.InstallerManaged
-                Authorized = if ([string]$_.Role -ceq 'legacy-plaintext-token') {
-                    $legacyCredentialFound
-                } elseif ([string]$_.Role -clike 'legacy-*') {
-                    $legacyCleanupAuthorized
-                } else {
-                    $true
-                }
+                InstallerManaged = $true
+                Authorized = $true
                 BackupName = "external-$([string]$_.Role).rollback"
             }
         })
@@ -860,16 +812,6 @@ function Assert-EverVigilExternalShortcutIdentity {
 function Assert-EverVigilExternalArtifactPrestate {
     param([Parameter(Mandatory)]$State)
 
-    $legacyCleanupAuthorized = $false
-    if ($State -is [Collections.IDictionary]) {
-        $legacyCleanupAuthorized = $State.Contains('legacyCleanupAuthorized') -and
-            $State['legacyCleanupAuthorized'] -eq $true
-    } else {
-        $legacyCleanupProperty =
-            $State.PSObject.Properties['legacyCleanupAuthorized']
-        $legacyCleanupAuthorized = $null -ne $legacyCleanupProperty -and
-            $legacyCleanupProperty.Value -eq $true
-    }
     $currentSupportFiles = @(
         'unins000.dat'
         'unins000.exe'
@@ -878,7 +820,7 @@ function Assert-EverVigilExternalArtifactPrestate {
         'Support\scripts\InstallTransactionData.ps1'
         'Support\scripts\Invoke-InteractiveUserTask.ps1'
         'Support\scripts\Invoke-SystemMaintenance.ps1'
-        'Support\scripts\LegacyCompatibility.generated.ps1'
+        'Support\scripts\ProductIdentity.ps1'
         'Support\scripts\Resolve-SafeInstallRoot.ps1'
     )
     Assert-EverVigilFixedExternalTree `
@@ -922,61 +864,6 @@ function Assert-EverVigilExternalArtifactPrestate {
         -AllowedDirectories @() `
         -AllowedFiles @('EverVigil.lnk', 'Uninstall EverVigil.lnk') `
         -RequireAllFiles
-
-    if ($legacyCleanupAuthorized) {
-        Assert-EverVigilFixedExternalTree `
-            -Root (Join-Path `
-                $env:LOCALAPPDATA `
-                $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData) `
-            -AllowedDirectories @('Support', 'Support\scripts') `
-            -AllowedFiles @(
-                'unins000.dat'
-                'unins000.exe'
-                'Support\Uninstall.ps1'
-                'Support\scripts\Invoke-SystemMaintenance.ps1'
-                'Support\scripts\Resolve-SafeInstallRoot.ps1') `
-            -RequireAllFiles
-        Assert-EverVigilFixedExternalTree `
-            -Root (Join-Path `
-                $programsRoot `
-                $script:LegacyCompatibilityApplicationProductName) `
-            -AllowedDirectories @() `
-            -AllowedFiles @(
-                "$($script:LegacyCompatibilityApplicationProductName).lnk"
-                "Uninstall $($script:LegacyCompatibilityApplicationProductName).lnk") `
-            -RequireAllFiles
-        $legacyExecutableTargets = @(
-            (Join-Path ([string](Get-EverVigilTransactionValue -State $State -Name 'installRoot')) $script:LegacyCompatibilityApplicationExecutableFileName)
-            (Join-Path ([string](Get-EverVigilTransactionValue -State $State -Name 'previousInstallRoot')) $script:LegacyCompatibilityApplicationExecutableFileName)
-            (Join-Path (Join-Path $env:LOCALAPPDATA $script:LegacyCompatibilityApplicationInstallRootRelativeToLocalAppData) $script:LegacyCompatibilityApplicationExecutableFileName)
-        ) | Select-Object -Unique
-        $legacyWorkingDirectories = @($legacyExecutableTargets | ForEach-Object {
-                Split-Path -Parent $_
-            }) | Select-Object -Unique
-        $legacyIconLocations = @('', ',0') + @($legacyExecutableTargets | ForEach-Object {
-                "$_,0"
-            })
-        Assert-EverVigilExternalShortcutIdentity `
-            -Path (Join-Path $programsRoot "$($script:LegacyCompatibilityApplicationProductName)\$($script:LegacyCompatibilityApplicationProductName).lnk") `
-            -ExpectedTargetPath $legacyExecutableTargets `
-            -ExpectedArguments '' `
-            -ExpectedWorkingDirectory $legacyWorkingDirectories `
-            -ExpectedIconLocation $legacyIconLocations
-        Assert-EverVigilExternalShortcutIdentity `
-            -Path (Join-Path $programsRoot "$($script:LegacyCompatibilityApplicationProductName)\Uninstall $($script:LegacyCompatibilityApplicationProductName).lnk") `
-            -ExpectedTargetPath @((Join-Path `
-                    $env:LOCALAPPDATA `
-                    "$($script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData)\unins000.exe")) `
-            -ExpectedArguments '' `
-            -ExpectedWorkingDirectory @('', (Join-Path $env:LOCALAPPDATA $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData)) `
-            -ExpectedIconLocation @('', ',0', "$(Join-Path $env:LOCALAPPDATA "$($script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData)\unins000.exe"),0")
-        Assert-EverVigilExternalShortcutIdentity `
-            -Path (Join-Path (Get-EverVigilStartupFolderPath) $script:LegacyCompatibilityApplicationStartupShortcutFileName) `
-            -ExpectedTargetPath $legacyExecutableTargets `
-            -ExpectedArguments '--background' `
-            -ExpectedWorkingDirectory $legacyWorkingDirectories `
-            -ExpectedIconLocation $legacyIconLocations
-    }
 }
 
 function New-EverVigilExternalArtifactSnapshots {
@@ -1093,45 +980,6 @@ function Assert-EverVigilExternalArtifactSnapshotState {
     }
 }
 
-function Assert-EverVigilLegacyArtifactsMatchSnapshot {
-    param(
-        [Parameter(Mandatory)]$State,
-        [Parameter(Mandatory)][string]$RecoveryRoot
-    )
-
-    Assert-EverVigilExternalArtifactSnapshotState `
-        -State $State `
-        -RecoveryRoot $RecoveryRoot `
-        -RequireBackupFiles
-    $snapshotByRole = @{}
-    foreach ($snapshot in @(
-            Get-EverVigilTransactionValue `
-                -State $State `
-                -Name 'externalArtifactSnapshots')) {
-        $snapshotByRole[[string]$snapshot.role] = $snapshot
-    }
-    foreach ($definition in @(Get-EverVigilExternalArtifactDefinitions -State $State)) {
-        if (-not $definition.Authorized -or $definition.InstallerManaged) {
-            continue
-        }
-        $snapshot = $snapshotByRole[$definition.Role]
-        $exists = Test-Path -LiteralPath $definition.Path -PathType Leaf
-        if ([bool]$snapshot.wasPresent) {
-            if (-not $exists -or
-                (Get-Item -LiteralPath $definition.Path -Force).Length -ne
-                    [long]$snapshot.length -or
-                -not [string]::Equals(
-                    (Get-EverVigilFileSha256 -Path $definition.Path),
-                    [string]$snapshot.sha256,
-                    [StringComparison]::Ordinal)) {
-                throw "A legacy external artifact changed before finalization: $($definition.Role)"
-            }
-        } elseif ($exists) {
-            throw "A legacy external artifact appeared after its absent pre-state: $($definition.Role)"
-        }
-    }
-}
-
 function Get-EverVigilNormalizedRegistrySecurityDescriptor {
     param([Parameter(Mandatory)][string]$SecurityDescriptor)
 
@@ -1169,7 +1017,7 @@ function Get-EverVigilNormalizedRegistrySecurityDescriptor {
 }
 
 function Get-EverVigilUninstallRegistryState {
-    $subKey = $script:LegacyCompatibilityApplicationUninstallRegistrySubKey
+    $subKey = $script:EverVigilProductUninstallRegistrySubKey
     $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($subKey, $false)
     if ($null -eq $key) {
         return [ordered]@{
@@ -1313,9 +1161,9 @@ function New-EverVigilUninstallRegistryMutationMarker {
     $marker = [ordered]@{
         schemaVersion = 1
         transactionId = $normalizedTransactionId
-        appId = $script:LegacyCompatibilityApplicationAppId
+        appId = $script:EverVigilProductAppId
         registrySubKey =
-            $script:LegacyCompatibilityApplicationUninstallRegistrySubKey
+            $script:EverVigilProductUninstallRegistrySubKey
     }
     $path = Join-Path `
         $RecoveryRoot `
@@ -1366,11 +1214,11 @@ function Assert-EverVigilUninstallRegistryMutationMarker {
         $marker.appId -isnot [string] -or
         -not [string]::Equals(
             [string]$marker.appId,
-            $script:LegacyCompatibilityApplicationAppId,
+            $script:EverVigilProductAppId,
             [StringComparison]::OrdinalIgnoreCase) -or
         $marker.registrySubKey -isnot [string] -or
         [string]$marker.registrySubKey -cne
-            $script:LegacyCompatibilityApplicationUninstallRegistrySubKey) {
+            $script:EverVigilProductUninstallRegistrySubKey) {
         throw 'The uninstall registry mutation marker does not match this transaction.'
     }
 }
@@ -1640,7 +1488,7 @@ function Restore-EverVigilUninstallRegistrySnapshot {
             [StringComparison]::Ordinal)) {
         return
     }
-    $subKey = $script:LegacyCompatibilityApplicationUninstallRegistrySubKey
+    $subKey = $script:EverVigilProductUninstallRegistrySubKey
     $currentProbe = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey(
         $subKey,
         $false)
@@ -1727,7 +1575,7 @@ function Restore-EverVigilExternalArtifactSnapshots {
         'Support\scripts\InstallTransactionData.ps1'
         'Support\scripts\Invoke-InteractiveUserTask.ps1'
         'Support\scripts\Invoke-SystemMaintenance.ps1'
-        'Support\scripts\LegacyCompatibility.generated.ps1'
+        'Support\scripts\ProductIdentity.ps1'
         'Support\scripts\Resolve-SafeInstallRoot.ps1'
     )
     Assert-EverVigilFixedExternalTree `
@@ -1741,25 +1589,6 @@ function Restore-EverVigilExternalArtifactSnapshots {
         -AllowedDirectories @() `
         -AllowedFiles @('EverVigil.lnk', 'Uninstall EverVigil.lnk') `
         -AllowInstallerManagedPartialFiles
-    Assert-EverVigilFixedExternalTree `
-        -Root (Join-Path `
-            $env:LOCALAPPDATA `
-            $script:LegacyCompatibilityApplicationUninstallSupportRootRelativeToLocalAppData) `
-        -AllowedDirectories @('Support', 'Support\scripts') `
-        -AllowedFiles @(
-            'unins000.dat'
-            'unins000.exe'
-            'Support\Uninstall.ps1'
-            'Support\scripts\Invoke-SystemMaintenance.ps1'
-            'Support\scripts\Resolve-SafeInstallRoot.ps1')
-    Assert-EverVigilFixedExternalTree `
-        -Root (Join-Path `
-            $programsRoot `
-            $script:LegacyCompatibilityApplicationProductName) `
-        -AllowedDirectories @() `
-        -AllowedFiles @(
-            "$($script:LegacyCompatibilityApplicationProductName).lnk"
-            "Uninstall $($script:LegacyCompatibilityApplicationProductName).lnk")
 
     $snapshotByRole = @{}
     foreach ($snapshot in @(
@@ -1769,9 +1598,6 @@ function Restore-EverVigilExternalArtifactSnapshots {
         $snapshotByRole[[string]$snapshot.role] = $snapshot
     }
     foreach ($definition in @(Get-EverVigilExternalArtifactDefinitions -State $State)) {
-        if (-not $definition.Authorized) {
-            continue
-        }
         $snapshot = $snapshotByRole[$definition.Role]
         $target = $definition.Path
         $targetExists = Test-Path -LiteralPath $target -PathType Leaf
@@ -1779,16 +1605,6 @@ function Restore-EverVigilExternalArtifactSnapshots {
             Assert-EverVigilInstallerManagedArtifactTarget -Path $target
         }
         if ([bool]$snapshot.wasPresent) {
-            if ($targetExists -and -not $definition.InstallerManaged) {
-                $actualHash = Get-EverVigilFileSha256 -Path $target
-                if (-not [string]::Equals(
-                        $actualHash,
-                        [string]$snapshot.sha256,
-                        [StringComparison]::Ordinal)) {
-                    throw "A legacy external artifact changed during the install transaction: $target"
-                }
-                continue
-            }
             New-Item `
                 -ItemType Directory `
                 -Path (Split-Path -Parent $target) `
@@ -1821,9 +1637,6 @@ function Restore-EverVigilExternalArtifactSnapshots {
                 Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
             }
         } elseif ($targetExists) {
-            if (-not $definition.InstallerManaged) {
-                throw "An external legacy artifact appeared after an absent pre-state: $target"
-            }
             $targetItem = Get-Item -LiteralPath $target -Force -ErrorAction Stop
             if (($targetItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
                 throw "The generated external artifact is a reparse point: $target"
@@ -1848,9 +1661,6 @@ function Restore-EverVigilExternalArtifactSnapshots {
         -RecoveryRoot $RecoveryRoot
 
     foreach ($definition in @(Get-EverVigilExternalArtifactDefinitions -State $State)) {
-        if (-not $definition.Authorized) {
-            continue
-        }
         $snapshot = $snapshotByRole[$definition.Role]
         if ([bool]$snapshot.wasPresent) {
             if (-not (Test-Path -LiteralPath $definition.Path -PathType Leaf) -or

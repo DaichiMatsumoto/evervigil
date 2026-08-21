@@ -1,7 +1,6 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
 using EverVigil.Broker.Protocol;
-using EverVigil.Compatibility;
 using EverVigil.Core;
 using EverVigil.Infrastructure;
 
@@ -11,7 +10,7 @@ internal static class SystemConfigurationService
 {
     private static readonly TimeSpan SystemTransactionTimeout = TimeSpan.FromMinutes(10);
     internal const string SystemTransactionMutexName =
-        LegacyCompatibility.Synchronization.SystemTransactionMutex;
+        ProductIdentity.SystemTransactionMutexName;
 
     public static async Task ApplyElevatedAsync(
         AppSettings settings,

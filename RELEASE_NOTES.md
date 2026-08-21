@@ -8,9 +8,8 @@ This is an independent community project. It is not an official Even Realities p
 
 ### First public release
 
-- Introduces EverVigil as a newly rebuilt, independent Windows tray utility
-  with its own product name, repository, executable, installer, and visual
-  identity.
+- Introduces EverVigil as an independent Windows tray utility with its own
+  product name, repository, executable, installer, and visual identity.
 - Uses factual, non-prominent compatibility references only where needed to
   explain operation with the separately installed Even Terminal package.
 - Displays the independent-project notice in the README, release material,
@@ -28,33 +27,30 @@ This is an independent community project. It is not an official Even Realities p
 - Has no automatic updater, analytics endpoint, telemetry service, relay
   service, or project-operated cloud backend.
 
-### Reliability and user-visible fixes
+### Capabilities and reliability
 
-- Restores Tailnet identity display and copy actions for a standard
-  medium-integrity session while preserving the protected broker-state ACL.
-- Keeps the protected shared state directory non-listable and validates only
-  the current user's protected identity ledger before exposing its values.
-- Recognizes the packaged English/Japanese screenshot assets as part of the
-  exact owned installation layout, so clean installation succeeds while
-  unknown files and directories remain fail-closed.
-- Removes the application-wide workspace field and stops exporting `PROJECT_DIR`
-  or passing a global `--cwd`, leaving requested and saved task working
-  directories to the separately installed provider.
-- Uses an ACL-restricted internal `BridgeHost` as the bridge process host instead
-  of a configured workspace, and preserves it during rollback or uninstall
+- Provides Tailnet identity display and connection-URL copy actions in a
+  standard medium-integrity session while protecting broker state with a
+  restrictive ACL.
+- Keeps the protected shared-state directory non-listable and exposes values
+  only after validating the current user's protected identity ledger.
+- Treats the packaged English and Japanese screenshot assets as part of the
+  exact owned installation layout while rejecting unknown files and
+  directories fail-closed.
+- Defines no application-wide workspace field and exports neither `PROJECT_DIR`
+  nor a global `--cwd`; requested and saved task working directories remain
+  owned by the separately installed provider.
+- Uses an ACL-restricted internal `BridgeHost` as the bridge process host rather
+  than a configured workspace, and retains it during rollback or uninstall
   whenever it contains files.
 
-### Compatibility and operation
+### Operation
 
-- Uses an in-place v1.2.1 upgrade path to preserve supported settings, the
-  DPAPI-protected bridge token, installation ownership, and startup preference.
-- Removes or replaces only validated legacy resources owned by the prior
-  installation so old processes, startup entries, shortcuts, Firewall rules,
-  Serve routes, and installation files do not remain duplicated.
-- Keeps Even Terminal launch, Codex app-server launch, child-process
+- Provides Even Terminal launch, Codex app-server launch, child-process
   supervision, bounded restart, Windows login startup, tray operation,
   Tailscale Serve, local QR generation, health checks, credential redaction,
-  transactional rollback, safe uninstall, and English/Japanese UI.
+  transactional rollback for future EverVigil updates, safe uninstall, and
+  English/Japanese UI.
 
 ### Distribution and security
 
@@ -79,8 +75,8 @@ This is an independent community project. It is not an official Even Realities p
 
 ### 初回公開リリース
 
-- 独自の製品名、repository、実行file、installer、visual identityを持つ、
-  新たに再構築した独立Windows tray utilityとしてEverVigilを公開します。
+- 独自の製品名、repository、実行file、installer、visual identityを持つ独立
+  Windows tray utilityとしてEverVigilを初めて公開します。
 - 別途導入するEven Terminal packageとの動作関係を説明する必要がある箇所だけで、
   事実に限定した非顕著な互換性表現を使用します。
 - 独立projectであることを示すnoticeをREADME、Release material、installer、
@@ -96,32 +92,26 @@ This is an independent community project. It is not an official Even Realities p
 - 自動updater、analytics endpoint、telemetry service、relay service、
   project独自のcloud backendはありません。
 
-### 信頼性とユーザー向け修正
+### 機能と信頼性
 
-- 保護broker stateのACLを維持したまま、標準のmedium-integrity sessionで
-  Tailnet identityの表示と接続URLのコピーを利用できるようにしました。
-- 共有state directoryを引き続き列挙不可とし、現在のユーザーに属する
-  保護identity ledgerだけを検証して値を表示します。
-- packageに含まれる日英screenshot assetを厳密な所有導入layoutとして認識し、
-  未知のfileやdirectoryは引き続きfail-closedで拒否しながら、clean installを
-  完了できるようにしました。
-- アプリ全体のworkspace fieldを撤去し、`PROJECT_DIR`のexportとglobal `--cwd`の
-  指定を停止しました。各taskの要求済み／保存済みworking directoryは、別途導入した
-  providerへ委ねます。
+- 制限ACLでbroker stateを保護しながら、標準のmedium-integrity sessionで
+  Tailnet identityの表示と接続URLのコピーを提供します。
+- 保護shared-state directoryを列挙不可とし、現在のユーザーに属する保護identity
+  ledgerを検証した後だけ値を表示します。
+- packageに含まれる日英screenshot assetを厳密な所有導入layoutとして扱い、未知の
+  fileやdirectoryはfail-closedで拒否します。
+- アプリ全体のworkspace fieldを持たず、`PROJECT_DIR`をexportせず、global `--cwd`も
+  指定しません。各taskの要求済み／保存済みworking directoryは、別途導入した
+  providerが管理します。
 - ACLを制限した内部`BridgeHost`を設定workspaceではなくbridge processのhostとして
   使用し、fileを含む場合はrollback／uninstallでも保持します。
 
-### 互換性と動作
+### 動作
 
-- v1.2.1からのin-place upgradeにより、対応する設定、DPAPI保護済みbridge token、
-  導入所有情報、自動起動設定を保持します。
-- 旧プロセス、自動起動、ショートカット、Firewallルール、Serve経路、
-  導入ファイルは、旧導入による所有を検証できたものだけを置換・撤去し、
-  移行後の重複を防ぎます。
-- Even Terminal起動、Codex app-server起動、子プロセス監視、上限付き再起動、
-  Windowsログイン時起動、通知領域操作、Tailscale Serve、ローカルQR生成、
-  health check、認証情報秘匿化、transactional rollback、安全なuninstall、
-  日英UIを維持します。
+- Even Terminal起動、Codex app-server起動、子process監視、上限付き再起動、
+  Windows login時起動、通知領域操作、Tailscale Serve、ローカルQR生成、health check、
+  認証情報秘匿化、将来のEverVigil更新に対するtransactional rollback、安全な
+  uninstall、日英UIを提供します。
 
 ### 配布とセキュリティ
 

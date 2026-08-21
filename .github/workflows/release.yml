@@ -68,7 +68,7 @@ jobs:
           try {
             $releaseCriticalSourceHashes = [ordered]@{
               '.\.github\release-host-lock.json' = '7e19d79efd66e4d3def287bd6795b2d0e41f0ddc2bd8583d33b906b6a619acff'
-              '.\.github\release-source-manifest.json' = 'b49233d36c70fc15243cc3787e6d3a6f48cea83eca98a24f7bc4be71046baba0'
+              '.\.github\release-source-manifest.json' = '3805381d0300ee3ec0038aec55607260e62f84333dc31984df691418f92d8159'
               '.\tests\ReleasePathIsolation.ps1' = '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35'
               '.\tests\Test-ReleaseHost.ps1' = '819d18a7222ff6827e76757843acfed210ddf748a686308ed12df2b0e1e83d06'
             }
@@ -2206,14 +2206,14 @@ jobs:
             Assert-ExactAuditProperties $CleanInstall.preState @(
               'currentDataRootAbsent', 'installRootAbsent',
               'installTransactionJournalAbsent', 'installTransactionTemporaryCount',
-              'legacyDataRootAbsent', 'protectedBrokerExecutableAbsent',
+              'protectedBrokerExecutableAbsent',
               'protectedBrokerInstallationReceiptAbsent',
               'protectedBrokerRootAbsent',
               'protectedBrokerRetirementReceiptAbsent', 'startMenuGroupAbsent',
               'uninstallRegistrationAbsent', 'uninstallSupportRootAbsent') "$Context preState"
             foreach ($flag in @(
                 'currentDataRootAbsent', 'installRootAbsent',
-                'installTransactionJournalAbsent', 'legacyDataRootAbsent',
+                'installTransactionJournalAbsent',
                 'protectedBrokerExecutableAbsent',
                 'protectedBrokerInstallationReceiptAbsent',
                 'protectedBrokerRootAbsent',
@@ -2331,13 +2331,13 @@ jobs:
               'installedExecutablePresent', 'installedVersion',
               'installerErrorLineCount', 'installRootPresent',
               'installTransactionJournalAbsent', 'installTransactionTemporaryCount',
-              'legacyDataRootAbsent', 'prepareFailureLineCount',
+              'prepareFailureLineCount',
               'startMenuGroupPresent', 'transactionCompleted',
               'uninstallRegistrationPresent', 'uninstallSupportRootPresent') "$Context postState"
             foreach ($flag in @(
                 'configurationRequiredExact', 'currentDataRootPresent',
                 'installedExecutablePresent', 'installRootPresent',
-                'installTransactionJournalAbsent', 'legacyDataRootAbsent',
+                'installTransactionJournalAbsent',
                 'startMenuGroupPresent', 'transactionCompleted',
                 'uninstallRegistrationPresent', 'uninstallSupportRootPresent')) {
               Assert-AuditTrue $CleanInstall.postState.$flag "$Context postState $flag"
@@ -2361,7 +2361,6 @@ jobs:
                   installRootAbsent = $CleanInstall.preState.installRootAbsent
                   installTransactionJournalAbsent = $CleanInstall.preState.installTransactionJournalAbsent
                   installTransactionTemporaryCount = $CleanInstall.preState.installTransactionTemporaryCount
-                  legacyDataRootAbsent = $CleanInstall.preState.legacyDataRootAbsent
                   protectedBrokerExecutableAbsent = $CleanInstall.preState.protectedBrokerExecutableAbsent
                   protectedBrokerInstallationReceiptAbsent = $CleanInstall.preState.protectedBrokerInstallationReceiptAbsent
                   protectedBrokerRootAbsent = $CleanInstall.preState.protectedBrokerRootAbsent
@@ -2421,7 +2420,6 @@ jobs:
                   installRootPresent = $CleanInstall.postState.installRootPresent
                   installTransactionJournalAbsent = $CleanInstall.postState.installTransactionJournalAbsent
                   installTransactionTemporaryCount = $CleanInstall.postState.installTransactionTemporaryCount
-                  legacyDataRootAbsent = $CleanInstall.postState.legacyDataRootAbsent
                   prepareFailureLineCount = $CleanInstall.postState.prepareFailureLineCount
                   startMenuGroupPresent = $CleanInstall.postState.startMenuGroupPresent
                   transactionCompleted = $CleanInstall.postState.transactionCompleted
@@ -2677,14 +2675,6 @@ jobs:
                   'tailscale-serve-ownership-snapshot', 'qr-connection-redacted-log',
                   'token-persistence-redacted-log', 'normal-update-log')
               }
-              'v1.2.1-default-migration' = [ordered]@{
-                Checks = @('v1.2.1-detected', 'default-path-migrated', 'default-ports-migrated')
-                Evidence = @('v121-default-migration-log')
-              }
-              'v1.2.1-custom-path-ports-migration' = [ordered]@{
-                Checks = @('v1.2.1-detected', 'custom-path-migrated', 'custom-ports-migrated')
-                Evidence = @('v121-custom-migration-log')
-              }
               'pre-boundary-rollback' = [ordered]@{
                 Checks = @('old-version-restored', 'external-state-restored', 'residue-baseline-restored')
                 Evidence = @('pre-boundary-rollback-log')
@@ -2779,7 +2769,6 @@ jobs:
               'runtime-startup-tray-log', 'runtime-child-restart-log',
               'tailscale-serve-ownership-snapshot', 'qr-connection-redacted-log',
               'token-persistence-redacted-log', 'normal-update-log',
-              'v121-default-migration-log', 'v121-custom-migration-log',
               'pre-boundary-rollback-log', 'post-boundary-recovery-log',
               'shell-state-snapshot', 'preserve-uninstall-log', 'complete-uninstall-log',
               'ots-separate-administrator-log', 'residue-before-snapshot',

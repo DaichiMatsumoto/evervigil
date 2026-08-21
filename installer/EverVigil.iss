@@ -17,7 +17,6 @@
   #error WizardBrandImage must be defined by the release build.
 #endif
 
-#include "LegacyCompatibility.generated.iss"
 
 #define MyAppName "EverVigil"
 #define MyAppPublisher "Daichi Matsumoto"
@@ -25,7 +24,15 @@
 #define MyRepositoryUrl "https://github.com/DaichiMatsumoto/evervigil"
 #define RequiredLegalNotice "This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities."
 #define MySupportRoot "{localappdata}\EverVigil.Uninstall"
-#define MyUninstallRegistryKey LegacyCompatibilityApplicationUninstallRegistrySubKey
+#define EverVigilProductAppId "D1ACB787-2308-4AC4-91BD-A6A3856E7AF0"
+#define MyUninstallRegistryKey "Software\Microsoft\Windows\CurrentVersion\Uninstall\{D1ACB787-2308-4AC4-91BD-A6A3856E7AF0}_is1"
+#define EverVigilSettingsFileName "settings.json"
+#define EverVigilProtectedTokenFileName "token.dat"
+#define EverVigilTransactionJournalFileName "install-transaction.json"
+#define EverVigilTransactionRecoveryDirectoryName "install-transactions"
+#define EverVigilAppliedSystemConfigurationFileName "applied-system-configuration.json"
+#define EverVigilSystemConfigurationRequiredFileName "system-configuration-required"
+#define EverVigilDiagnosticLoggingMarkerFileName "diagnostic-logging.enabled"
 
 #ifdef ResourceAuditBuild
   #ifdef PayloadAuditBuild
@@ -48,7 +55,7 @@ AppId={{{#ResourceAuditAppId}}
   #ifdef PayloadAuditBuild
 AppId={{{#PayloadAuditAppId}}
   #else
-AppId={{{#LegacyCompatibilityApplicationAppId}}
+AppId={{{#EverVigilProductAppId}}
   #endif
 #endif
 AppName={#MyAppName}
@@ -114,9 +121,8 @@ UsePreviousAppDir=no
 UsePreviousLanguage=no
   #else
 UninstallFilesDir={#MySupportRoot}
-; Keep the new product directory independent from the inherited AppId. The
-; prior registration is read explicitly by PreviousInstallDirectory and is
-; passed only as -PreviousInstallRoot for controlled migration/retirement.
+; The registered directory is read explicitly and passed only as
+; -PreviousInstallRoot for an ownership-checked EverVigil update.
 UsePreviousAppDir=no
 UsePreviousLanguage=yes
   #endif
@@ -162,8 +168,8 @@ english.FinalizingEverVigil=Finalizing protected Tailscale and Firewall configur
 japanese.FinalizingEverVigil=保護されたTailscale / Firewall設定を確定しています...
 english.PowerShellMissing=PowerShell 7 was not found at C:\Program Files\PowerShell\7\pwsh.exe. Install PowerShell 7, then run this setup again.
 japanese.PowerShellMissing=PowerShell 7が C:\Program Files\PowerShell\7\pwsh.exe に見つかりません。PowerShell 7を導入してから、もう一度セットアップを実行してください。
-english.InstallFailed=Installation did not complete. The previous working version was restored when possible. Details are in the setup log shown below.
-japanese.InstallFailed=導入を完了できませんでした。可能な場合は以前の正常版へ復元しています。詳細は下記のセットアップログにあります。
+english.InstallFailed=Installation did not complete. The verified pre-installation state was restored when possible. Details are in the setup log shown below.
+japanese.InstallFailed=導入を完了できませんでした。可能な場合は検証済みの導入前状態へ復元しています。詳細は下記のセットアップログにあります。
 english.KeepDataPrompt=Keep your settings and encrypted connection token?%n%nChoose Yes to keep them and the internal bridge host directory.%nChoose No to remove the settings and token. An empty internal bridge host directory is removed; files in a non-empty one are always retained.
 japanese.KeepDataPrompt=設定と暗号化済み接続トークンを残しますか？%n%n「はい」: 設定、トークン、内部bridge host directoryを保持%n「いいえ」: 設定とトークンを削除。空の内部bridge host directoryは削除し、fileを含む場合は常に保持
 english.UninstallFailed=System cleanup did not complete, so uninstallation was stopped. No unrelated Tailscale route or Firewall rule was removed.
@@ -183,7 +189,7 @@ Source: "{#PackageRoot}\scripts\Complete-InstallTransaction.ps1"; DestDir: "{#My
 Source: "{#PackageRoot}\scripts\InstallTransactionData.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion
 Source: "{#PackageRoot}\scripts\Invoke-InteractiveUserTask.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion
 Source: "{#PackageRoot}\scripts\Invoke-SystemMaintenance.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion
-Source: "{#PackageRoot}\scripts\LegacyCompatibility.generated.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion
+Source: "{#PackageRoot}\scripts\ProductIdentity.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion
 Source: "{#PackageRoot}\scripts\Resolve-SafeInstallRoot.ps1"; DestDir: "{#MySupportRoot}\Support\scripts"; Flags: ignoreversion
 Source: "{#PackageRoot}\NOTICE.md"; DestDir: "{srcexe}\failure"; DestName: "probe.txt"; Flags: ignoreversion; Check: ShouldInstallFailureProbe
 #endif
@@ -262,7 +268,7 @@ var
 begin
   Result := FindFirst(
     AddBackslash(Root) +
-      '{#LegacyCompatibilityDataTransactionJournalFileName}.new-*',
+      '{#EverVigilTransactionJournalFileName}.new-*',
     FindRec);
   if Result then
     FindClose(FindRec);
@@ -271,42 +277,25 @@ end;
 function HasPersistentData(const Root: String): Boolean;
 begin
   Result :=
-    FileExists(AddBackslash(Root) + '{#LegacyCompatibilityDataSettingsFileName}') or
-    FileExists(AddBackslash(Root) + '{#LegacyCompatibilityDataProtectedTokenFileName}') or
-    FileExists(AddBackslash(Root) + '{#LegacyCompatibilityDataTransactionJournalFileName}') or
+    FileExists(AddBackslash(Root) + '{#EverVigilSettingsFileName}') or
+    FileExists(AddBackslash(Root) + '{#EverVigilProtectedTokenFileName}') or
+    FileExists(AddBackslash(Root) + '{#EverVigilTransactionJournalFileName}') or
     HasInstallTransactionTemporary(Root) or
-    FileExists(AddBackslash(Root) + '{#LegacyCompatibilityDataAppliedSystemConfigurationFileName}') or
-    FileExists(AddBackslash(Root) + '{#LegacyCompatibilityDataSystemConfigurationRequiredFileName}') or
-    FileExists(AddBackslash(Root) + '{#LegacyCompatibilityDataDiagnosticLoggingMarkerFileName}') or
-    DirExists(AddBackslash(Root) + '{#LegacyCompatibilityDataTransactionRecoveryDirectoryName}');
+    FileExists(AddBackslash(Root) + '{#EverVigilAppliedSystemConfigurationFileName}') or
+    FileExists(AddBackslash(Root) + '{#EverVigilSystemConfigurationRequiredFileName}') or
+    FileExists(AddBackslash(Root) + '{#EverVigilDiagnosticLoggingMarkerFileName}') or
+    DirExists(AddBackslash(Root) + '{#EverVigilTransactionRecoveryDirectoryName}');
 end;
 
 function ActiveDataRoot: String;
-var
-  CurrentRoot: String;
-  LegacyRoot: String;
-  CurrentHasState: Boolean;
-  LegacyHasState: Boolean;
 begin
-  CurrentRoot := ExpandConstant('{localappdata}\EverVigil');
-  LegacyRoot := ExpandConstant(
-    '{localappdata}\{#LegacyCompatibilityApplicationDataRootRelativeToLocalAppData}');
-  CurrentHasState := HasPersistentData(CurrentRoot);
-  LegacyHasState := HasPersistentData(LegacyRoot);
-  if CurrentHasState and LegacyHasState then
-    RaiseException(
-      'Both current and legacy application data contain persistent state. ' +
-      'Resolve the interrupted migration before continuing.');
-  if LegacyHasState then
-    Result := LegacyRoot
-  else
-    Result := CurrentRoot;
+  Result := ExpandConstant('{localappdata}\EverVigil');
 end;
 
 function InstallTransactionPath: String;
 begin
   Result := AddBackslash(ActiveDataRoot) +
-    '{#LegacyCompatibilityDataTransactionJournalFileName}';
+    '{#EverVigilTransactionJournalFileName}';
 end;
 
 function InstallTransactionScriptPath: String;
