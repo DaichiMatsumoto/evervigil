@@ -209,5 +209,45 @@ jobs:
               [StringComparison]::Ordinal)
           }
           if (-not $userPathMatches -or -not $machinePathMatches) {
+            foreach ($pathState in @(
+                [pscustomobject]@{
+                  target = 'User'
+                  matches = $userPathMatches
+                  before = [string]$snapshot.user
+                  after = [string]$currentUserPath
+                },
+                [pscustomobject]@{
+                  target = 'Machine'
+                  matches = $machinePathMatches
+                  before = [string]$snapshot.machine
+                  after = [string]$currentMachinePath
+                })) {
+              if ($pathState.matches) {
+                continue
+              }
+              $beforeEntries = @($pathState.before.Split(
+                  [IO.Path]::PathSeparator,
+                  [StringSplitOptions]::RemoveEmptyEntries))
+              $afterEntries = @($pathState.after.Split(
+                  [IO.Path]::PathSeparator,
+                  [StringSplitOptions]::RemoveEmptyEntries))
+              $difference = @(Compare-Object `
+                  -ReferenceObject $beforeEntries `
+                  -DifferenceObject $afterEntries `
+                  -CaseSensitive)
+              $addedEntries = @($difference |
+                  Where-Object SideIndicator -CEQ '=>' |
+                  ForEach-Object InputObject)
+              $removedEntries = @($difference |
+                  Where-Object SideIndicator -CEQ '<=' |
+                  ForEach-Object InputObject)
+              Write-Error (
+                "Persistent $($pathState.target) PATH changed. " +
+                "Before entries: $($beforeEntries.Count); " +
+                "after entries: $($afterEntries.Count); " +
+                "added: $($addedEntries | ConvertTo-Json -Compress); " +
+                "removed: $($removedEntries | ConvertTo-Json -Compress).") `
+                -ErrorAction Continue
+            }
             throw 'A validation step changed a persistent Windows PATH.'
           }

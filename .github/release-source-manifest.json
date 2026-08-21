@@ -18,8 +18,8 @@
     },
     {
       "path": ".github/workflows/validate.yml",
-      "length": 8157,
-      "sha256": "1a460e502443f34a132f424dcf597ec36ecadcb9a2247ad10d1ae1cb78446326"
+      "length": 9987,
+      "sha256": "e4b64aa307e0b70ac1fd1eb3dddd1592d0e94486ad72b69d1ca33aa57aecdc1f"
     },
     {
       "path": ".gitignore",
