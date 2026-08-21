@@ -141,6 +141,88 @@ foreach ($relativePath in $requiredFiles) {
     }
 }
 
+$dotnetCliHomeKey = 'DOTNET_CLI_' + 'HOME'
+$dotnetToolsPathOptOutKey = 'DOTNET_ADD_GLOBAL_TOOLS_' + 'TO_PATH'
+$dotnetIsolationRegexOptions =
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant -bor
+    [Text.RegularExpressions.RegexOptions]::IgnoreCase
+$dotnetToolsPathOptOutAssignmentPatterns = @(
+    ('^\s*(?:\$env:)?' + [regex]::Escape($dotnetToolsPathOptOutKey) +
+        '\s*=\s*[''"]?0[''"]?\s*$')
+    ('^\s*[''"]' + [regex]::Escape($dotnetToolsPathOptOutKey) +
+        '=0[''"]\s*>>\s*\$env:GITHUB_ENV\s*$')
+    ('^\s*' + [regex]::Escape($dotnetToolsPathOptOutKey) +
+        '\s*:\s*[''"]?0[''"]?\s*$')
+)
+$dotnetCliHomeAssignments = 0
+$dotnetIsolationFiles = @(Get-ChildItem -LiteralPath $RepositoryRoot -File -Recurse -Force |
+    Where-Object {
+        $_.Extension -in @(
+            '.bat',
+            '.cmd',
+            '.cs',
+            '.csproj',
+            '.props',
+            '.ps1',
+            '.psm1',
+            '.sh',
+            '.targets',
+            '.yaml',
+            '.yml') -and
+        $_.FullName -notlike "$RepositoryRoot\artifacts\*" -and
+        $_.FullName -notlike "$RepositoryRoot\.git\*" -and
+        $_.FullName -notlike "$RepositoryRoot\.jj\*"
+    })
+foreach ($dotnetIsolationFile in $dotnetIsolationFiles) {
+    $dotnetIsolationLines = [IO.File]::ReadAllLines($dotnetIsolationFile.FullName)
+    $relativeIsolationPath = [IO.Path]::GetRelativePath(
+        $RepositoryRoot,
+        $dotnetIsolationFile.FullName)
+    $dotnetCliHomeLineIndexes = [Collections.Generic.List[int]]::new()
+    $dotnetToolsPathOptOutLineIndexes = [Collections.Generic.List[int]]::new()
+    for ($lineIndex = 0; $lineIndex -lt $dotnetIsolationLines.Length; $lineIndex++) {
+        $candidateLine = $dotnetIsolationLines[$lineIndex]
+        if ($candidateLine.TrimStart().StartsWith('#', [StringComparison]::Ordinal)) {
+            continue
+        }
+        if ($candidateLine.Contains(
+                $dotnetCliHomeKey,
+                [StringComparison]::OrdinalIgnoreCase)) {
+            $dotnetCliHomeLineIndexes.Add($lineIndex)
+        }
+        foreach ($optOutPattern in $dotnetToolsPathOptOutAssignmentPatterns) {
+            if ([regex]::IsMatch(
+                    $candidateLine,
+                    $optOutPattern,
+                    $dotnetIsolationRegexOptions)) {
+                $dotnetToolsPathOptOutLineIndexes.Add($lineIndex)
+                break
+            }
+        }
+    }
+    if ($dotnetCliHomeLineIndexes.Count -eq 0) {
+        continue
+    }
+    $dotnetCliHomeAssignments += $dotnetCliHomeLineIndexes.Count
+    if ($dotnetCliHomeLineIndexes.Count -ne 1) {
+        $failures.Add(
+            "$relativeIsolationPath must contain exactly one $dotnetCliHomeKey scope so its PATH isolation remains unambiguous.")
+        continue
+    }
+    if ($dotnetToolsPathOptOutLineIndexes.Count -ne 1) {
+        $failures.Add(
+            "$relativeIsolationPath sets $dotnetCliHomeKey but does not establish exactly one executable $dotnetToolsPathOptOutKey=0 guard.")
+        continue
+    }
+    if ($dotnetToolsPathOptOutLineIndexes[0] -ge $dotnetCliHomeLineIndexes[0]) {
+        $failures.Add(
+            "$relativeIsolationPath establishes $dotnetToolsPathOptOutKey=0 after its first $dotnetCliHomeKey use.")
+    }
+}
+if ($dotnetCliHomeAssignments -eq 0) {
+    $failures.Add("The repository no longer exercises the $dotnetCliHomeKey isolation contract.")
+}
+
 $rootReadmeContent = Get-Content `
     -LiteralPath (Join-Path $RepositoryRoot 'README.md') `
     -Raw `
@@ -654,10 +736,75 @@ foreach ($versionOutputGuard in @(
         '-p:ContinuousIntegrationBuild=true'
         'dotnet run --project .\tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.csproj -c Release --no-build'
         '.\scripts\Build-Release.ps1 -Version $version -BrokerTestSkipPolicy Report'
+        'DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=0'
+        'EVERVIGIL_PATH_SNAPSHOT'
+        'Verify persistent PATH remained unchanged'
     )) {
     if (-not $validateWorkflowContent.Contains($versionOutputGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Validate artifact version output guard is missing: $versionOutputGuard")
     }
+}
+$validateDotnetOptOutMarker =
+    "'$dotnetToolsPathOptOutKey=0' >> " + '$env:GITHUB_ENV'
+$validateDotnetOptOutMatches = [regex]::Matches(
+    $validateWorkflowContent,
+    [regex]::Escape($validateDotnetOptOutMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$validateSetupDotnetIndex = $validateWorkflowContent.IndexOf(
+    'uses: actions/setup-dotnet@',
+    [StringComparison]::Ordinal)
+$validatePathCaptureIndex = $validateWorkflowContent.IndexOf(
+    '- name: Capture persistent PATH baseline',
+    [StringComparison]::Ordinal)
+if ($validateDotnetOptOutMatches.Count -ne 1 -or
+    $validateSetupDotnetIndex -lt 0 -or
+    $validatePathCaptureIndex -lt 0 -or
+    $validatePathCaptureIndex -ge $validateSetupDotnetIndex -or
+    $validateDotnetOptOutMatches[0].Index -ge $validateSetupDotnetIndex) {
+    $failures.Add(
+        'Validate must capture persistent PATH and establish the .NET global-tools PATH opt-out exactly once before actions/setup-dotnet.')
+}
+$validatePathFinalizerMarker =
+    '      - name: Verify persistent PATH remained unchanged'
+$validatePathFinalizerIndex = $validateWorkflowContent.IndexOf(
+    $validatePathFinalizerMarker,
+    [StringComparison]::Ordinal)
+$validateLastNamedStepIndex = $validateWorkflowContent.LastIndexOf(
+    '      - name:',
+    [StringComparison]::Ordinal)
+$validatePathFinalizerTail = if ($validatePathFinalizerIndex -lt 0) {
+    ''
+} else {
+    $validateWorkflowContent.Substring(
+        $validatePathFinalizerIndex + $validatePathFinalizerMarker.Length)
+}
+$validatePathFinalizerHasFollowingStep = [regex]::IsMatch(
+    $validatePathFinalizerTail,
+    '(?m)^      - ',
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$validatePathFinalizerHasAlways = [regex]::IsMatch(
+    $validateWorkflowContent,
+    '(?m)^      - name: Verify persistent PATH remained unchanged\r?\n        if: always\(\)\r?$',
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$rawPersistentPathMarker =
+    '[Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames'
+$persistentPathKindMarker = '$registryKey.GetValueKind($valueName)'
+$validateRawPathMatches = [regex]::Matches(
+    $validateWorkflowContent,
+    [regex]::Escape($rawPersistentPathMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$validatePathKindMatches = [regex]::Matches(
+    $validateWorkflowContent,
+    [regex]::Escape($persistentPathKindMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+if ($validatePathFinalizerIndex -lt 0 -or
+    $validatePathFinalizerIndex -ne $validateLastNamedStepIndex -or
+    $validatePathFinalizerHasFollowingStep -or
+    -not $validatePathFinalizerHasAlways -or
+    $validateRawPathMatches.Count -ne 2 -or
+    $validatePathKindMatches.Count -ne 2) {
+    $failures.Add(
+        'Validate must keep the raw registry PATH-and-kind verifier as the final named step with if: always().')
 }
 
 $releaseWorkflowContent = Get-Content `
@@ -753,6 +900,9 @@ foreach ($releaseGuard in @(
         ''';'','
         'NuGet migration state was not isolated as a regular empty marker.'
         'NuGet migration state escaped into the reviewed source checkout.'
+        'DOTNET_ADD_GLOBAL_TOOLS_TO_PATH'
+        '$releaseUserPathBaseline'
+        'The release build changed a persistent Windows PATH.'
         '-p:DirectoryBuildPropsPath=$env:GITHUB_WORKSPACE\Directory.Build.props'
         'dotnet restore failed with exit code'
         'dotnet build failed with exit code'
@@ -874,6 +1024,31 @@ foreach ($releaseGuard in @(
     if (-not $releaseWorkflowContent.Contains($releaseGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Private draft release guard is missing: $releaseGuard")
     }
+}
+$releaseDotnetOptOutMarker =
+    '$env:' + $dotnetToolsPathOptOutKey + " = '0'"
+$releaseDotnetOptOutMatches = [regex]::Matches(
+    $releaseWorkflowContent,
+    [regex]::Escape($releaseDotnetOptOutMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$releaseRawPathMatches = [regex]::Matches(
+    $releaseWorkflowContent,
+    [regex]::Escape($rawPersistentPathMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$releasePathKindMatches = [regex]::Matches(
+    $releaseWorkflowContent,
+    [regex]::Escape($persistentPathKindMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$releaseHostProbeIndex = $releaseWorkflowContent.IndexOf(
+    '.\tests\Test-ReleaseHost.ps1',
+    [StringComparison]::Ordinal)
+if ($releaseDotnetOptOutMatches.Count -ne 1 -or
+    $releaseRawPathMatches.Count -ne 1 -or
+    $releasePathKindMatches.Count -ne 1 -or
+    $releaseHostProbeIndex -lt 0 -or
+    $releaseDotnetOptOutMatches[0].Index -ge $releaseHostProbeIndex) {
+    $failures.Add(
+        'Release must establish the .NET global-tools PATH opt-out and raw registry PATH-and-kind verifier before Test-ReleaseHost.')
 }
 $publishingRevalidationStep = [regex]::Match(
     $releaseWorkflowContent,
@@ -1848,6 +2023,12 @@ $invokeNuGetPluginProcess = {
     $startInfo.CreateNoWindow = $true
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
+    $persistentPathBefore = [ordered]@{
+        User = [Environment]::GetEnvironmentVariable('Path', 'User')
+        Machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    }
+    $isolatedDotnetToolsPath =
+        Join-Path (Join-Path $CaseRoot 'profile') '.dotnet\tools'
     $startInfo.Environment.Clear()
     foreach ($entry in ([ordered]@{
                 SystemRoot = $env:SystemRoot
@@ -1864,6 +2045,7 @@ $invokeNuGetPluginProcess = {
                 PATH = 'C:\Program Files\dotnet;C:\Windows\System32;C:\Windows'
                 PATHEXT = '.COM;.EXE;.BAT;.CMD'
                 DOTNET_ROOT = 'C:\Program Files\dotnet'
+                DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = '0'
                 DOTNET_CLI_HOME = Join-Path $CaseRoot 'profile'
                 DOTNET_CLI_TELEMETRY_OPTOUT = '1'
                 DOTNET_CLI_UI_LANGUAGE = 'en-US'
@@ -1937,6 +2119,50 @@ $invokeNuGetPluginProcess = {
         }
         $process.Dispose()
         [void]$nuGetPluginProcesses.Remove($process)
+        $persistentUserPathAfter =
+            [Environment]::GetEnvironmentVariable('Path', 'User')
+        $persistentMachinePathAfter =
+            [Environment]::GetEnvironmentVariable('Path', 'Machine')
+        $userPathChanged = -not [string]::Equals(
+            $persistentPathBefore.User,
+            $persistentUserPathAfter,
+            [StringComparison]::Ordinal)
+        $machinePathChanged = -not [string]::Equals(
+            $persistentPathBefore.Machine,
+            $persistentMachinePathAfter,
+            [StringComparison]::Ordinal)
+        if ($userPathChanged -and $null -ne $persistentUserPathAfter) {
+            $userPathEntries = @($persistentUserPathAfter.Split(';'))
+            $filteredUserPathEntries = @($userPathEntries | Where-Object {
+                    -not [string]::Equals(
+                        $_,
+                        $isolatedDotnetToolsPath,
+                        [StringComparison]::OrdinalIgnoreCase)
+                })
+            if ($filteredUserPathEntries.Count -ne $userPathEntries.Count) {
+                $expectedPollutedUserPath = if ([string]::IsNullOrEmpty(
+                        [string]$persistentPathBefore.User)) {
+                    $isolatedDotnetToolsPath
+                } else {
+                    "$($persistentPathBefore.User);$isolatedDotnetToolsPath"
+                }
+                $repairedUserPath = if ([string]::Equals(
+                        $persistentUserPathAfter,
+                        $expectedPollutedUserPath,
+                        [StringComparison]::OrdinalIgnoreCase)) {
+                    $persistentPathBefore.User
+                } else {
+                    [string]::Join(';', $filteredUserPathEntries)
+                }
+                [Environment]::SetEnvironmentVariable(
+                    'Path',
+                    $repairedUserPath,
+                    'User')
+            }
+        }
+        if ($userPathChanged -or $machinePathChanged) {
+            throw "$OperationName changed a persistent Windows PATH while using an isolated .NET CLI home."
+        }
     }
 }
 try {

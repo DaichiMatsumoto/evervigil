@@ -18,8 +18,8 @@
     },
     {
       "path": ".github/workflows/validate.yml",
-      "length": 5700,
-      "sha256": "0350ad0846d0154616f418b4b44942fea5dd7d03a86dbed2e9fa9ab55ea048ad"
+      "length": 15237,
+      "sha256": "5faa9f32e4cdceb814e61ef3503931d0c20682ec39fa68bcd9919a11b94d2841"
     },
     {
       "path": ".gitignore",
@@ -733,8 +733,8 @@
     },
     {
       "path": "tests/Test-Repository.ps1",
-      "length": 284542,
-      "sha256": "27131a9da3951624ce88499bfccf76695ca6f7c416f1b44fcd4b5d0918b43fd5"
+      "length": 294712,
+      "sha256": "2b0488a499c7799f488042adb1274b64c58970ec722c4aa6b5b4e9c3ae52acb1"
     },
     {
       "path": "tests/Test-SystemMaintenance.ps1",

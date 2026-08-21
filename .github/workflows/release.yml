@@ -65,10 +65,93 @@ jobs:
           $dependencyRootIdentity = $null
           $dependencyRootCreated = $false
           $releaseFailure = $null
+          function Get-EverVigilPersistentPathState {
+            param(
+              [Parameter(Mandatory)]
+              [EnvironmentVariableTarget]$Target)
+
+            if ($Target -eq [EnvironmentVariableTarget]::User) {
+              $registryRoot = [Microsoft.Win32.Registry]::CurrentUser
+              $subKeyName = 'Environment'
+            } elseif ($Target -eq [EnvironmentVariableTarget]::Machine) {
+              $registryRoot = [Microsoft.Win32.Registry]::LocalMachine
+              $subKeyName =
+                'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+            } else {
+              throw "Unsupported persistent PATH target: $Target"
+            }
+
+            $registryKey = $registryRoot.OpenSubKey($subKeyName, $false)
+            try {
+              if ($null -eq $registryKey) {
+                return [pscustomobject][ordered]@{
+                  exists = $false
+                  kind = $null
+                  value = $null
+                }
+              }
+              $valueNames = @($registryKey.GetValueNames() | Where-Object {
+                  [string]::Equals(
+                    $_,
+                    'Path',
+                    [StringComparison]::OrdinalIgnoreCase)
+                })
+              if ($valueNames.Count -gt 1) {
+                throw "Persistent $Target PATH has ambiguous value names."
+              }
+              if ($valueNames.Count -eq 0) {
+                return [pscustomobject][ordered]@{
+                  exists = $false
+                  kind = $null
+                  value = $null
+                }
+              }
+              $valueName = [string]$valueNames[0]
+              $valueKind = $registryKey.GetValueKind($valueName)
+              if ($valueKind -notin @(
+                  [Microsoft.Win32.RegistryValueKind]::String,
+                  [Microsoft.Win32.RegistryValueKind]::ExpandString)) {
+                throw "Persistent $Target PATH has unsupported kind: $valueKind"
+              }
+              return [pscustomobject][ordered]@{
+                exists = $true
+                kind = $valueKind.ToString()
+                value = [string]$registryKey.GetValue(
+                  $valueName,
+                  $null,
+                  [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+              }
+            } finally {
+              if ($null -ne $registryKey) {
+                $registryKey.Dispose()
+              }
+            }
+          }
+          function Test-EverVigilPersistentPathState {
+            param(
+              [Parameter(Mandatory)]$Expected,
+              [Parameter(Mandatory)]$Actual)
+
+            return (
+              [bool]$Expected.exists -eq [bool]$Actual.exists -and
+              [string]::Equals(
+                [string]$Expected.kind,
+                [string]$Actual.kind,
+                [StringComparison]::Ordinal) -and
+              [string]::Equals(
+                [string]$Expected.value,
+                [string]$Actual.value,
+                [StringComparison]::Ordinal))
+          }
+          $releaseUserPathBaseline = Get-EverVigilPersistentPathState `
+            -Target ([EnvironmentVariableTarget]::User)
+          $releaseMachinePathBaseline = Get-EverVigilPersistentPathState `
+            -Target ([EnvironmentVariableTarget]::Machine)
+          $env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = '0'
           try {
             $releaseCriticalSourceHashes = [ordered]@{
               '.\.github\release-host-lock.json' = '7e19d79efd66e4d3def287bd6795b2d0e41f0ddc2bd8583d33b906b6a619acff'
-              '.\.github\release-source-manifest.json' = '7cb016d669a3f9068cc586ff5bed7449c057acf237e546d4a25ff4e67f5270ee'
+              '.\.github\release-source-manifest.json' = '18953aee1d301737ef5a458b380920037533f2c93221c7d5d2173a051047c64c'
               '.\tests\ReleasePathIsolation.ps1' = '19dce93505c8ecf2ce7e09536c1a20b7685ee68d863795275582ad56d1bccd35'
               '.\tests\Test-ReleaseHost.ps1' = '819d18a7222ff6827e76757843acfed210ddf748a686308ed12df2b0e1e83d06'
             }
@@ -386,6 +469,23 @@ jobs:
             }
           }
           function Assert-EverVigilReleaseIsolationState {
+            if ([Environment]::GetEnvironmentVariable(
+                'DOTNET_ADD_GLOBAL_TOOLS_TO_PATH',
+                [EnvironmentVariableTarget]::Process) -cne '0') {
+              throw 'The .NET global-tools PATH opt-out changed after release isolation.'
+            }
+            $currentUserPath = Get-EverVigilPersistentPathState `
+              -Target ([EnvironmentVariableTarget]::User)
+            $currentMachinePath = Get-EverVigilPersistentPathState `
+              -Target ([EnvironmentVariableTarget]::Machine)
+            if (-not (Test-EverVigilPersistentPathState `
+                -Expected $releaseUserPathBaseline `
+                -Actual $currentUserPath) -or
+              -not (Test-EverVigilPersistentPathState `
+                -Expected $releaseMachinePathBaseline `
+                -Actual $currentMachinePath)) {
+              throw 'The release build changed a persistent Windows PATH.'
+            }
             if ($null -eq $releaseSourceTreeLocks) {
               throw 'The reviewed source-tree locks are not held.'
             }
@@ -807,6 +907,19 @@ jobs:
             $releaseFailure = $_
           } finally {
             $cleanupFailures = [Collections.Generic.List[string]]::new()
+            $releaseUserPathAtCleanup = Get-EverVigilPersistentPathState `
+              -Target ([EnvironmentVariableTarget]::User)
+            $releaseMachinePathAtCleanup = Get-EverVigilPersistentPathState `
+              -Target ([EnvironmentVariableTarget]::Machine)
+            if (-not (Test-EverVigilPersistentPathState `
+                -Expected $releaseUserPathBaseline `
+                -Actual $releaseUserPathAtCleanup) -or
+              -not (Test-EverVigilPersistentPathState `
+                -Expected $releaseMachinePathBaseline `
+                -Actual $releaseMachinePathAtCleanup)) {
+              $cleanupFailures.Add(
+                'The release build changed a persistent Windows PATH.')
+            }
             $removeDependencyRoot = $false
             if ($dependencyRootCreated) {
               try {
