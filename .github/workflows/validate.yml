@@ -21,16 +21,77 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          function Get-EverVigilPersistentPathState {
+            param(
+              [Parameter(Mandatory)]
+              [EnvironmentVariableTarget]$Target)
+
+            if ($Target -eq [EnvironmentVariableTarget]::User) {
+              $registryRoot = [Microsoft.Win32.Registry]::CurrentUser
+              $subKeyName = 'Environment'
+            } elseif ($Target -eq [EnvironmentVariableTarget]::Machine) {
+              $registryRoot = [Microsoft.Win32.Registry]::LocalMachine
+              $subKeyName =
+                'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+            } else {
+              throw "Unsupported persistent PATH target: $Target"
+            }
+
+            $registryKey = $registryRoot.OpenSubKey($subKeyName, $false)
+            try {
+              if ($null -eq $registryKey) {
+                return [pscustomobject][ordered]@{
+                  exists = $false
+                  kind = $null
+                  value = $null
+                }
+              }
+              $valueNames = @($registryKey.GetValueNames() | Where-Object {
+                  [string]::Equals(
+                    $_,
+                    'Path',
+                    [StringComparison]::OrdinalIgnoreCase)
+                })
+              if ($valueNames.Count -gt 1) {
+                throw "Persistent $Target PATH has ambiguous value names."
+              }
+              if ($valueNames.Count -eq 0) {
+                return [pscustomobject][ordered]@{
+                  exists = $false
+                  kind = $null
+                  value = $null
+                }
+              }
+              $valueName = [string]$valueNames[0]
+              $valueKind = $registryKey.GetValueKind($valueName)
+              if ($valueKind -notin @(
+                  [Microsoft.Win32.RegistryValueKind]::String,
+                  [Microsoft.Win32.RegistryValueKind]::ExpandString)) {
+                throw "Persistent $Target PATH has unsupported kind: $valueKind"
+              }
+              return [pscustomobject][ordered]@{
+                exists = $true
+                kind = $valueKind.ToString()
+                value = [string]$registryKey.GetValue(
+                  $valueName,
+                  $null,
+                  [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+              }
+            } finally {
+              if ($null -ne $registryKey) {
+                $registryKey.Dispose()
+              }
+            }
+          }
+
           $pathSnapshotPath = Join-Path `
             ([IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')) `
             "evervigil-path-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT.json"
           $pathSnapshot = [ordered]@{
-            user = [Environment]::GetEnvironmentVariable(
-              'Path',
-              [EnvironmentVariableTarget]::User)
-            machine = [Environment]::GetEnvironmentVariable(
-              'Path',
-              [EnvironmentVariableTarget]::Machine)
+            user = Get-EverVigilPersistentPathState `
+              -Target ([EnvironmentVariableTarget]::User)
+            machine = Get-EverVigilPersistentPathState `
+              -Target ([EnvironmentVariableTarget]::Machine)
           }
           [IO.File]::WriteAllText(
             $pathSnapshotPath,
@@ -179,6 +240,86 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          function Get-EverVigilPersistentPathState {
+            param(
+              [Parameter(Mandatory)]
+              [EnvironmentVariableTarget]$Target)
+
+            if ($Target -eq [EnvironmentVariableTarget]::User) {
+              $registryRoot = [Microsoft.Win32.Registry]::CurrentUser
+              $subKeyName = 'Environment'
+            } elseif ($Target -eq [EnvironmentVariableTarget]::Machine) {
+              $registryRoot = [Microsoft.Win32.Registry]::LocalMachine
+              $subKeyName =
+                'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+            } else {
+              throw "Unsupported persistent PATH target: $Target"
+            }
+
+            $registryKey = $registryRoot.OpenSubKey($subKeyName, $false)
+            try {
+              if ($null -eq $registryKey) {
+                return [pscustomobject][ordered]@{
+                  exists = $false
+                  kind = $null
+                  value = $null
+                }
+              }
+              $valueNames = @($registryKey.GetValueNames() | Where-Object {
+                  [string]::Equals(
+                    $_,
+                    'Path',
+                    [StringComparison]::OrdinalIgnoreCase)
+                })
+              if ($valueNames.Count -gt 1) {
+                throw "Persistent $Target PATH has ambiguous value names."
+              }
+              if ($valueNames.Count -eq 0) {
+                return [pscustomobject][ordered]@{
+                  exists = $false
+                  kind = $null
+                  value = $null
+                }
+              }
+              $valueName = [string]$valueNames[0]
+              $valueKind = $registryKey.GetValueKind($valueName)
+              if ($valueKind -notin @(
+                  [Microsoft.Win32.RegistryValueKind]::String,
+                  [Microsoft.Win32.RegistryValueKind]::ExpandString)) {
+                throw "Persistent $Target PATH has unsupported kind: $valueKind"
+              }
+              return [pscustomobject][ordered]@{
+                exists = $true
+                kind = $valueKind.ToString()
+                value = [string]$registryKey.GetValue(
+                  $valueName,
+                  $null,
+                  [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+              }
+            } finally {
+              if ($null -ne $registryKey) {
+                $registryKey.Dispose()
+              }
+            }
+          }
+
+          function Test-EverVigilPersistentPathState {
+            param(
+              [Parameter(Mandatory)]$Expected,
+              [Parameter(Mandatory)]$Actual)
+
+            return (
+              [bool]$Expected.exists -eq [bool]$Actual.exists -and
+              [string]::Equals(
+                [string]$Expected.kind,
+                [string]$Actual.kind,
+                [StringComparison]::Ordinal) -and
+              [string]::Equals(
+                [string]$Expected.value,
+                [string]$Actual.value,
+                [StringComparison]::Ordinal))
+          }
+
           if ([string]::IsNullOrWhiteSpace($env:EVERVIGIL_PATH_SNAPSHOT) -or
             -not (Test-Path -LiteralPath $env:EVERVIGIL_PATH_SNAPSHOT -PathType Leaf)) {
             throw 'The persistent PATH baseline is missing.'
@@ -186,41 +327,29 @@ jobs:
           $snapshot = Get-Content `
             -LiteralPath $env:EVERVIGIL_PATH_SNAPSHOT `
             -Raw | ConvertFrom-Json
-          $currentUserPath = [Environment]::GetEnvironmentVariable(
-            'Path',
-            [EnvironmentVariableTarget]::User)
-          $currentMachinePath = [Environment]::GetEnvironmentVariable(
-            'Path',
-            [EnvironmentVariableTarget]::Machine)
-          $userPathMatches = if ($null -eq $snapshot.user) {
-            $null -eq $currentUserPath
-          } else {
-            [string]::Equals(
-              [string]$snapshot.user,
-              $currentUserPath,
-              [StringComparison]::Ordinal)
-          }
-          $machinePathMatches = if ($null -eq $snapshot.machine) {
-            $null -eq $currentMachinePath
-          } else {
-            [string]::Equals(
-              [string]$snapshot.machine,
-              $currentMachinePath,
-              [StringComparison]::Ordinal)
-          }
+          $currentUserPath = Get-EverVigilPersistentPathState `
+            -Target ([EnvironmentVariableTarget]::User)
+          $currentMachinePath = Get-EverVigilPersistentPathState `
+            -Target ([EnvironmentVariableTarget]::Machine)
+          $userPathMatches = Test-EverVigilPersistentPathState `
+            -Expected $snapshot.user `
+            -Actual $currentUserPath
+          $machinePathMatches = Test-EverVigilPersistentPathState `
+            -Expected $snapshot.machine `
+            -Actual $currentMachinePath
           if (-not $userPathMatches -or -not $machinePathMatches) {
             foreach ($pathState in @(
                 [pscustomobject]@{
                   target = 'User'
                   matches = $userPathMatches
-                  before = [string]$snapshot.user
-                  after = [string]$currentUserPath
+                  before = [string]$snapshot.user.value
+                  after = [string]$currentUserPath.value
                 },
                 [pscustomobject]@{
                   target = 'Machine'
                   matches = $machinePathMatches
-                  before = [string]$snapshot.machine
-                  after = [string]$currentMachinePath
+                  before = [string]$snapshot.machine.value
+                  after = [string]$currentMachinePath.value
                 })) {
               if ($pathState.matches) {
                 continue

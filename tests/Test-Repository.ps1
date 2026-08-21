@@ -786,12 +786,25 @@ $validatePathFinalizerHasAlways = [regex]::IsMatch(
     $validateWorkflowContent,
     '(?m)^      - name: Verify persistent PATH remained unchanged\r?\n        if: always\(\)\r?$',
     [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$rawPersistentPathMarker =
+    '[Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames'
+$persistentPathKindMarker = '$registryKey.GetValueKind($valueName)'
+$validateRawPathMatches = [regex]::Matches(
+    $validateWorkflowContent,
+    [regex]::Escape($rawPersistentPathMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$validatePathKindMatches = [regex]::Matches(
+    $validateWorkflowContent,
+    [regex]::Escape($persistentPathKindMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
 if ($validatePathFinalizerIndex -lt 0 -or
     $validatePathFinalizerIndex -ne $validateLastNamedStepIndex -or
     $validatePathFinalizerHasFollowingStep -or
-    -not $validatePathFinalizerHasAlways) {
+    -not $validatePathFinalizerHasAlways -or
+    $validateRawPathMatches.Count -ne 2 -or
+    $validatePathKindMatches.Count -ne 2) {
     $failures.Add(
-        'Validate must keep the persistent PATH verifier as the final named step with if: always().')
+        'Validate must keep the raw registry PATH-and-kind verifier as the final named step with if: always().')
 }
 
 $releaseWorkflowContent = Get-Content `
@@ -1018,14 +1031,24 @@ $releaseDotnetOptOutMatches = [regex]::Matches(
     $releaseWorkflowContent,
     [regex]::Escape($releaseDotnetOptOutMarker),
     [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$releaseRawPathMatches = [regex]::Matches(
+    $releaseWorkflowContent,
+    [regex]::Escape($rawPersistentPathMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+$releasePathKindMatches = [regex]::Matches(
+    $releaseWorkflowContent,
+    [regex]::Escape($persistentPathKindMarker),
+    [Text.RegularExpressions.RegexOptions]::CultureInvariant)
 $releaseHostProbeIndex = $releaseWorkflowContent.IndexOf(
     '.\tests\Test-ReleaseHost.ps1',
     [StringComparison]::Ordinal)
 if ($releaseDotnetOptOutMatches.Count -ne 1 -or
+    $releaseRawPathMatches.Count -ne 1 -or
+    $releasePathKindMatches.Count -ne 1 -or
     $releaseHostProbeIndex -lt 0 -or
     $releaseDotnetOptOutMatches[0].Index -ge $releaseHostProbeIndex) {
     $failures.Add(
-        'Release must establish the .NET global-tools PATH opt-out exactly once before Test-ReleaseHost.')
+        'Release must establish the .NET global-tools PATH opt-out and raw registry PATH-and-kind verifier before Test-ReleaseHost.')
 }
 $publishingRevalidationStep = [regex]::Match(
     $releaseWorkflowContent,
