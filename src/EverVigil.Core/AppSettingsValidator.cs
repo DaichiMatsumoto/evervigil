@@ -46,7 +46,6 @@ public static class AppSettingsValidator
         ValidateRange(settings.LogFileCopies, 1, 10, AppLocalizer.Text("FieldLogCopies", culture), culture, errors);
         ValidateRange(settings.ClipboardClearSeconds, 15, 600, AppLocalizer.Text("FieldClipboardClear", culture), culture, errors);
 
-        ValidatePath(settings.ProjectDirectory, AppLocalizer.Text("FieldProjectDirectory", culture), requireExistingPaths, Directory.Exists, culture, errors);
         ValidatePath(settings.NodePath, AppLocalizer.Text("FieldNodePath", culture), requireExistingPaths, File.Exists, culture, errors);
         ValidatePath(settings.EvenTerminalCliPath, AppLocalizer.Text("FieldEvenTerminalPath", culture), requireExistingPaths, File.Exists, culture, errors);
         ValidatePath(settings.CodexPath, AppLocalizer.Text("FieldCodexPath", culture), requireExistingPaths, File.Exists, culture, errors);

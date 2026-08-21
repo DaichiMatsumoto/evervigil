@@ -45,6 +45,8 @@ internal sealed class SettingsStore
 
     public string? LastRecoveryMessageResourceKey { get; private set; }
 
+    internal string InternalBridgeHostPath => Path.Combine(_paths.DataRoot, "BridgeHost");
+
     public AppSettings Current
     {
         get
@@ -256,9 +258,13 @@ internal sealed class SettingsStore
                 throw new InvalidDataException(string.Join(Environment.NewLine, errors));
             }
 
-            if (tailscalePathWasNormalized)
+            var canonicalJson = JsonSerializer.Serialize(settings, SerializerOptions);
+            if (!string.Equals(json, canonicalJson, StringComparison.Ordinal))
             {
                 WriteAtomically(settings);
+            }
+            if (tailscalePathWasNormalized)
+            {
                 WriteSystemConfigurationRequiredMarker();
             }
 

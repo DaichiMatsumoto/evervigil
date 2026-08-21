@@ -32,7 +32,6 @@ internal static class BridgeProcessEnvironment
         "PORT",
         "BRIDGE_TOKEN",
         "EVEN_TERMINAL_NAME",
-        "PROJECT_DIR",
         "DEFAULT_PROVIDER",
         "EVEN_HOST_MODE",
         "CODEX_APP_SERVER_PORT",
@@ -62,7 +61,6 @@ internal static class BridgeProcessEnvironment
             settings.DisplayName,
             64,
             "The bridge display name is invalid.");
-        environment["PROJECT_DIR"] = ValidateFullPath(settings.ProjectDirectory);
         environment["DEFAULT_PROVIDER"] = "codex";
         environment["EVEN_HOST_MODE"] = "tailscale";
         environment["CODEX_APP_SERVER_PORT"] = ValidatePort(
@@ -74,8 +72,7 @@ internal static class BridgeProcessEnvironment
     internal static void ConfigureBridgeChild(
         ProcessStartInfo startInfo,
         string backendPort,
-        string displayName,
-        string projectDirectory)
+        string displayName)
     {
         var inherited = ApplicationVariableNames.ToDictionary(
             name => name,
@@ -85,22 +82,19 @@ internal static class BridgeProcessEnvironment
             startInfo,
             inherited,
             backendPort,
-            displayName,
-            projectDirectory);
+            displayName);
     }
 
     internal static void ConfigureBridgeChild(
         ProcessStartInfo startInfo,
         IReadOnlyDictionary<string, string?> inherited,
         string backendPort,
-        string displayName,
-        string projectDirectory)
+        string displayName)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
         ArgumentNullException.ThrowIfNull(inherited);
 
         var expectedBackendPort = ParsePort(backendPort);
-        var expectedProjectDirectory = ValidateFullPath(projectDirectory);
         var environment = BuildBaseEnvironment();
         foreach (var name in ApplicationVariableNames)
         {
@@ -119,10 +113,6 @@ internal static class BridgeProcessEnvironment
                 ValidateText(environment["EVEN_TERMINAL_NAME"], 64, "The bridge display name is invalid."),
                 displayName,
                 StringComparison.Ordinal) ||
-            !string.Equals(
-                ValidateFullPath(environment["PROJECT_DIR"]),
-                expectedProjectDirectory,
-                StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(environment["DEFAULT_PROVIDER"], "codex", StringComparison.Ordinal) ||
             !string.Equals(environment["EVEN_HOST_MODE"], "tailscale", StringComparison.Ordinal))
         {

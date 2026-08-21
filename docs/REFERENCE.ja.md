@@ -27,6 +27,7 @@ EverVigilはCodex認証情報を読取り・保存しません。
 | 起動禁止marker | `%LOCALAPPDATA%\EverVigil\system-configuration-required` |
 | DPAPI token | `%LOCALAPPDATA%\EverVigil\token.dat` |
 | ログ | `%LOCALAPPDATA%\EverVigil\Logs\evervigil.log` |
+| 内部bridge host | active data root配下の`BridgeHost`。通常は`%LOCALAPPDATA%\EverVigil\BridgeHost`、in-place upgrade継続中は検証済み旧data root配下です。ACLを制限したprocess current directoryであり、project/task directory設定ではありません |
 | Startup shortcut | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\EverVigil.lnk` |
 
 設定、token、ログ、transaction状態、machine-local設定をRelease assetへ含めません。
@@ -42,7 +43,6 @@ EverVigilはCodex認証情報を読取り・保存しません。
 | Serve port | `3456` |
 | Even Terminal backend | `127.0.0.1:3457` |
 | Codex app-server | `127.0.0.1:8765` |
-| Project directory | 現在のユーザーprofile |
 | Health interval | 30秒 |
 | Provider / Tailnet check | 300秒 |
 | Startup timeout | 120秒 |
@@ -51,6 +51,13 @@ EverVigilはCodex認証情報を読取り・保存しません。
 | Log limit | 5 MB x 3世代 |
 | Secret reveal | 約60秒 |
 | Clipboard clear | 既定60秒 |
+
+EverVigilは`PROJECT_DIR`をexportせず、global `--cwd`も指定しません。既存Codex
+threadは通常、保存済みworking directoryを維持し、明示的に要求されたdirectoryは
+providerが管理します。検証対象の別途導入済みEven Terminal 0.8.1では、明示済みまたは
+保存済みの利用可能なworking directoryがないrequestが、非公開の`BridgeHost` process
+directoryへfallbackする場合があります。EverVigil単体では、この上流request fieldを
+必須化できません。
 
 ## Command line
 
@@ -100,7 +107,7 @@ Bearer credential、既知token、32桁16進token形式値を秘匿化します�
 
 v1.2.1からのin-place upgradeに限り、旧AppIdと必要な暗号・path互換情報を専用
 `LegacyCompatibility`境界で保持します。これらはユーザー向け名称ではありません。
-transactionは設定、暗号化token bytes、自動起動設定を保持し、EverVigil正常化後に
+transactionは対応する設定、暗号化token bytes、自動起動設定を保持し、EverVigil正常化後に
 所有確認済み旧resourceだけを撤去します。rollbackは検証済みsnapshotと旧稼働状態を復元します。
 
 新規導入は上表のEverVigil pathを使用します。検証済みv1.2.1 upgradeでは安全な互換性に
@@ -111,8 +118,10 @@ transactionは設定、暗号化token bytes、自動起動設定を保持し、E
 
 uninstallerは所有processを停止し、所有するServe、Firewall、Startup、shortcut、support、
 transaction、一時resource、検証済みprogramだけを削除し、設定とtokenの保持・削除を
-選択可能にします。Tailscale、Node.js、Codex、`@evenrealities/even-terminal`、無関係な
-経路・rule、未検証directoryは削除しません。
+選択可能にします。保持時は`BridgeHost`も残します。削除を選んだ場合、空なら削除し、
+非空ならfileを消さず保持pathを報告します。Tailscale、Node.js、Codex、
+`@evenrealities/even-terminal`、無関係な経路・rule、
+未検証directoryは削除しません。
 
 ## ソース検証
 

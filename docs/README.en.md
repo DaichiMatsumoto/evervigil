@@ -45,8 +45,10 @@ UAC operations: Apply, then Commit after validation. Normal supervision is
 never kept permanently elevated.
 
 If a dependency cannot be discovered, open the tray window, choose the correct
-executable or project path, save the settings, and rerun the same installer to
-finish system configuration.
+executable, save the settings, and rerun the same installer to finish system
+configuration. EverVigil has no application-wide project-directory setting.
+Each Codex task's requested or saved working directory remains owned by the
+separately installed provider.
 
 ## Network configuration
 
@@ -126,12 +128,12 @@ it. Release-specific update requirements will be documented in that Release.
 ## Upgrade from legacy v1.2.1
 
 EverVigil v2.0.0 uses an in-place upgrade because preserving the established
-installer identity allows the existing settings and DPAPI-protected token to
-remain usable by the same Windows user. The preserved identity is an internal
-migration key, not a user-facing product name.
+installer identity allows supported existing settings and the DPAPI-protected
+token to remain usable by the same Windows user. The preserved identity is an
+internal migration key, not a user-facing product name.
 
 During migration, the installer validates ownership before stopping or removing
-legacy resources. It preserves the user's settings, token, and startup choice;
+legacy resources. It preserves supported settings, the token, and startup choice;
 replaces user-facing names with EverVigil; and removes only owned duplicate
 process, startup, shortcut, Firewall, Serve, transaction, support, and program
 resources after the new installation is healthy. Ambiguous ownership fails
@@ -156,6 +158,9 @@ owned Tailscale Serve and Windows Firewall configuration, removes EverVigil
 startup and shortcuts, and deletes only an ownership-verified installation
 directory plus its transaction and temporary files. It asks whether settings
 and the encrypted token should be retained for a future reinstall or removed.
+Choosing retention also keeps the private `BridgeHost` process directory. When
+removal is chosen, an empty `BridgeHost` is removed; a non-empty one is retained
+and its exact path is reported instead of deleting those files.
 
 Uninstall does not remove Tailscale, Node.js, Codex,
 `@evenrealities/even-terminal`, or unrelated routes, rules, folders, settings,

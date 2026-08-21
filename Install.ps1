@@ -384,6 +384,7 @@ $systemConfigurationCanBePreserved = $false
 $existingSupervisorWasHealthy = $false
 $applicationDataRollbackRequired = $false
 $dataRootExisted = Test-Path -LiteralPath $DataRoot
+$bridgeHostWasPresent = Test-Path -LiteralPath (Join-Path $DataRoot 'BridgeHost')
 $settingsWasPresent = Test-Path -LiteralPath $SettingsPath -PathType Leaf
 $tokenWasPresent = Test-Path -LiteralPath $TokenPath -PathType Leaf
 $appliedSystemConfigurationWasPresent = Test-Path `
@@ -1447,6 +1448,9 @@ function Remove-NewApplicationData {
     Remove-EverVigilNewApplicationDataFiles `
         -DataRoot $DataRoot `
         -State $applicationDataPreState
+    Remove-EverVigilNewBridgeHostDirectory `
+        -DataRoot $DataRoot `
+        -BridgeHostWasPresent $bridgeHostWasPresent
     $logRoot = Join-Path $DataRoot $script:LegacyCompatibilityDataLogDirectoryName
     if (-not $logsRootWasPresent -and
         (Test-Path -LiteralPath $logRoot -PathType Container)) {
@@ -1599,6 +1603,7 @@ try {
         migrationApplied = $false
         runtimeConfigurationReady = $false
         dataRootExisted = $dataRootExisted
+        bridgeHostWasPresent = $bridgeHostWasPresent
         settingsWasPresent = $settingsWasPresent
         tokenWasPresent = $tokenWasPresent
         applicationDataSnapshotReady = $false

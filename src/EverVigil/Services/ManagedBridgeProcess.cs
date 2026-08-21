@@ -52,10 +52,13 @@ internal sealed class ManagedBridgeProcess : IAsyncDisposable
         AppSettings settings,
         string token,
         BoundedLogger logger,
+        string internalWorkingDirectory,
         string? launcherExecutable = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(internalWorkingDirectory);
         launcherExecutable ??= Environment.ProcessPath ??
             throw new InvalidOperationException("Application executable path is unavailable.");
+        internalWorkingDirectory = PrepareInternalWorkingDirectory(internalWorkingDirectory);
         var launchId = Guid.NewGuid().ToString("N");
         var gateName = $"Local\\EverVigil-Launch-{launchId}";
         var pipeName = $"EverVigil-Pid-{launchId}";
@@ -70,7 +73,7 @@ internal sealed class ManagedBridgeProcess : IAsyncDisposable
         var startInfo = new ProcessStartInfo
         {
             FileName = launcherExecutable,
-            WorkingDirectory = settings.ProjectDirectory,
+            WorkingDirectory = internalWorkingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden,
@@ -91,8 +94,6 @@ internal sealed class ManagedBridgeProcess : IAsyncDisposable
         startInfo.ArgumentList.Add(settings.BackendPort.ToString());
         startInfo.ArgumentList.Add("--bridge-display-name");
         startInfo.ArgumentList.Add(settings.DisplayName);
-        startInfo.ArgumentList.Add("--bridge-project-directory");
-        startInfo.ArgumentList.Add(settings.ProjectDirectory);
 
         BridgeProcessEnvironment.ConfigureLauncher(startInfo, settings, token);
 
@@ -260,6 +261,43 @@ internal sealed class ManagedBridgeProcess : IAsyncDisposable
     }
 
     private static string Truncate(string value) => value.Length <= 4000 ? value : value[..4000];
+
+    internal static string PrepareInternalWorkingDirectory(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!Path.IsPathFullyQualified(path))
+        {
+            throw new InvalidOperationException(
+                "The internal bridge working directory must be fully qualified.");
+        }
+
+        var fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        var parent = Directory.GetParent(fullPath);
+        if (parent is null || !parent.Exists ||
+            (parent.Attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidOperationException(
+                "The internal bridge host parent is unavailable or redirected.");
+        }
+        if (File.Exists(fullPath) ||
+            (Directory.Exists(fullPath) &&
+             (File.GetAttributes(fullPath) & FileAttributes.ReparsePoint) != 0))
+        {
+            throw new InvalidOperationException(
+                "The internal bridge host path is not a regular directory.");
+        }
+
+        AccessControlService.RestrictDirectory(fullPath);
+        parent.Refresh();
+        if (!parent.Exists ||
+            (parent.Attributes & FileAttributes.ReparsePoint) != 0 ||
+            (File.GetAttributes(fullPath) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidOperationException(
+                "The internal bridge host path was redirected.");
+        }
+        return fullPath;
+    }
 
     internal static int GetPipeClientProcessId(NamedPipeServerStream pipe)
     {

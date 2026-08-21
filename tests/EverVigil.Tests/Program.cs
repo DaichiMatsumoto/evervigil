@@ -49,6 +49,7 @@ var tests = new (string Name, Action Run)[]
     ("current Serve route must match the protected target", CurrentServeRouteMustMatchProtectedTarget),
     ("Serve status child inherits no credential environment", ServeStatusChildInheritsNoCredentialEnvironment),
     ("bridge children inherit only the explicit runtime environment", BridgeChildrenInheritOnlyExplicitRuntimeEnvironment),
+    ("bridge uses a private internal bridge host directory", BridgeUsesPrivateInternalHostDirectory),
     ("token generation is valid and unique", TokenGenerationIsValidAndUnique),
     ("connection URL contains required provider", ConnectionUrlContainsProvider),
     ("connection URL brackets IPv6 hosts", ConnectionUrlBracketsIpv6Host),
@@ -80,6 +81,7 @@ var tests = new (string Name, Action Run)[]
     ("unreadable DPAPI token is quarantined", UnreadableTokenIsQuarantined),
     ("missing settings require system configuration", MissingSettingsRequireSystemConfiguration),
     ("invalid settings require system configuration", InvalidSettingsRequireSystemConfiguration),
+    ("obsolete global workspace setting is removed", ObsoleteGlobalWorkspaceSettingIsRemoved),
     ("applied system configuration is recorded before unblocking", AppliedSystemConfigurationIsRecordedBeforeUnblocking),
     ("pending system journal commits only after durable mutation phases", PendingSystemJournalCommitsAfterDurablePhases),
     ("pending system journal rejects premature commit and mismatched transaction", PendingSystemJournalRejectsUnsafeCompletion),
@@ -246,7 +248,6 @@ static void LegacyMigrationDiscoversPortableDependencies()
 
         var settings = EverVigil.Program.CreateLegacyMigrationDefaults(tokenPath, legacyRoot);
 
-        Assert(settings.ProjectDirectory == profileRoot, "Legacy project directory was not preserved.");
         Assert(settings.NodePath == nodePath, "Legacy portable Node.js was not discovered.");
         Assert(settings.EvenTerminalCliPath == cliPath, "Legacy portable Even Terminal was not discovered.");
         var outsideToken = Path.Combine(root, "token.txt");
@@ -336,7 +337,6 @@ static void IncompleteLegacyDefaultsRemainConfigurable()
         var incompleteDefaults = store.Current with
         {
             DisplayName = "LEGACY-INCOMPLETE",
-            ProjectDirectory = root,
             NodePath = Path.Combine(root, "missing-node.exe"),
             EvenTerminalCliPath = Path.Combine(root, "missing-cli.js"),
             CodexPath = Path.Combine(root, "missing-codex.exe"),
@@ -395,7 +395,6 @@ static void LegacyDefaultsReplaceOnlyNewSettings()
         var legacyDefaults = store.Current with
         {
             DisplayName = "LEGACY",
-            ProjectDirectory = root,
             NodePath = requiredFiles[0],
             EvenTerminalCliPath = requiredFiles[1],
             CodexPath = requiredFiles[2],
@@ -742,7 +741,6 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
         DisplayName = "EverVigil test",
         BackendPort = 3457,
         CodexAppServerPort = 8765,
-        ProjectDirectory = @"C:\Fixtures\EverVigil\Project",
         NodePath = @"C:\Fixtures\Node\node.exe",
         EvenTerminalCliPath = @"C:\Fixtures\EvenTerminal\cli.js",
         CodexPath = @"C:\Fixtures\Codex\codex.exe",
@@ -766,6 +764,7 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
         !launcher.Environment.ContainsKey("OPENAI_API_KEY") &&
         !launcher.Environment.ContainsKey("GH_TOKEN") &&
         !launcher.Environment.ContainsKey("EVERVIGIL_TEST_SECRET_CANARY") &&
+        !launcher.Environment.ContainsKey("PROJECT_DIR") &&
         string.Equals(launcher.Environment["BRIDGE_TOKEN"], token, StringComparison.Ordinal),
         "The bridge launcher inherited a parent credential or lost its application token.");
     Assert(
@@ -781,13 +780,13 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
     inherited["OPENAI_API_KEY"] = "must-not-be-inherited";
     inherited["CODEX_HOME"] = @"C:\Fixtures\SecretCodexHome";
     inherited["EVERVIGIL_TEST_SECRET_CANARY"] = "must-not-be-inherited";
+    inherited["PROJECT_DIR"] = @"C:\Fixtures\MustNotBecomeAWorkspace";
     var child = new System.Diagnostics.ProcessStartInfo();
     EverVigil.Services.BridgeProcessEnvironment.ConfigureBridgeChild(
         child,
         inherited,
         settings.BackendPort.ToString(CultureInfo.InvariantCulture),
-        settings.DisplayName,
-        settings.ProjectDirectory);
+        settings.DisplayName);
 
     Assert(
         child.Environment.Keys.All(
@@ -797,6 +796,7 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
         !child.Environment.ContainsKey("OPENAI_API_KEY") &&
         !child.Environment.ContainsKey("CODEX_HOME") &&
         !child.Environment.ContainsKey("EVERVIGIL_TEST_SECRET_CANARY") &&
+        !child.Environment.ContainsKey("PROJECT_DIR") &&
         string.Equals(child.Environment["BRIDGE_TOKEN"], token, StringComparison.Ordinal),
         "The Node bridge inherited a parent credential or lost its application token.");
 
@@ -809,8 +809,71 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
             new System.Diagnostics.ProcessStartInfo(),
             tampered,
             settings.BackendPort.ToString(CultureInfo.InvariantCulture),
-            settings.DisplayName,
-            settings.ProjectDirectory));
+            settings.DisplayName));
+}
+
+static void BridgeUsesPrivateInternalHostDirectory()
+{
+    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.BridgeHost-{Guid.NewGuid():N}");
+    var requested = Path.Combine(root, "BridgeHost");
+    try
+    {
+        Directory.CreateDirectory(root);
+        var actual = EverVigil.Services.ManagedBridgeProcess.PrepareInternalWorkingDirectory(requested);
+
+        Assert(
+            string.Equals(actual, Path.GetFullPath(requested), StringComparison.OrdinalIgnoreCase),
+            "The internal bridge host directory changed unexpectedly.");
+        Assert(Directory.Exists(actual), "The internal bridge host directory was not created.");
+        AssertThrows<InvalidOperationException>(() =>
+            EverVigil.Services.ManagedBridgeProcess.PrepareInternalWorkingDirectory(
+                Path.Combine(".", "relative-bridge-host")));
+        var filePath = Path.Combine(root, "not-a-directory");
+        File.WriteAllText(filePath, string.Empty);
+        AssertThrows<InvalidOperationException>(() =>
+            EverVigil.Services.ManagedBridgeProcess.PrepareInternalWorkingDirectory(filePath));
+
+        var redirectedTarget = Path.Combine(root, "redirected-target");
+        var redirectedHost = Path.Combine(root, "redirected-host");
+        Directory.CreateDirectory(redirectedTarget);
+        File.WriteAllText(Path.Combine(redirectedTarget, "must-remain.txt"), "preserve");
+        CreateDirectoryJunction(redirectedHost, redirectedTarget);
+        try
+        {
+            AssertThrows<InvalidOperationException>(() =>
+                EverVigil.Services.ManagedBridgeProcess.PrepareInternalWorkingDirectory(
+                    redirectedHost));
+            Assert(
+                File.Exists(Path.Combine(redirectedTarget, "must-remain.txt")),
+                "BridgeHost validation followed a redirected target.");
+        }
+        finally
+        {
+            Directory.Delete(redirectedHost, recursive: false);
+        }
+
+        var redirectedParentTarget = Path.Combine(root, "redirected-parent-target");
+        var redirectedParent = Path.Combine(root, "redirected-parent");
+        Directory.CreateDirectory(redirectedParentTarget);
+        CreateDirectoryJunction(redirectedParent, redirectedParentTarget);
+        try
+        {
+            AssertThrows<InvalidOperationException>(() =>
+                EverVigil.Services.ManagedBridgeProcess.PrepareInternalWorkingDirectory(
+                    Path.Combine(redirectedParent, "BridgeHost")));
+        }
+        finally
+        {
+            Directory.Delete(redirectedParent, recursive: false);
+        }
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            DeleteDirectoryWithRetry(root);
+        }
+    }
 }
 
 static void TokenGenerationIsValidAndUnique()
@@ -1688,6 +1751,81 @@ static void InvalidSettingsRequireSystemConfiguration()
     }
 }
 
+static void ObsoleteGlobalWorkspaceSettingIsRemoved()
+{
+    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-{Guid.NewGuid():N}");
+    var paths = new EverVigil.Infrastructure.DataPaths(
+        root,
+        Path.Combine(root, "settings.json"),
+        Path.Combine(root, "token.dat"),
+        Path.Combine(root, "Logs"),
+        Path.Combine(root, "Logs", "evervigil.log"),
+        Path.Combine(root, "startup.lnk"));
+    try
+    {
+        var created = new EverVigil.Infrastructure.SettingsStore(paths);
+        var nodePath = Path.Combine(root, "node.exe");
+        var cliPath = Path.Combine(root, "cli.js");
+        var codexPath = Path.Combine(root, "codex.exe");
+        var tailscalePath = Path.Combine(root, "tailscale.exe");
+        foreach (var dependencyPath in new[] { nodePath, cliPath, codexPath, tailscalePath })
+        {
+            File.WriteAllText(dependencyPath, string.Empty);
+        }
+        var expected = created.Current with
+        {
+            UiLanguage = "ja",
+            DisplayName = "CANONICAL-SETTINGS",
+            PublicPort = 45_601,
+            BackendPort = 45_602,
+            CodexAppServerPort = 45_603,
+            NodePath = nodePath,
+            EvenTerminalCliPath = cliPath,
+            CodexPath = codexPath,
+            TailscalePath = tailscalePath,
+            HealthIntervalSeconds = 41,
+            ProviderCheckIntervalSeconds = 401,
+            PublicCheckIntervalSeconds = 402,
+            StartupTimeoutSeconds = 131,
+            StableRunSeconds = 601,
+            FailureThreshold = 4,
+            LogFileSizeMb = 6,
+            LogFileCopies = 4,
+            ClipboardClearSeconds = 71,
+            DiagnosticLogging = true,
+            AutoStartService = false
+        };
+        created.Save(expected);
+        var document = System.Text.Json.Nodes.JsonNode.Parse(
+            File.ReadAllText(paths.SettingsPath))!.AsObject();
+        document["projectDirectory"] = root;
+        File.WriteAllText(paths.SettingsPath, document.ToJsonString());
+
+        var reopened = new EverVigil.Infrastructure.SettingsStore(paths);
+
+        Assert(
+            reopened.LastRecoveryMessageResourceKey is null,
+            "Removing the obsolete global workspace discarded valid settings.");
+        Assert(
+            reopened.Current == expected,
+            "Removing the obsolete global workspace changed a supported setting.");
+        Assert(
+            !Directory.EnumerateFiles(root, "settings.json.invalid-*").Any(),
+            "Canonical settings cleanup incorrectly quarantined a valid settings file.");
+        Assert(
+            !File.ReadAllText(paths.SettingsPath).Contains(
+                "projectDirectory",
+                StringComparison.Ordinal),
+            "Canonical settings retained the obsolete global workspace property.");
+    }
+    finally
+    {
+        if (Directory.Exists(root))
+        {
+            DeleteDirectoryWithRetry(root);
+        }
+    }
+}
 
 static void AppliedSystemConfigurationIsRecordedBeforeUnblocking()
 {
@@ -1708,7 +1846,6 @@ static void AppliedSystemConfigurationIsRecordedBeforeUnblocking()
         {
             PublicPort = 45_678,
             BackendPort = 45_679,
-            ProjectDirectory = root,
             NodePath = Path.Combine(root, "node.exe"),
             EvenTerminalCliPath = Path.Combine(root, "cli.js"),
             CodexPath = Path.Combine(root, "codex.exe"),
@@ -2397,7 +2534,6 @@ static void ConcurrentBridgeStopsShareOneLifecycleTask()
         {
             DisplayName = "lifecycle-test",
             BackendPort = 49_158,
-            ProjectDirectory = root,
             NodePath = nodePath,
             EvenTerminalCliPath = scriptPath,
             CodexPath = nodePath,
@@ -2418,6 +2554,7 @@ static void ConcurrentBridgeStopsShareOneLifecycleTask()
             settings,
             new string('a', 32),
             logger,
+            Path.Combine(root, "BridgeHost"),
             applicationPath);
 
         var firstStop = managed.StopAsync();
@@ -2511,6 +2648,7 @@ static void BridgeLauncherContainsImmediateDescendants()
     var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-{Guid.NewGuid():N}");
     var scriptPath = Path.Combine(root, "spawn-child.js");
     var childPidPath = Path.Combine(root, "child.pid");
+    var contractPath = Path.Combine(root, "bridge-contract.json");
     var applicationPath = Path.Combine(AppContext.BaseDirectory, "EverVigil.exe");
     var nodePath = FindExecutable("node.exe");
     var launchId = Guid.NewGuid().ToString("N");
@@ -2529,11 +2667,14 @@ static void BridgeLauncherContainsImmediateDescendants()
         Directory.CreateDirectory(root);
         File.WriteAllText(
             scriptPath,
-            "const {spawn}=require('child_process');const fs=require('fs');" +
+            "const {spawn}=require('child_process');const fs=require('fs');const path=require('path');" +
             $"process.stdout.write('{stdoutCredential}\\n');" +
             $"process.stderr.write('{stderrCredential}\\n');" +
             "const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});" +
-            "fs.writeFileSync(require('path').join(process.cwd(),'child.pid'),String(c.pid));" +
+            "fs.writeFileSync(path.join(process.cwd(),'bridge-contract.json'),JSON.stringify({" +
+            "cwd:process.cwd(),hasProjectDir:Object.prototype.hasOwnProperty.call(process.env,'PROJECT_DIR')," +
+            "argv:process.argv.slice(2)}));" +
+            "fs.writeFileSync(path.join(process.cwd(),'child.pid'),String(c.pid));" +
             "setInterval(()=>{},1000);");
         Assert(File.Exists(applicationPath), $"Application executable was not built: {applicationPath}");
 
@@ -2547,6 +2688,7 @@ static void BridgeLauncherContainsImmediateDescendants()
         var startInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = applicationPath,
+            WorkingDirectory = root,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
@@ -2560,8 +2702,7 @@ static void BridgeLauncherContainsImmediateDescendants()
                      "--bridge-node-path", nodePath,
                      "--bridge-cli-path", scriptPath,
                      "--bridge-backend-port", "49157",
-                     "--bridge-display-name", "test",
-                     "--bridge-project-directory", root
+                     "--bridge-display-name", "test"
                  })
         {
             startInfo.ArgumentList.Add(argument);
@@ -2574,7 +2715,6 @@ static void BridgeLauncherContainsImmediateDescendants()
                 PublicPort = 49156,
                 BackendPort = 49157,
                 CodexAppServerPort = 49158,
-                ProjectDirectory = root,
                 NodePath = nodePath,
                 EvenTerminalCliPath = scriptPath,
                 CodexPath = nodePath,
@@ -2612,6 +2752,21 @@ static void BridgeLauncherContainsImmediateDescendants()
             Thread.Sleep(100);
         }
         Assert(File.Exists(childPidPath), "The test Node process did not publish its child PID.");
+        Assert(File.Exists(contractPath), "The bridge did not publish its runtime contract.");
+        using var contract = System.Text.Json.JsonDocument.Parse(File.ReadAllText(contractPath));
+        Assert(
+            string.Equals(
+                contract.RootElement.GetProperty("cwd").GetString(),
+                root,
+                StringComparison.OrdinalIgnoreCase),
+            "The bridge process did not inherit the private internal bridge host directory.");
+        Assert(
+            !contract.RootElement.GetProperty("hasProjectDir").GetBoolean(),
+            "The bridge process inherited the obsolete PROJECT_DIR variable.");
+        Assert(
+            !contract.RootElement.GetProperty("argv").EnumerateArray().Any(argument =>
+                string.Equals(argument.GetString(), "--cwd", StringComparison.OrdinalIgnoreCase)),
+            "The launcher injected the obsolete global --cwd argument.");
         var childPidValue = File.ReadAllText(childPidPath);
         Assert(int.TryParse(childPidValue, out var childPid), "The test Node process did not report its child PID.");
         child = System.Diagnostics.Process.GetProcessById(childPid);
@@ -2733,6 +2888,33 @@ static string FindExecutable(string fileName)
     }
 
     throw new FileNotFoundException($"Required test executable was not found: {fileName}");
+}
+
+static void CreateDirectoryJunction(string link, string target)
+{
+    var startInfo = new System.Diagnostics.ProcessStartInfo
+    {
+        FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    };
+    startInfo.ArgumentList.Add("/d");
+    startInfo.ArgumentList.Add("/c");
+    startInfo.ArgumentList.Add("mklink");
+    startInfo.ArgumentList.Add("/J");
+    startInfo.ArgumentList.Add(link);
+    startInfo.ArgumentList.Add(target);
+    using var process = System.Diagnostics.Process.Start(startInfo) ??
+        throw new InvalidOperationException("The junction helper could not start.");
+    process.WaitForExit();
+    if (process.ExitCode != 0 || !Directory.Exists(link) ||
+        (File.GetAttributes(link) & FileAttributes.ReparsePoint) == 0)
+    {
+        throw new InvalidOperationException(
+            $"The junction fixture could not be created: {process.StandardError.ReadToEnd()}");
+    }
 }
 
 static void DeleteDirectoryWithRetry(string path)

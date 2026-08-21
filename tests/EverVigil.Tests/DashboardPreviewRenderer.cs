@@ -60,7 +60,6 @@ internal static class DashboardPreviewRenderer
             {
                 UiLanguage = language,
                 DisplayName = "PREVIEW DEVICE",
-                ProjectDirectory = root,
                 NodePath = nodePath,
                 EvenTerminalCliPath = cliPath,
                 CodexPath = codexPath,

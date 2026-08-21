@@ -74,6 +74,7 @@ function New-TransactionState {
         [bool]$ExistingInstallPresent = $false,
         [bool]$StartupWasRegistered = $false,
         [bool]$DataRootExisted = $true,
+        [bool]$BridgeHostWasPresent = $false,
         [bool]$SettingsWasPresent = $false,
         [bool]$TokenWasPresent = $false,
         [bool]$ApplicationDataSnapshotReady = $true,
@@ -114,6 +115,7 @@ function New-TransactionState {
         migrationApplied = $false
         runtimeConfigurationReady = $false
         dataRootExisted = $DataRootExisted
+        bridgeHostWasPresent = $BridgeHostWasPresent
         settingsWasPresent = $SettingsWasPresent
         tokenWasPresent = $TokenWasPresent
         applicationDataSnapshotReady = $ApplicationDataSnapshotReady
@@ -221,6 +223,8 @@ try {
         -ItemType Directory `
         -Path $immediateRollbackTransactionsRoot `
         -Force | Out-Null
+    $immediateRollbackBridgeHost = Join-Path $immediateRollbackDataRoot 'BridgeHost'
+    New-Item -ItemType Directory -Path $immediateRollbackBridgeHost -Force | Out-Null
     $immediateRollbackJournal = Join-Path `
         $immediateRollbackDataRoot `
         $script:LegacyCompatibilityDataTransactionJournalFileName
@@ -228,11 +232,15 @@ try {
         $immediateRollbackJournal,
         '{}',
         [Text.UTF8Encoding]::new($false))
+    Remove-EverVigilNewBridgeHostDirectory `
+        -DataRoot $immediateRollbackDataRoot `
+        -BridgeHostWasPresent $false
     Remove-EverVigilEmptyApplicationDataContainers `
         -DataRoot $immediateRollbackDataRoot `
         -DataRootExisted $false `
         -TransactionsRootWasPresent $false
     if ((Test-Path -LiteralPath $immediateRollbackTransactionsRoot) -or
+        (Test-Path -LiteralPath $immediateRollbackBridgeHost) -or
         -not (Test-Path -LiteralPath $immediateRollbackDataRoot -PathType Container) -or
         -not (Test-Path -LiteralPath $immediateRollbackJournal -PathType Leaf)) {
         throw 'Immediate rollback removed its data root before retiring the transaction journal.'
@@ -252,32 +260,84 @@ try {
         $testLocalAppData `
         'preexisting-immediate-rollback-data-root'
     New-Item -ItemType Directory -Path $preexistingRollbackDataRoot | Out-Null
+    $preexistingBridgeHostPath = Join-Path $preexistingRollbackDataRoot 'BridgeHost'
+    New-Item -ItemType Directory -Path $preexistingBridgeHostPath | Out-Null
+    Remove-EverVigilNewBridgeHostDirectory `
+        -DataRoot $preexistingRollbackDataRoot `
+        -BridgeHostWasPresent $true
     Remove-EverVigilEmptyApplicationDataContainers `
         -DataRoot $preexistingRollbackDataRoot `
         -DataRootExisted $true `
         -TransactionsRootWasPresent $false
-    if (-not (Test-Path -LiteralPath $preexistingRollbackDataRoot -PathType Container)) {
-        throw 'Immediate rollback removed a data root that existed before installation.'
+    if (-not (Test-Path -LiteralPath $preexistingRollbackDataRoot -PathType Container) -or
+        -not (Test-Path -LiteralPath $preexistingBridgeHostPath -PathType Container)) {
+        throw 'Immediate rollback removed a data root or empty bridge host directory that existed before installation.'
     }
     $unrelatedRollbackDataPath = Join-Path `
         $preexistingRollbackDataRoot `
         'unrelated.txt'
+    $nonEmptyBridgeHostPath = Join-Path $preexistingRollbackDataRoot 'BridgeHost'
+    $nonEmptyBridgeHostFile = Join-Path $nonEmptyBridgeHostPath 'unexpected-content.txt'
     [IO.File]::WriteAllText(
         $unrelatedRollbackDataPath,
         'preserve',
         [Text.UTF8Encoding]::new($false))
+    New-Item -ItemType Directory -Path $nonEmptyBridgeHostPath -Force | Out-Null
+    [IO.File]::WriteAllText(
+        $nonEmptyBridgeHostFile,
+        'preserve',
+        [Text.UTF8Encoding]::new($false))
+    Remove-EverVigilNewBridgeHostDirectory `
+        -DataRoot $preexistingRollbackDataRoot `
+        -BridgeHostWasPresent $false
     Remove-EverVigilEmptyApplicationDataContainers `
         -DataRoot $preexistingRollbackDataRoot `
         -DataRootExisted $false `
         -TransactionsRootWasPresent $false
-    if (-not (Test-Path -LiteralPath $unrelatedRollbackDataPath -PathType Leaf)) {
-        throw 'Immediate rollback removed unrelated application data from a newly created root.'
+    if (-not (Test-Path -LiteralPath $unrelatedRollbackDataPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $nonEmptyBridgeHostFile -PathType Leaf)) {
+        throw 'Immediate rollback removed unrelated application data or a non-empty internal bridge host directory.'
     }
     Remove-Item `
         -LiteralPath $preexistingRollbackDataRoot `
         -Recurse `
         -Force `
         -ErrorAction Stop
+
+    $reparseBridgeHostDataRoot = Join-Path `
+        $testLocalAppData `
+        'reparse-bridge-host-data-root'
+    $reparseBridgeHostTarget = Join-Path `
+        $testRoot `
+        'reparse-bridge-host-target'
+    $reparseBridgeHostPath = Join-Path $reparseBridgeHostDataRoot 'BridgeHost'
+    $reparseBridgeHostSentinel = Join-Path $reparseBridgeHostTarget 'must-remain.txt'
+    New-Item -ItemType Directory -Path $reparseBridgeHostDataRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $reparseBridgeHostTarget -Force | Out-Null
+    [IO.File]::WriteAllText(
+        $reparseBridgeHostSentinel,
+        'preserve',
+        [Text.UTF8Encoding]::new($false))
+    New-Item `
+        -ItemType Junction `
+        -Path $reparseBridgeHostPath `
+        -Target $reparseBridgeHostTarget | Out-Null
+    $reparseBridgeHostRejected = $false
+    try {
+        Remove-EverVigilNewBridgeHostDirectory `
+            -DataRoot $reparseBridgeHostDataRoot `
+            -BridgeHostWasPresent $false
+    } catch {
+        $reparseBridgeHostRejected = $_.Exception.Message -match 'reparse point'
+    }
+    if (-not $reparseBridgeHostRejected -or
+        -not (Test-Path -LiteralPath $reparseBridgeHostPath -PathType Container) -or
+        -not (Test-Path -LiteralPath $reparseBridgeHostSentinel -PathType Leaf)) {
+        throw 'Rollback did not preserve a redirected internal bridge host fail-closed.'
+    }
+    Remove-Item -LiteralPath $reparseBridgeHostPath -Force -ErrorAction Stop
+    Remove-Item -LiteralPath $reparseBridgeHostDataRoot -Recurse -Force -ErrorAction Stop
+    Remove-Item -LiteralPath $reparseBridgeHostTarget -Recurse -Force -ErrorAction Stop
 
     $transactionPath = Join-Path $testLocalAppData 'EverVigil\install-transaction.json'
     $phaseDispatchTransactionPath = [IO.Path]::GetFullPath($transactionPath)
@@ -314,6 +374,28 @@ try {
         throw 'A string-valued legacyCleanupAuthorized property was not rejected fail-closed.'
     }
     Remove-Item -LiteralPath $transactionPath -Force
+
+    $typeGuardState.legacyCleanupAuthorized = $false
+    $typeGuardState.bridgeHostWasPresent = 'false'
+    [IO.File]::WriteAllText(
+        $transactionPath,
+        (($typeGuardState | ConvertTo-Json -Depth 6) + "`n"),
+        [Text.UTF8Encoding]::new($false))
+    $bridgeHostBooleanRejected = $false
+    try {
+        & $transactionScript `
+            -Action Seal `
+            -TransactionPath $transactionPath
+    } catch {
+        $bridgeHostBooleanRejected = $_.Exception.Message -match
+            "bridgeHostWasPresent.*JSON boolean"
+    }
+    if (-not $bridgeHostBooleanRejected) {
+        throw 'A string-valued bridgeHostWasPresent property was not rejected fail-closed.'
+    }
+    Remove-Item -LiteralPath $transactionPath -Force
+    $typeGuardState.bridgeHostWasPresent = $false
+
     foreach ($invalidCleanupIdentity in @($null, $transactionId)) {
         $cleanupIdentityGuardState = [ordered]@{}
         foreach ($entry in $typeGuardState.GetEnumerator()) {
@@ -370,6 +452,8 @@ try {
     Write-EverVigilInstallOwnership -Path $commitInstallRoot
     New-Item -ItemType Directory -Path $commitBackupRoot -Force | Out-Null
     New-Item -ItemType Directory -Path $commitRecoveryRoot -Force | Out-Null
+    $commitBridgeHost = Join-Path (Split-Path -Parent $transactionPath) 'BridgeHost'
+    New-Item -ItemType Directory -Path $commitBridgeHost -Force | Out-Null
     $commitState = New-TransactionState `
         -InstallRoot $commitInstallRoot `
         -PreviousInstallRoot $commitInstallRoot `
@@ -420,13 +504,15 @@ try {
     }
     if ((Test-Path -LiteralPath $transactionPath) -or
         (Test-Path -LiteralPath $commitBackupRoot) -or
-        -not (Test-Path -LiteralPath $commitInstallRoot -PathType Container)) {
-        throw 'Commit did not retain the new installation and retire its transaction artifacts.'
+        -not (Test-Path -LiteralPath $commitInstallRoot -PathType Container) -or
+        -not (Test-Path -LiteralPath $commitBridgeHost -PathType Container)) {
+        throw 'Commit did not retain the new installation and BridgeHost while retiring transaction artifacts.'
     }
     if (-not (Test-Path -LiteralPath $legacyCleanupSentinel -PathType Leaf)) {
         throw 'A schema-3 transaction without legacyCleanupAuthorized retired legacy artifacts.'
     }
 
+    Remove-Item -LiteralPath $commitBridgeHost -Recurse -Force
     Remove-Item -LiteralPath $commitInstallRoot -Recurse -Force
 
     $interruptedCommitRoot = Join-Path $testRoot 'interrupted-commit-install'
@@ -555,6 +641,11 @@ try {
         -PreviousBackupPlanned $true `
         -DestinationOwnedInstallPresent $false `
         -InstallRootChanged $true
+    [void]$rollbackState.Remove('bridgeHostWasPresent')
+    $legacyJournalBridgeHost = Join-Path `
+        (Split-Path -Parent $transactionPath) `
+        'BridgeHost'
+    New-Item -ItemType Directory -Path $legacyJournalBridgeHost -Force | Out-Null
     [IO.File]::WriteAllText(
         $transactionPath,
         (($rollbackState | ConvertTo-Json -Depth 6) + "`n"),
@@ -564,11 +655,13 @@ try {
         -TransactionPath $transactionPath
     if ((Test-Path -LiteralPath $transactionPath) -or
         (Test-Path -LiteralPath $rollbackPreviousBackupRoot) -or
-        -not (Test-Path -LiteralPath $rollbackPreviousRoot -PathType Container)) {
-        throw 'Rollback did not restore the previous installation and retire its transaction artifacts.'
+        -not (Test-Path -LiteralPath $rollbackPreviousRoot -PathType Container) -or
+        -not (Test-Path -LiteralPath $legacyJournalBridgeHost -PathType Container)) {
+        throw 'Rollback did not restore the previous installation or preserve BridgeHost for an older journal.'
     }
     Assert-OwnedInstallRoot -Path $rollbackPreviousRoot
 
+    Remove-Item -LiteralPath $legacyJournalBridgeHost -Force
     Remove-Item -LiteralPath $rollbackPreviousRoot -Recurse -Force
     $writeAheadRoot = Join-Path $testRoot 'write-ahead-install'
     $writeAheadBackupRoot = "$writeAheadRoot.backup-$transactionId"

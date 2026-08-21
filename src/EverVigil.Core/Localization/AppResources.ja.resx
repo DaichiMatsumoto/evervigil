@@ -72,7 +72,6 @@
   <data name="FieldPublicPort" xml:space="preserve"><value>公開ポート</value></data>
   <data name="FieldBackendPort" xml:space="preserve"><value>バックエンドポート</value></data>
   <data name="FieldCodexPort" xml:space="preserve"><value>Codex ポート</value></data>
-  <data name="FieldProjectDirectory" xml:space="preserve"><value>作業ディレクトリ</value></data>
   <data name="FieldNodePath" xml:space="preserve"><value>Node.js</value></data>
   <data name="FieldEvenTerminalPath" xml:space="preserve"><value>Even Terminal CLI</value></data>
   <data name="FieldCodexPath" xml:space="preserve"><value>Codex CLI</value></data>

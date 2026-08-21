@@ -14,6 +14,8 @@ redistribute either product.
 ## What it does
 
 - Starts Even Terminal and the Codex app-server without opening a console window.
+- Leaves each Codex task's requested or saved working directory to the separately
+  installed provider instead of injecting an application-wide workspace.
 - Supervises child processes and applies bounded restart backoff after failures.
 - Starts in the Windows notification area at login when the user enables startup.
 - Configures an ownership-checked, Tailnet-only Tailscale Serve route.
@@ -104,9 +106,11 @@ EverVigil does not read, store, or transmit Codex authentication credentials.
 Use Windows Installed Apps or the EverVigil Start menu uninstall shortcut. The
 uninstaller stops EverVigil and its owned child processes, removes only owned
 Serve, Firewall, startup, shortcut, transaction, and application resources,
-and asks whether settings and the encrypted token should be retained.
-It does not remove Tailscale, Node.js, Codex, the separately installed Even
-Terminal package, or unrelated user data.
+and asks whether settings and the encrypted token should be retained. Choosing
+retention keeps the internal `BridgeHost` directory too. When removal is chosen,
+an empty `BridgeHost` is removed; a non-empty one is retained and reported so
+its files are not deleted. It does not remove Tailscale, Node.js, Codex, the
+separately installed Even Terminal package, or unrelated user data.
 
 ## Documentation
 

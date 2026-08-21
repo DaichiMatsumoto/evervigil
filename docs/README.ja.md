@@ -41,8 +41,10 @@ system tree、一時tree、reparse point、SUBST drive、path aliasなど、安�
 曖昧な導入先は拒否します。通常権限で動作し、system構成が必要な導入ではApplyと
 検証後Commitの短時間UACを最大2回使用します。通常の監視処理を常時昇格状態で動かしません。
 
-依存実行ファイルを検出できない場合は通知領域画面を開き、正しい実行ファイルや
-project pathを選択して保存し、同じinstallerを再実行してsystem設定を完了します。
+依存実行ファイルを検出できない場合は通知領域画面を開き、正しい実行ファイルを
+選択して保存し、同じinstallerを再実行してsystem設定を完了します。EverVigilは
+アプリ全体のproject directoryを設定・注入しません。各Codex taskの要求済み／
+保存済みworking directoryは、別途導入したproviderが管理します。
 
 ## ネットワーク構成
 
@@ -118,11 +120,11 @@ EverVigilに自動更新機能はありません。将来のReleaseでは、GitH
 ## 旧v1.2.1からのupgrade
 
 EverVigil v2.0.0はin-place upgradeを採用します。既存のinstaller identityを内部の
-移行keyとして保持することで、同じWindowsユーザーの設定とDPAPI保護済みtokenを
-安全に継続できます。このidentityはユーザー向け製品名ではありません。
+移行keyとして保持することで、同じWindowsユーザーの対応する設定とDPAPI保護済み
+tokenを安全に継続できます。このidentityはユーザー向け製品名ではありません。
 
-移行時は、旧resourceを停止・削除する前に所有権を検証します。設定、token、自動起動
-選択を保持し、ユーザー向け名称をEverVigilへ置換します。新版が正常になった後で、
+移行時は、旧resourceを停止・削除する前に所有権を検証します。対応する設定、token、
+自動起動選択を保持し、ユーザー向け名称をEverVigilへ置換します。新版が正常になった後で、
 所有確認できた旧process、Startup entry、shortcut、Firewall rule、Serve経路、
 transaction、support、program resourceだけを撤去し、重複を残しません。所有が
 曖昧な場合はfail-closedで停止し、手動解決を要求します。
@@ -142,7 +144,9 @@ entropy context、同期名を継続使用する場合があります。これ�
 uninstallerはEverVigilとEverVigilが起動した子processを停止し、所有するTailscale
 Serve経路とWindows Firewall構成だけを撤去し、EverVigilの自動起動・shortcut、
 所有確認済み導入directory、transaction、一時fileを削除します。設定と暗号化tokenを
-将来の再導入用に保持するか、完全削除するかを選べます。
+将来の再導入用に保持するか、削除するかを選べます。保持時は非公開の`BridgeHost`
+process directoryも残します。削除を選んだ場合、空の`BridgeHost`は削除し、fileを
+含む場合はそのfileを消さず正確な保持pathを報告します。
 
 Tailscale、Node.js、Codex、`@evenrealities/even-terminal`、無関係な経路・rule・
 folder・設定・ユーザー作成fileは削除しません。

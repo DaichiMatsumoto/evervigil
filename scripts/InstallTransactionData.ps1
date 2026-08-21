@@ -116,6 +116,37 @@ function Remove-EverVigilNewApplicationDataFiles {
     }
 }
 
+function Remove-EverVigilNewBridgeHostDirectory {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DataRoot,
+        [Parameter(Mandatory)][bool]$BridgeHostWasPresent
+    )
+
+    if ($BridgeHostWasPresent) {
+        return
+    }
+    $bridgeHostRoot = Join-Path $DataRoot 'BridgeHost'
+    if (-not (Test-Path -LiteralPath $bridgeHostRoot)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $bridgeHostRoot -PathType Container)) {
+        throw "The EverVigil internal bridge host path is not a directory: $bridgeHostRoot"
+    }
+    $bridgeHostItem = Get-Item -LiteralPath $bridgeHostRoot -Force -ErrorAction Stop
+    if (($bridgeHostItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "The EverVigil internal bridge host directory is a reparse point: $bridgeHostRoot"
+    }
+    if (@(Get-ChildItem -LiteralPath $bridgeHostRoot -Force -ErrorAction Stop).Count -gt 0) {
+        return
+    }
+
+    Remove-Item -LiteralPath $bridgeHostRoot -Force -ErrorAction Stop
+    if (Test-Path -LiteralPath $bridgeHostRoot) {
+        throw "The empty EverVigil internal bridge host directory remained after rollback: $bridgeHostRoot"
+    }
+}
+
 function Remove-EverVigilEmptyApplicationDataContainers {
     [CmdletBinding()]
     param(
