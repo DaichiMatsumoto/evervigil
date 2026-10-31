@@ -56,6 +56,11 @@ internal sealed class DashboardForm : Form
     private readonly TextBox _nodePathInput = new();
     private readonly TextBox _cliPathInput = new();
     private readonly TextBox _codexPathInput = new();
+    private readonly TextBox _claudePathInput = new();
+    private readonly TextBox _codexWorkingDirectoryInput = new();
+    private readonly TextBox _claudeWorkingDirectoryInput = new();
+    private readonly TextBox _codexModelInput = new();
+    private readonly ComboBox _claudeModelInput = new() { DropDownStyle = ComboBoxStyle.DropDown };
     private readonly TextBox _tailscalePathInput = new();
     private readonly NumericUpDown _healthIntervalInput = NewNumberInput(5, 3600);
     private readonly NumericUpDown _providerIntervalInput = NewNumberInput(15, 3600);
@@ -491,7 +496,7 @@ internal sealed class DashboardForm : Form
             Dock = DockStyle.Top,
             BackColor = AppTheme.Canvas,
             ColumnCount = 2,
-            RowCount = 4,
+            RowCount = 6,
             Padding = new Padding(16)
         };
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
@@ -537,12 +542,40 @@ internal sealed class DashboardForm : Form
             "FieldEvenTerminalPath",
             _cliPathInput,
             () => SelectFile(_cliPathInput, "JavaScript (*.js)|*.js|All files (*.*)|*.*"));
-        AddPathRow(dependencies, "FieldCodexPath", _codexPathInput, () => SelectExecutable(_codexPathInput, "codex.exe"));
         _tailscalePathInput.ReadOnly = true;
         _tailscalePathInput.TabStop = false;
         AddSettingsRow(dependencies, "FieldTailscalePath", _tailscalePathInput);
         grid.Controls.Add(dependenciesPanel, 0, 2);
         grid.SetColumnSpan(dependenciesPanel, 2);
+
+        var codexPanel = BuildSettingsSection("SectionCodex", AppTheme.Cyan, out var codex, includeBrowseColumn: true);
+        AddPathRow(codex, "FieldCodexPath", _codexPathInput, () => SelectExecutable(_codexPathInput, "codex.exe"));
+        AddPathRow(codex, "FieldCodexWorkingDirectory", _codexWorkingDirectoryInput, () => SelectFolder(_codexWorkingDirectoryInput));
+        AddSettingsRow(codex, "FieldModel", _codexModelInput);
+        codex.SetColumnSpan(_codexModelInput, 2);
+        grid.Controls.Add(codexPanel, 0, 3);
+        grid.SetColumnSpan(codexPanel, 2);
+
+        var claudePanel = BuildSettingsSection("SectionClaude", AppTheme.Neon, out var claude, includeBrowseColumn: true);
+        AddPathRow(claude, "FieldClaudePath", _claudePathInput, () => SelectExecutable(_claudePathInput, "claude.exe"));
+        AddPathRow(claude, "FieldClaudeWorkingDirectory", _claudeWorkingDirectoryInput, () => SelectFolder(_claudeWorkingDirectoryInput));
+        _claudeModelInput.Items.AddRange([string.Empty, "opus", "sonnet", "haiku"]);
+        AddSettingsRow(claude, "FieldModel", _claudeModelInput);
+        claude.SetColumnSpan(_claudeModelInput, 2);
+        var providerHint = new Label
+        {
+            Tag = "loc:ProviderSettingsHint",
+            AutoSize = true,
+            ForeColor = AppTheme.Muted,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+        var hintRow = claude.RowCount++;
+        claude.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        claude.Controls.Add(providerHint, 0, hintRow);
+        claude.SetColumnSpan(providerHint, claude.ColumnCount);
+        grid.Controls.Add(claudePanel, 0, 4);
+        grid.SetColumnSpan(claudePanel, 2);
 
         var actions = new FlowLayoutPanel
         {
@@ -561,7 +594,7 @@ internal sealed class DashboardForm : Form
         _settingsStatus.Font = new Font("Cascadia Mono", 8F);
         _settingsStatus.Margin = new Padding(8, 8, 0, 0);
         actions.Controls.Add(_settingsStatus);
-        grid.Controls.Add(actions, 0, 3);
+        grid.Controls.Add(actions, 0, 5);
         grid.SetColumnSpan(actions, 2);
 
         outer.Controls.Add(grid);
@@ -750,6 +783,11 @@ internal sealed class DashboardForm : Form
         _nodePathInput.Text = settings.NodePath;
         _cliPathInput.Text = settings.EvenTerminalCliPath;
         _codexPathInput.Text = settings.CodexPath;
+        _claudePathInput.Text = settings.ClaudePath;
+        _codexWorkingDirectoryInput.Text = settings.CodexWorkingDirectory;
+        _claudeWorkingDirectoryInput.Text = settings.ClaudeWorkingDirectory;
+        _codexModelInput.Text = settings.CodexModel;
+        _claudeModelInput.Text = settings.ClaudeModel;
         _tailscalePathInput.Text = settings.TailscalePath;
         _healthIntervalInput.Value = settings.HealthIntervalSeconds;
         _providerIntervalInput.Value = settings.ProviderCheckIntervalSeconds;
@@ -794,6 +832,11 @@ internal sealed class DashboardForm : Form
             NodePath = _nodePathInput.Text.Trim(),
             EvenTerminalCliPath = _cliPathInput.Text.Trim(),
             CodexPath = _codexPathInput.Text.Trim(),
+            ClaudePath = _claudePathInput.Text.Trim(),
+            CodexWorkingDirectory = _codexWorkingDirectoryInput.Text.Trim(),
+            ClaudeWorkingDirectory = _claudeWorkingDirectoryInput.Text.Trim(),
+            CodexModel = _codexModelInput.Text.Trim(),
+            ClaudeModel = _claudeModelInput.Text.Trim(),
             TailscalePath = AppSettings.FixedTailscalePath,
             HealthIntervalSeconds = decimal.ToInt32(_healthIntervalInput.Value),
             ProviderCheckIntervalSeconds = decimal.ToInt32(_providerIntervalInput.Value),
@@ -1951,6 +1994,21 @@ internal sealed class DashboardForm : Form
 
     private void SelectExecutable(TextBox target, string fileName) =>
         SelectFile(target, $"{fileName}|{fileName}|Executable files (*.exe)|*.exe|All files (*.*)|*.*");
+
+    private void SelectFolder(TextBox target)
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            SelectedPath = Directory.Exists(target.Text)
+                ? target.Text
+                : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ShowNewFolderButton = false
+        };
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            target.Text = dialog.SelectedPath;
+        }
+    }
 
     private void SelectFile(TextBox target, string filter)
     {

@@ -34,7 +34,7 @@ $forbiddenExtensions = @('.log', '.pdb', '.user', '.suo', '.key', '.pem', '.pfx'
 $textExtensions = @(
     '.bat', '.cmd', '.conf', '.config', '.cs', '.csproj', '.editorconfig',
     '.gitattributes', '.gitignore', '.ini', '.iss', '.isl', '.json', '.manifest', '.md', '.properties',
-    '.props', '.ps1', '.psd1', '.psm1', '.resx', '.sh', '.sln', '.targets', '.toml',
+    '.mjs', '.props', '.ps1', '.psd1', '.psm1', '.resx', '.sh', '.sln', '.targets', '.toml',
     '.txt', '.xml', '.yaml', '.yml'
 )
 $allowedPackageFiles = @(

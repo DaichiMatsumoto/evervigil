@@ -13,8 +13,9 @@ app-serverを管理し、これらの依存製品をEverVigilへ同梱しませ�
 - Windows 11 x64
 - PowerShell 7
 - Node.js
-- 別途導入した`@evenrealities/even-terminal`
+- 別途導入した`@evenrealities/even-terminal` 0.10.5
 - 導入済みかつユーザー自身が認証済みのCodex CLI
+- Claudeを使う場合は、ユーザー自身が認証済みのClaude Code
 - 対象Tailnetへ接続済みのTailscale
 
 EverVigilはCodexの認証情報を要求・読取り・保存・送信しません。設定された
@@ -42,9 +43,26 @@ system tree、一時tree、reparse point、SUBST drive、path aliasなど、安�
 検証後Commitの短時間UACを最大2回使用します。通常の監視処理を常時昇格状態で動かしません。
 
 依存実行ファイルを検出できない場合は通知領域画面を開き、正しい実行ファイルを
-選択して保存し、同じinstallerを再実行してsystem設定を完了します。EverVigilは
-アプリ全体のproject directoryを設定・注入しません。各Codex taskの要求済み／
-保存済みworking directoryは、別途導入したproviderが管理します。
+選択して保存し、同じinstallerを再実行してsystem設定を完了します。
+
+## Codex・Claudeの開始フォルダとモデル
+
+次回リリース向けのソースでは、`設定`画面からそれぞれ独立して指定できます。
+
+1. `Codex`と`Claude`の各欄で、CLIの実行ファイルと新規セッションの開始フォルダを選びます。
+   Claude CLIのパスが空欄の場合はEven Terminal同梱のSDK用CLIを使います。
+2. モデルを指定します。CodexはモデルID、Claudeは`opus`・`sonnet`・`haiku`または
+   モデルIDを入力できます。空欄なら各CLIの設定を使います。利用可能なモデルは契約とCLIに依存します。
+3. `保存して再起動`を押し、Evenから新規セッションを作成します。
+
+開始フォルダの既定値はWindowsユーザーフォルダです。リクエストにフォルダ指定があれば
+そちらを優先し、既存セッションは元のフォルダを維持します。フォルダが削除された場合は
+エラーになり、別の場所では開始しません。モデル指定は再起動後のEverVigil管理下の
+リクエストへ適用します。既に別端末で動作中のClaude CLIは、その端末のモデル設定を使います。
+
+EverVigilからの起動では`%USERPROFILE%\.even-terminal\config.json`のClaudeツール承認設定だけを
+引き継ぎます。起動パス・モデル・ポート等はEverVigilで設定し、認証と各CLI固有の設定は各CLIで管理してください。
+設定や診断画像を公開する際は、ユーザー名・実際のプロジェクトパス・接続情報を除いてください。
 
 ## ネットワーク構成
 
@@ -69,10 +87,9 @@ EverVigilはTailscale Funnelを使用しません。port 3456はTailnet内だけ
 アプリ所有・ユーザー識別可能なWindows Firewallルールでもport 3457への直接受信を
 遮断します。
 
-現在の検証対象である公式package `@evenrealities/even-terminal` 0.8.1は、HTTP listenerを
-`0.0.0.0`へbindします。EverVigilは公式packageをpatchしないため、現時点では厳密な
-loopback-only bindを強制できません。Firewallルールは必須の緩和策であり、この上流制約は
-解決済みとせずRelease riskとして残します。
+対応する公式package `@evenrealities/even-terminal` 0.10.5は、Tailscaleモードで
+Tailscale IPv4とloopbackに待ち受けます。loopback限定ではないため、backendへの
+直接受信を遮断する所有Firewallルールは引き続き必要です。
 
 Serve経路を変更・削除する前に、転送先を永続化済み所有記録と照合します。別の
 アプリやユーザーが所有する経路は変更しません。Firewall撤去にも同じ所有規則を

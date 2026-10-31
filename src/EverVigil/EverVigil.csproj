@@ -13,6 +13,7 @@
     <None Remove="Assets\evervigil-placeholder-source.png" />
     <EmbeddedResource Include="Assets\evervigil-placeholder-source.png"
                       LogicalName="EverVigil.Assets.evervigil-placeholder-source.png" />
+    <EmbeddedResource Include="Services\BridgeHost.mjs" LogicalName="EverVigil.Services.BridgeHost.mjs" />
   </ItemGroup>
 
   <PropertyGroup>

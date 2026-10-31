@@ -40,8 +40,12 @@ rollback・uninstall時に所有するprocess treeを停止できます。
 
 launcherとNode bridgeは、active data root配下でACLを制限した`BridgeHost`を非公開の
 process current directoryとして使用します。これはproject設定ではありません。
-EverVigilは`PROJECT_DIR`をexportせず、global `--cwd`も指定しません。taskごとの要求済み／
-保存済みworking directoryは、別途導入したproviderが管理します。
+EverVigilは`PROJECT_DIR`をexportせず、global `--cwd`も指定しません。埋め込み起動スクリプトで
+Even Terminal 0.10.5のproviderを設定し、新規リクエストの`cwd`省略時だけprovider別の
+開始フォルダを渡します。既存セッションは元のフォルダを維持し、新規フォルダが存在しない
+場合はエラーにします。Codexモデルはapp-serverの`thread/start`と`turn/start`、Claudeモデルと
+実行ファイルは明示的な環境変数で指定します。上流packageのインストール済みファイルは変更せず、
+上流CLIの対話セットアップは使いません。上流`config.json`からはClaudeツール承認設定だけを引き継ぎます。
 
 token付きhealth requestはloopback backendだけへ送信します。Tailnetの準備状態はさらに、
 保護ブローカー台帳とactiveなport/Tailscale executableの一致、現在この端末へ割り当てられた
@@ -120,9 +124,9 @@ Tailscale Serveは`127.0.0.1:3457`を転送先とし、Codex app-serverは
 アプリ所有・SID識別可能なWindows Firewall ruleにより、Even Terminal backendへの
 直接受信を遮断します。撤去時は所有権を検証し、無関係なruleを削除しません。
 
-検証対象の公式`@evenrealities/even-terminal` 0.8.1はlistenerを`0.0.0.0`へbindします。
-EverVigilは公式packageをpatchしないため、現時点で厳密なloopback-only bindを保証できません。
-所有Firewall ruleは必須の緩和策であり、この上流挙動はRelease riskとして残ります。
+対応する公式`@evenrealities/even-terminal` 0.10.5はTailscaleモードでTailscale IPv4と
+loopbackへbindします。loopback限定ではないため、直接backendへの受信を遮断する
+所有Firewall ruleは引き続き必要です。
 
 security boundaryはWindows user分離、所有Firewall rule、Tailscale device identity、
 Tailnet ACL、Codex app-serverのloopback-only accessの組み合わせです。public-Internet listener、Funnel、独自cloud
@@ -142,6 +146,10 @@ launcherとNode bridgeの環境は、固定Windows/profile path、設定済み�
 `OPENAI_API_KEY`、`GH_TOKEN`、`CODEX_HOME`、`PROJECT_DIR`、proxy設定、継承`PATH`は
 渡さず、global `--cwd`も指定しません。環境変数によるCodex認証は意図的に非対応とし、
 別管理のCodex CLI認証だけを使用します。
+
+provider別の開始フォルダ・モデル・Claude CLIパスは`EVERVIGIL_PROVIDER_SETTINGS`の
+JSONでlauncherへ渡し、Node起動時に消去します。Claude用の明示的な環境変数はNode内で
+設定します。これらのローカル設定や実際のフォルダパスをRelease assetへ含めません。
 
 managed bridge稼働中は、そのchild環境内に平文が存在し、same-user process inspectionや
 crash dumpから観測される可能性があります。DPAPIが保護するのは保存時tokenであり、
@@ -235,9 +243,8 @@ Firewall rule、未検証directory、ユーザーが独自作成した設定は�
 ## 10. Security limitations（セキュリティ上の制限）
 
 - コミュニティutilityであり、vendor security productやsecurity auditではありません。
-- 検証対象のEven Terminal 0.8.1では、明示済み／保存済みの利用可能なworking directoryが
-  ないrequestが非公開の`BridgeHost`へfallbackする場合があります。EverVigilはproviderを
-  patchせず、この上流fieldを必須化できません。
+- provider設定の起動連携はEven Terminal 0.10.5の公開module構成に依存します。
+  上流の更新時は新規・再開セッションとモデル指定の連携確認が必要です。
 - 未署名binaryはWindowsに警告・遮断される可能性があります。
 - v2.0.0のbroker bootstrapは未署名です。初回導入にはpublisher認証済みtrust anchorがなく、
   将来broker binaryを置換するには承認済みcode signingまたはOS-trusted installer設計が必要です。

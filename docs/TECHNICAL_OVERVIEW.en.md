@@ -42,8 +42,14 @@ a restart, update, rollback, or uninstall.
 
 The launcher and Node bridge use the ACL-restricted `BridgeHost` below the active
 data root as a private process current directory. This is not a project setting.
-EverVigil does not export `PROJECT_DIR` or pass a global `--cwd`; the separately
-installed provider owns requested and saved per-task working-directory semantics.
+EverVigil does not export `PROJECT_DIR` or pass a global `--cwd`. An embedded
+startup script configures the Even Terminal 0.10.5 providers, supplying a
+provider-specific folder only when a new request omits `cwd`. Existing sessions
+retain their folders; a missing new-session folder returns an error. Codex models
+are passed to app-server `thread/start` and `turn/start`; Claude models and the
+CLI executable use explicit environment variables. Installed upstream files are
+unchanged. Upstream interactive setup is bypassed; only the Claude tool-approval
+policy is retained from its user `config.json`.
 
 Authenticated health requests are sent only to the loopback backend. Tailnet
 readiness additionally requires the protected broker ledger to match the active
@@ -141,10 +147,10 @@ An application-owned, SID-identifiable Windows Firewall rule blocks direct
 inbound traffic to the Even Terminal backend. Removal verifies ownership and
 never removes an unrelated rule.
 
-The tested upstream `@evenrealities/even-terminal` 0.8.1 listener binds to
-`0.0.0.0`. EverVigil does not patch that package and therefore cannot currently
-guarantee a strict loopback-only bind. The Firewall rule is required mitigation,
-and the upstream bind behavior remains an explicit release risk.
+The supported upstream `@evenrealities/even-terminal` 0.10.5 listens on the
+Tailscale IPv4 address and loopback in Tailscale mode. It is not bound exclusively
+to loopback, so the owned Firewall rule remains required to block direct access
+to the backend.
 
 The security boundary is the combination of Windows user isolation, the owned
 Firewall rule, Tailscale device identity, Tailnet ACLs, and loopback-only Codex
@@ -171,6 +177,11 @@ non-secret EverVigil runtime values, and `BRIDGE_TOKEN`. Parent entries such as
 inherited `PATH` are not forwarded. No global `--cwd` is passed. Environment-based
 Codex credentials are deliberately unsupported; Codex authentication must remain
 in the separately managed CLI.
+
+Provider folders, models, and the Claude CLI path cross the launcher boundary
+as `EVERVIGIL_PROVIDER_SETTINGS` JSON, which Node deletes during startup.
+Claude-specific environment entries are set inside Node. These local settings
+and real folder paths are never included in release assets.
 
 While the managed bridge is running, plaintext necessarily exists in that
 child's environment and may appear in a same-user process inspection or crash
@@ -288,9 +299,8 @@ ownership check stops cleanup before destructive work.
 ## 10. Security limitations
 
 - The project is a community utility, not a vendor security product or audit.
-- With the tested Even Terminal 0.8.1, a request with neither an explicit nor a
-  saved usable working directory may fall back to the private `BridgeHost`.
-  EverVigil does not patch the provider and cannot require that upstream field.
+- Provider settings depend on the exported modules in Even Terminal 0.10.5.
+  Upstream upgrades require checking new/resumed sessions and model overrides.
 - Unsigned binaries may be blocked or warned about by Windows.
 - The v2.0.0 broker bootstrap is unsigned. Its first installation therefore
   cannot provide a publisher-authenticated trust anchor; future broker binary

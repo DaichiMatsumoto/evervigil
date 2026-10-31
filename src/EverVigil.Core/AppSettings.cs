@@ -18,6 +18,16 @@ public sealed record AppSettings
 
     public string CodexPath { get; set; } = string.Empty;
 
+    public string ClaudePath { get; set; } = string.Empty;
+
+    public string CodexWorkingDirectory { get; set; } = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    public string ClaudeWorkingDirectory { get; set; } = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    public string CodexModel { get; set; } = string.Empty;
+
+    public string ClaudeModel { get; set; } = string.Empty;
+
     public string TailscalePath { get; set; } = @"C:\Program Files\Tailscale\tailscale.exe";
 
     public int HealthIntervalSeconds { get; set; } = 30;
@@ -61,6 +71,7 @@ public sealed record AppSettings
             NodePath = ResolveExecutable("node.exe", nodePreferredPath),
             EvenTerminalCliPath = GetDefaultEvenTerminalCliPath(),
             CodexPath = GetDefaultCodexPath(),
+            ClaudePath = GetDefaultClaudePath(),
             TailscalePath = tailscalePath
         };
     }
@@ -128,6 +139,15 @@ public sealed record AppSettings
         }
 
         return preferred;
+    }
+
+    private static string GetDefaultClaudePath()
+    {
+        var nativePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", "claude.exe");
+        return new[] { nativePath }
+            .Concat(GetSearchDirectories().Select(directory => Path.Combine(directory, "claude.exe")))
+            .FirstOrDefault(File.Exists) ?? string.Empty;
     }
 
     private static string ResolveExecutable(string fileName, params string[] preferredPaths)

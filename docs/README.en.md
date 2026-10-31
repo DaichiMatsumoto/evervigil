@@ -13,8 +13,9 @@ and Codex app-server; those dependencies are not part of EverVigil.
 - Windows 11 x64
 - PowerShell 7
 - Node.js
-- `@evenrealities/even-terminal` installed separately
+- `@evenrealities/even-terminal` 0.10.5 installed separately
 - Codex CLI installed and already authenticated by the user
+- Claude Code authenticated by the user when using Claude
 - Tailscale connected to the intended Tailnet
 
 EverVigil never asks for, reads, stores, or transmits Codex authentication
@@ -46,9 +47,29 @@ never kept permanently elevated.
 
 If a dependency cannot be discovered, open the tray window, choose the correct
 executable, save the settings, and rerun the same installer to finish system
-configuration. EverVigil has no application-wide project-directory setting.
-Each Codex task's requested or saved working directory remains owned by the
-separately installed provider.
+configuration.
+
+## Codex and Claude folders and models
+
+The source for the next release adds independent settings in `Configuration`:
+
+1. Select the CLI executable and default folder for new sessions in each
+   provider section. An empty Claude CLI path uses the SDK's bundled CLI.
+2. Enter a Codex model ID, or select a Claude alias (`opus`, `sonnet`, `haiku`)
+   or enter a model ID. Leave the model empty to use the CLI default.
+   Availability depends on the account and CLI.
+3. Select `Save + restart`, then create a new session from Even.
+
+Default folders start at the Windows user profile. An explicit request folder
+takes precedence. Existing sessions keep their saved folders; a missing new-session
+folder returns an error instead of starting elsewhere. Model overrides apply to
+EverVigil-managed requests after restart. Claude terminals already running
+elsewhere retain their terminal's model settings.
+
+EverVigil-managed startup retains only the Claude tool-approval policy from
+`%USERPROFILE%\.even-terminal\config.json`. Configure launch paths, models, and ports in EverVigil; manage authentication and
+CLI-specific settings in each CLI. Remove usernames, real project paths, and
+connection credentials before publishing settings or diagnostic screenshots.
 
 ## Network configuration
 
@@ -73,10 +94,10 @@ Tailnet and access depends on the Tailnet ACL policy. Serve targets the loopback
 address above. An application-owned, user-identifiable Windows Firewall rule
 also blocks direct inbound traffic to port 3457.
 
-The currently tested upstream package, `@evenrealities/even-terminal` 0.8.1,
-binds its HTTP listener to `0.0.0.0`. EverVigil does not patch that package, so
-it cannot currently enforce a strict loopback-only bind. The Firewall rule is
-required mitigation, and this upstream limitation remains a release risk.
+The supported upstream package, `@evenrealities/even-terminal` 0.10.5, listens
+on the Tailscale IPv4 address and loopback in Tailscale mode. It is not bound
+exclusively to loopback, so the owned Firewall rule remains required to block
+direct backend access.
 
 Before changing or removing a Serve route, EverVigil compares the route target
 with its persisted ownership record. A route owned by another application or

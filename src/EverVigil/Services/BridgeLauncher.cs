@@ -41,14 +41,14 @@ internal static class BridgeLauncher
                 startInfo,
                 backendPort,
                 displayName);
+            using var bootstrapStream = typeof(BridgeLauncher).Assembly.GetManifestResourceStream(
+                "EverVigil.Services.BridgeHost.mjs") ??
+                throw new InvalidOperationException("The bridge bootstrap is missing.");
+            using var bootstrapReader = new StreamReader(bootstrapStream, Encoding.UTF8);
+            startInfo.ArgumentList.Add("--input-type=module");
+            startInfo.ArgumentList.Add("--eval");
+            startInfo.ArgumentList.Add(bootstrapReader.ReadToEnd() + "\nawait startBridge(process.argv[1]);");
             startInfo.ArgumentList.Add(cliPath);
-            startInfo.ArgumentList.Add("--port");
-            startInfo.ArgumentList.Add(backendPort);
-            startInfo.ArgumentList.Add("--name");
-            startInfo.ArgumentList.Add(displayName);
-            startInfo.ArgumentList.Add("--provider");
-            startInfo.ArgumentList.Add("codex");
-            startInfo.ArgumentList.Add("--tailscale");
             startInfo.ArgumentList.Add("--log-file");
             startInfo.ArgumentList.Add(@"\\.\NUL");
 
