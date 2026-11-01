@@ -32,11 +32,19 @@ session and is not a security boundary. Protect the Windows account and device.
 
 EverVigil does not request, inspect, read, store, copy, export, or transmit
 Codex authentication credentials. Authentication is managed by the user's
-separately installed Codex CLI. EverVigil stores only the configured executable
-path and local app-server port required to start and health-check the child.
+separately installed Codex CLI. Executable paths, default folders, model choices,
+and the local app-server port are stored as ordinary local settings.
 The managed bridge environment is rebuilt from an explicit non-secret allowlist;
 parent API keys, Codex environment credentials, proxy variables, and inherited
 search paths are not forwarded to the third-party Node process.
+
+Claude authentication and model access are also managed by the separately
+installed CLI or SDK and its provider. CLIs run with your Windows user's
+permissions; select only trusted executables. Project folders and CLI paths can
+contain personal information, so remove them before publishing settings or
+diagnostics. Loading model choices also starts the configured CLI. Claude model
+discovery sends no prompt and persists no session. Model availability depends on
+the CLI and account.
 
 ## QR, display, and clipboard
 
@@ -122,6 +130,9 @@ application content. Inspect and sanitize it manually before sharing.
 
 - EverVigil has no automatic updater. The user manually downloads a GitHub
   Release, verifies SHA-256, and runs the installer.
+- Security fixes target 2.1.0. To update from 2.0.0, uninstall it while retaining
+  settings and the encrypted token, then install 2.1.0. Direct replacement of a
+  different protected Broker version is rejected.
 - Community binaries are unsigned and may trigger Microsoft Defender SmartScreen.
 - The unsigned v2.1.0 first broker bootstrap is not a publisher-authenticated
   trust anchor. A future broker replacement requires an approved signing or
@@ -143,11 +154,11 @@ application content. Inspect and sanitize it manually before sharing.
 - Retention intentionally leaves the encrypted token and settings in the data
   directory. Removing them still preserves a non-empty internal `BridgeHost`
   and reports its path; an empty one is removed after ownership checks.
-- Tailscale, Node.js, Codex, `@evenrealities/even-terminal`, unrelated routes or
+- Tailscale, Node.js, Codex, Claude, `@evenrealities/even-terminal`, unrelated routes or
   rules, and independently created user data are never removed.
 
 ## External dependency limitations
 
-EverVigil depends on Windows, Tailscale, Node.js, Even Terminal, and Codex. Each
+EverVigil depends on Windows, Tailscale, Node.js, Even Terminal, Codex, and Claude. Each
 retains its own update, availability, authentication, and security model.
 EverVigil's health checks and ownership checks do not certify those products.

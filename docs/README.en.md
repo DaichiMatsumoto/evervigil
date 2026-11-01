@@ -1,6 +1,6 @@
 # EverVigil User Guide
 
-Current source version: **2.1.0**. The latest published release remains v2.0.0.
+Target release: [**v2.1.0**](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0).
 
 [日本語](README.ja.md) | [Technical overview](TECHNICAL_OVERVIEW.en.md) | [Technical reference](REFERENCE.en.md) | [Root README](../README.md)
 
@@ -27,11 +27,11 @@ separately installed Even Terminal process.
 The setup EXE contains the .NET runtime. A .NET SDK and Inno Setup are required
 only when building from source.
 
-## Install v2.0.0
+## Install v2.1.0
 
-1. Download `EverVigil-2.0.0-Setup.exe` from the GitHub Release at
-   <https://github.com/DaichiMatsumoto/evervigil/releases>.
-2. Calculate its SHA-256 and compare it with the exact value in the Release.
+1. Download `EverVigil-2.1.0-Setup.exe` and `SHA256SUMS.txt` from
+   <https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0>.
+2. Calculate the installer's SHA-256 and compare it with `SHA256SUMS.txt`.
 3. Run the installer, read the independent-project notice, review the
    destination, and complete setup.
 
@@ -53,7 +53,7 @@ configuration.
 
 ## Codex and Claude folders and models
 
-The source for the next release adds independent settings in `Configuration`:
+Set each provider independently in `Configuration`:
 
 1. Select the CLI executable and default folder for new sessions in each
    provider section. An empty Claude CLI path uses the SDK's bundled CLI.
@@ -145,9 +145,9 @@ suppression.
 
 ## Manual update
 
-EverVigil v2.0.0 is the first and currently only public Release. EverVigil has
-no automatic updater. For a future Release, download the newer installer from
-the GitHub Release page and verify its SHA-256 before running it. The installer
+EverVigil has no automatic updater. Download the target version's installer from
+the GitHub Release page and verify its SHA-256 before running it. Follow the next
+paragraph for 2.0.0 to 2.1.0. Reinstalling the same verified EverVigil version
 preserves supported settings, the DPAPI-protected token, and the startup choice
 when updating a verified EverVigil installation. A failure before the protected
 commit boundary restores the verified pre-update state; ambiguous or unverified
@@ -174,7 +174,7 @@ Choosing retention also keeps the private `BridgeHost` process directory. When
 removal is chosen, an empty `BridgeHost` is removed; a non-empty one is retained
 and its exact path is reported instead of deleting those files.
 
-Uninstall does not remove Tailscale, Node.js, Codex,
+Uninstall does not remove Tailscale, Node.js, Codex, Claude,
 `@evenrealities/even-terminal`, or unrelated routes, rules, folders, settings,
 or user-created files.
 

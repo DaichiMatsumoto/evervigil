@@ -58,18 +58,18 @@
     },
     {
       "path": "README.md",
-      "length": 6833,
-      "sha256": "091bdcf98a562f5da54fbf3c7c917e09c6ef7f765b2f08ca3ba0bc92bd54e03e"
+      "length": 6900,
+      "sha256": "28790c6e7253f0b6d6986d69d930a4149a70add7a9aac6efc8003bd1aa167931"
     },
     {
       "path": "RELEASE_NOTES.md",
-      "length": 1956,
-      "sha256": "0e7c6afd0bd3f12dd516353e26284b7cb73b7501ca32569ab02bb48241f79b5a"
+      "length": 2057,
+      "sha256": "367fd76cfe3535a1aacef0cce3a41a48efdded8e09405c7f48d5907f94691b0c"
     },
     {
       "path": "SECURITY.md",
-      "length": 1253,
-      "sha256": "9c0444dd1d5998178385654fe31cb55b0ff3131779fd222cd8b42f9a548798e7"
+      "length": 1919,
+      "sha256": "9ed75c6cc9662253732014cb3488cc678f3d66e73854cd202ae61f2e7dcdc6bb"
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
@@ -83,53 +83,53 @@
     },
     {
       "path": "docs/README.en.md",
-      "length": 9470,
-      "sha256": "5fe4afe07ba7e71c9ab3bfaa73ea8f1c43cfa4c916752c9a8a2ae49e328627f3"
+      "length": 9481,
+      "sha256": "bd522fe88fb85b9e3f28b17a0f827300d3ae7a8ad4767aea2dbff3a601326d60"
     },
     {
       "path": "docs/README.ja.md",
-      "length": 10897,
-      "sha256": "dd76b9538af7823688e505012fc1f94a96a93bd9df1fd34b0cd188391d3df0ed"
+      "length": 10916,
+      "sha256": "4735368cc1269abc65e0ae03618de0795cb1fa3c206da19ec84e6ae8a4e68dd8"
     },
     {
       "path": "docs/REFERENCE.en.md",
-      "length": 12447,
-      "sha256": "22eed1cb6f15110865a3386bcaecf22bee5a183ac44e6a3b94f5be422029b725"
+      "length": 12463,
+      "sha256": "dd7d70076fbdc11847b0ffe0698ce9e8b57a98f8c9b9ec0257da3f8c863d4dfb"
     },
     {
       "path": "docs/REFERENCE.ja.md",
-      "length": 12829,
-      "sha256": "32b094567dc7e7d266fb952b29243425db762c849855e0c5b22050df2c99ee83"
+      "length": 12866,
+      "sha256": "9871dfe6b70a2f6594b62ea9c2f8386c0c10222ebcda3a5af752257c77cdd8d1"
     },
     {
       "path": "docs/SECURITY.en.md",
-      "length": 8450,
-      "sha256": "b11224989776ccc74e1c3c6937440b4b750f588ca52efa882dbfdb7c84c9e2b4"
+      "length": 9157,
+      "sha256": "d44b2e76467de44ddfea5c0121c7e59be5d36f1e42a1e16bc62244e6a6a600e5"
     },
     {
       "path": "docs/SECURITY.ja.md",
-      "length": 8714,
-      "sha256": "51e5e20a726065280ae63577896b0caed0636f8085d683c351dcd8d0bcaee0b3"
+      "length": 9569,
+      "sha256": "86598165b37ae4967b0b62c3e83eedbbe08131ce1e51ac66a96ba5fa2c8b90de"
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.en.md",
-      "length": 17907,
-      "sha256": "f1739e86f246277575991fad9b3c3523aee53103268dcbc928bdbb7b5e2acb26"
+      "length": 17912,
+      "sha256": "84502b8442623fb0c892efb7e2d49426a5513f42e01c045c5032068f6bc31231"
     },
     {
       "path": "docs/TECHNICAL_OVERVIEW.ja.md",
-      "length": 19008,
-      "sha256": "d91550e0dbe879d40043e211ddcb8a9f6a82367bd4cf34c6d2dc6dec4093f362"
+      "length": 19023,
+      "sha256": "8775b6098f2fa0e43fa189f1510547cef827bf5c0d48e1f6e3f1440efb73a421"
     },
     {
       "path": "docs/images/evervigil-about-en.png",
-      "length": 42621,
-      "sha256": "efeda0561f29805f647b08f2f4b29e54e4816844faaa7760f1da0b1c7fbac405"
+      "length": 42596,
+      "sha256": "9dc6aea36271ed0b07337188cdf78be59bb2ecf060feba0dbad54c8b4facc448"
     },
     {
       "path": "docs/images/evervigil-about-ja.png",
-      "length": 41185,
-      "sha256": "db1b78a51dc6debf222e574f787e92c62f889163099247562a4b7ec8bdd83eb2"
+      "length": 41157,
+      "sha256": "a53855d801223cd491c319a5c16e2aeb8e57e1af652d135dcc758f997a94c174"
     },
     {
       "path": "docs/images/evervigil-config-en.png",

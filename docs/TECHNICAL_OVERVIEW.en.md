@@ -17,7 +17,7 @@ Windows login
   -> EverVigil Startup entry
   -> tray application (medium integrity)
   -> supervised launcher and Job Object
-  -> separately installed Node.js / Even Terminal / Codex
+  -> separately installed Node.js / Even Terminal / Codex / Claude
 
 System configuration request
   -> authenticated named pipe bound to the client PID, SID, session, and nonce
@@ -211,12 +211,11 @@ EverVigil does not log or collect Codex authentication data.
 
 ## 8. Update mechanism
 
-EverVigil v2.0.0 is the first and currently only public Release. EverVigil has
-no automatic updater. For a future Release, the user manually downloads the
-versioned `EverVigil-<version>-Setup.exe` from GitHub Releases, compares its
+EverVigil has no automatic updater. The user manually downloads
+`EverVigil-<version>-Setup.exe` for the target version from GitHub Releases, compares its
 SHA-256 with the published value, and runs it over a verified EverVigil
-installation. Community binaries are unsigned and may trigger Microsoft
-Defender SmartScreen.
+installation of the same version. Follow the next paragraph for 2.0.0 to 2.1.0.
+Community binaries are unsigned and may trigger Microsoft Defender SmartScreen.
 
 For 2.0.0 to 2.1.0, uninstall the old version while retaining settings and the
 encrypted token, then install 2.1.0. Direct replacement of a different protected
@@ -295,7 +294,7 @@ deleted only after its transaction is reconciled with the protected broker.
 Obsolete verified temporaries are removed even when settings/token retention is
 selected; unknown or redirected files stop uninstall fail-closed.
 
-It never removes Tailscale, Node.js, Codex,
+It never removes Tailscale, Node.js, Codex, Claude,
 `@evenrealities/even-terminal`, an unrelated route or Firewall rule, an
 unverified directory, or settings created independently by the user. A failed
 ownership check stops cleanup before destructive work.

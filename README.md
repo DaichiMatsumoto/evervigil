@@ -6,7 +6,7 @@ This is an independent community project. It is not an official Even Realities p
 
 An independent Windows tray utility that keeps Even Terminal running and available.
 
-Current source version: **2.1.0**. The latest published release remains v2.0.0.
+Latest release: [**v2.1.0**](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0).
 
 EverVigil supervises a separately installed copy of
 [`@evenrealities/even-terminal`](https://www.npmjs.com/package/@evenrealities/even-terminal)
@@ -71,25 +71,22 @@ In `Configuration`, set each provider's default folder and model, then choose
 opened while the service is running. After changing CLI paths or folders,
 save and restart before loading choices. An empty model uses the CLI default;
 model IDs can also be entered directly.
-These settings are included in the 2.1.0 source.
+These settings are available in v2.1.0.
 
 ## Install and update
 
-EverVigil v2.0.0 is the first public release:
+Install EverVigil v2.1.0:
 
-1. Download `EverVigil-2.0.0-Setup.exe` from the GitHub Release.
-2. Compare the file's SHA-256 with the value published in that Release.
+1. Download `EverVigil-2.1.0-Setup.exe` and `SHA256SUMS.txt` from the
+   [v2.1.0 Release](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0).
+2. Compare the installer's SHA-256 with its entry in `SHA256SUMS.txt`.
 3. Run the installer and review the independent-project notice.
 
 EverVigil has no automatic updater. Community builds are not
 Authenticode-signed and may trigger Microsoft Defender SmartScreen. Verify the
 SHA-256 before running an installer.
 
-Future EverVigil releases will use the same manual download and
-checksum-verification flow. Release-specific update requirements will be
-documented in each Release.
-
-To replace v2.0.0 with a 2.1.0 build, first uninstall v2.0.0 and choose to retain
+To update from v2.0.0 to v2.1.0, first uninstall v2.0.0 and choose to retain
 settings and the encrypted token, then install 2.1.0. Different protected Broker
 versions cannot coexist; direct installation over v2.0.0 is rejected.
 
@@ -112,6 +109,8 @@ token exists in its process environment; DPAPI protects the stored token at
 rest, not the live child process from same-user software or an administrator.
 
 EverVigil does not read, store, or transmit Codex authentication credentials.
+CLI paths, project folders, and model settings are local configuration;
+remove personal paths and account details before sharing configuration or logs.
 
 ## Uninstall
 
@@ -121,8 +120,8 @@ Serve, Firewall, startup, shortcut, transaction, and application resources,
 and asks whether settings and the encrypted token should be retained. Choosing
 retention keeps the internal `BridgeHost` directory too. When removal is chosen,
 an empty `BridgeHost` is removed; a non-empty one is retained and reported so
-its files are not deleted. It does not remove Tailscale, Node.js, Codex, the
-separately installed Even Terminal package, or unrelated user data.
+its files are not deleted. It does not remove Tailscale, Node.js, Codex,
+Claude, the separately installed Even Terminal package, or unrelated user data.
 
 ## Documentation
 

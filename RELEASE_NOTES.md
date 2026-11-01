@@ -13,11 +13,11 @@ This is an independent community project. It is not an official Even Realities p
 ## 2.0.0からの更新
 
 1. 旧版のアンインストールで、設定と暗号化tokenの保持を選びます。
-2. 2.1.0の公開時には、Releaseに添付された`EverVigil-2.1.0-Setup.exe`を取得し、公開SHA-256を照合します。
+2. [v2.1.0のRelease](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0)から`EverVigil-2.1.0-Setup.exe`と`SHA256SUMS.txt`を取得し、インストーラーのSHA-256を照合します。
 3. 2.1.0をインストールします。異なる版の保護Brokerは併存できず、2.0.0への直接上書きは拒否されます。
 
 自動更新機能はありません。コミュニティビルドはAuthenticode未署名です。
-この文書の更新だけではReleaseの公開を意味しません。
+セキュリティ修正の対象は2.1.0です。旧版の利用者は更新してください。
 
 ## 配布と設定情報
 

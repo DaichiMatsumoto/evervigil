@@ -17,7 +17,7 @@ Windows login
   -> EverVigil Startup entry
   -> 通知領域アプリ（medium integrity）
   -> supervised launcher / Job Object
-  -> 別途導入済みNode.js / Even Terminal / Codex
+  -> 別途導入済みNode.js / Even Terminal / Codex / Claude
 
 system構成request
   -> client PID / SID / session / nonceを結合した認証済みnamed pipe
@@ -174,10 +174,10 @@ credential、既知bridge token、32文字の16進token形式値を秘匿化し�
 
 ## 8. Update mechanism（更新機構）
 
-EverVigil v2.0.0が最初で現在唯一の公開Releaseです。EverVigilに自動更新機能は
-ありません。将来のReleaseでは、GitHub Releasesからversion付き
+EverVigilに自動更新機能はありません。GitHub Releasesから対象版の
 `EverVigil-<version>-Setup.exe`を手動取得し、公開SHA-256と照合して検証済みEverVigilへ
-上書き実行します。コミュニティbinaryは未署名で、Microsoft Defender SmartScreenが
+同じ版を再導入できます。2.0.0から2.1.0への更新手順は次の段落を参照してください。
+コミュニティbinaryは未署名で、Microsoft Defender SmartScreenが
 警告する場合があります。
 
 2.0.0から2.1.0へ更新するときは、旧版のアンインストールで設定とtokenの保持を選び、
@@ -239,7 +239,7 @@ bounded schema、token dataは固定application entropyを用いたCurrentUser D
 broker transactionとの整合・復旧後だけ削除します。設定・token保持時も検証済みobsolete tempは
 撤去し、unknown fileやreparse pointがあればfail-closedでuninstallを停止します。
 
-Tailscale、Node.js、Codex、`@evenrealities/even-terminal`、無関係なServe経路・
+Tailscale、Node.js、Codex、Claude、`@evenrealities/even-terminal`、無関係なServe経路・
 Firewall rule、未検証directory、ユーザーが独自作成した設定は削除しません。
 所有検査に失敗した場合は破壊的処理前に停止します。
 

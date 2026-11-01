@@ -1,6 +1,6 @@
 # EverVigil 利用ガイド
 
-対象ソース版: **2.1.0**。公開済みの最新版はv2.0.0です。
+対象版: [**v2.1.0**](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0)。
 
 [English](README.en.md) | [技術概要](TECHNICAL_OVERVIEW.ja.md) | [技術リファレンス](REFERENCE.ja.md) | [ルートREADME](../README.md)
 
@@ -27,12 +27,12 @@ Codex実行ファイルを、別途導入済みのEven Terminalから子プロ�
 セットアップEXEは.NETランタイムを含みます。.NET SDKとInno Setupが必要なのは、
 ソースからビルドする場合だけです。
 
-## v2.0.0のインストール
+## v2.1.0のインストール
 
 1. GitHub Release
-   <https://github.com/DaichiMatsumoto/evervigil/releases>から
-   `EverVigil-2.0.0-Setup.exe`を取得します。
-2. SHA-256を計算し、Releaseに掲載された正確な値と照合します。
+   <https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0>から
+   `EverVigil-2.1.0-Setup.exe`と`SHA256SUMS.txt`を取得します。
+2. インストーラーのSHA-256を計算し、`SHA256SUMS.txt`の値と照合します。
 3. installerを実行し、独立プロジェクトnoticeと導入先を確認して完了します。
 
 コミュニティビルドはAuthenticode未署名のため、Microsoft Defender SmartScreenが
@@ -49,7 +49,7 @@ system tree、一時tree、reparse point、SUBST drive、path aliasなど、安�
 
 ## Codex・Claudeの開始フォルダとモデル
 
-次回リリース向けのソースでは、`設定`画面からそれぞれ独立して指定できます。
+`設定`画面から、それぞれ独立して指定できます。
 
 1. `Codex`と`Claude`の各欄で、CLIの実行ファイルと新規セッションの開始フォルダを選びます。
    Claude CLIのパスが空欄の場合はEven Terminal同梱のSDK用CLIを使います。
@@ -137,9 +137,9 @@ crash-loop抑制を適用します。
 
 ## 手動更新
 
-EverVigil v2.0.0が最初で現在唯一の公開Releaseです。EverVigilに自動更新機能は
-ありません。将来のReleaseでは、GitHub Releaseから新版installerを取得し、実行前に
-SHA-256を確認してください。検証済みEverVigilを更新する場合、installerは対応する
+EverVigilに自動更新機能はありません。GitHub Releaseから対象版のinstallerを取得し、
+実行前にSHA-256を確認してください。2.0.0から2.1.0への手順は次の段落を参照してください。
+検証済みの同じ版を再導入する場合、installerは対応する
 設定、DPAPI保護済みtoken、自動起動選択を保持します。保護commit境界より前の失敗では
 検証済みの更新前状態を復元し、状態が曖昧または検証不能ならfail-closedで停止します。
 Release固有の更新要件は、そのReleaseへ記載します。
@@ -162,7 +162,7 @@ Serve経路とWindows Firewall構成だけを撤去し、EverVigilの自動起�
 process directoryも残します。削除を選んだ場合、空の`BridgeHost`は削除し、fileを
 含む場合はそのfileを消さず正確な保持pathを報告します。
 
-Tailscale、Node.js、Codex、`@evenrealities/even-terminal`、無関係な経路・rule・
+Tailscale、Node.js、Codex、Claude、`@evenrealities/even-terminal`、無関係な経路・rule・
 folder・設定・ユーザー作成fileは削除しません。
 
 ## セキュリティ境界
