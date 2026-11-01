@@ -2,7 +2,7 @@
 
 [English](TECHNICAL_OVERVIEW.en.md) | [利用ガイド](README.ja.md) | [技術リファレンス](REFERENCE.ja.md) | [リポジトリ](https://github.com/DaichiMatsumoto/evervigil)
 
-本書はEverVigil v2.0.0のarchitectureとsecurity modelを説明します。
+本書はEverVigil v2.1.0のarchitectureとsecurity modelを説明します。
 
 ## 1. Architecture（アーキテクチャ）
 
@@ -180,6 +180,9 @@ EverVigil v2.0.0が最初で現在唯一の公開Releaseです。EverVigilに自
 上書き実行します。コミュニティbinaryは未署名で、Microsoft Defender SmartScreenが
 警告する場合があります。
 
+2.0.0から2.1.0へ更新するときは、旧版のアンインストールで設定とtokenの保持を選び、
+その後2.1.0をインストールします。異なる版の保護Brokerへの直接上書きは拒否します。
+
 checksumはfileがrepository掲載値と一致することを示します。installerとchecksumを同じ
 Releaseから取得する場合、checksumだけではpublisher真正性を独立に証明できないため、
 repositoryとReleaseのidentityも確認する必要があります。
@@ -246,7 +249,7 @@ Firewall rule、未検証directory、ユーザーが独自作成した設定は�
 - provider設定の起動連携はEven Terminal 0.10.5の公開module構成に依存します。
   上流の更新時は新規・再開セッションとモデル指定の連携確認が必要です。
 - 未署名binaryはWindowsに警告・遮断される可能性があります。
-- v2.0.0のbroker bootstrapは未署名です。初回導入にはpublisher認証済みtrust anchorがなく、
+- v2.1.0のbroker bootstrapは未署名です。初回導入にはpublisher認証済みtrust anchorがなく、
   将来broker binaryを置換するには承認済みcode signingまたはOS-trusted installer設計が必要です。
 - SHA-256が示すのはfile同一性であり、publisher identityやcode安全性ではありません。
 - Tailnet所属だけでは認可にならず、administratorが適切なACLを維持する必要があります。

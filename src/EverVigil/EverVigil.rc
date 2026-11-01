@@ -12,8 +12,8 @@ LANGUAGE 0x09, 0x01
 32512 ICON "Assets\\evervigil-placeholder.ico"
 
 1 VERSIONINFO
-FILEVERSION 2,0,0,0
-PRODUCTVERSION 2,0,0,0
+FILEVERSION 2,1,0,0
+PRODUCTVERSION 2,1,0,0
 FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 FILEFLAGS 0x0L
 FILEOS VOS_NT_WINDOWS32
@@ -26,12 +26,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Daichi Matsumoto\0"
             VALUE "FileDescription", "EverVigil\0"
-            VALUE "FileVersion", "2.0.0.0\0"
+            VALUE "FileVersion", "2.1.0.0\0"
             VALUE "InternalName", "EverVigil\0"
             VALUE "LegalCopyright", "Copyright © 2026 Daichi Matsumoto\0"
             VALUE "OriginalFilename", "EverVigil.exe\0"
             VALUE "ProductName", "EverVigil\0"
-            VALUE "ProductVersion", "2.0.0\0"
+            VALUE "ProductVersion", "2.1.0\0"
         END
     END
     BLOCK "VarFileInfo"

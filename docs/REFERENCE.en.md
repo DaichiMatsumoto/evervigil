@@ -2,7 +2,7 @@
 
 [日本語](REFERENCE.ja.md) | [User guide](README.en.md) | [Technical overview](TECHNICAL_OVERVIEW.en.md) | [Repository](https://github.com/DaichiMatsumoto/evervigil)
 
-Target release: `2.0.0`
+Target release: `2.1.0`
 
 ## Runtime topology
 
@@ -138,6 +138,10 @@ pre-update snapshots and runnable state. Ambiguous ownership or unverified
 rollback fails closed. Release-specific requirements are documented in the
 corresponding Release.
 
+For 2.0.0 to 2.1.0, uninstall the old version while retaining settings and the
+encrypted token, then install 2.1.0. Direct replacement of a different protected
+Broker version is rejected.
+
 ## Uninstall contract
 
 The uninstaller stops owned processes; removes owned Serve, Firewall, startup,
@@ -163,8 +167,8 @@ dotnet run --project .\tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.cspro
 .\tests\Test-InstallTransaction.ps1
 .\scripts\Test-NuGetVulnerabilities.ps1 -SolutionPath .\EverVigil.sln
 .\scripts\New-PlaceholderIcon.ps1 -Check
-.\scripts\Test-ReleaseVersion.ps1 -Version 2.0.0
-.\scripts\Build-Release.ps1 -Version 2.0.0
+.\scripts\Test-ReleaseVersion.ps1 -Version 2.1.0
+.\scripts\Build-Release.ps1 -Version 2.1.0
 ```
 
 Release approval also requires source, staged-file, binary, extracted-installer,

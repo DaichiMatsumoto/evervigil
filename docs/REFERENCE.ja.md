@@ -2,7 +2,7 @@
 
 [English](REFERENCE.en.md) | [利用ガイド](README.ja.md) | [技術概要](TECHNICAL_OVERVIEW.ja.md) | [リポジトリ](https://github.com/DaichiMatsumoto/evervigil)
 
-対象release: `2.0.0`
+対象release: `2.1.0`
 
 ## Runtime topology
 
@@ -124,6 +124,9 @@ Releaseでは、installerを手動取得し、公開SHA-256を確認して、検
 またはrollbackを検証できない場合はfail-closedで停止します。Release固有の要件は対応する
 Releaseへ記載します。
 
+2.0.0から2.1.0へ更新するときは、旧版のアンインストールで設定とtokenの保持を選び、
+その後2.1.0をインストールします。異なる版の保護Brokerへの直接上書きは拒否します。
+
 ## Uninstall contract
 
 uninstallerは所有processを停止し、所有するServe、Firewall、Startup、shortcut、support、
@@ -148,8 +151,8 @@ dotnet run --project .\tests\EverVigil.Broker.Tests\EverVigil.Broker.Tests.cspro
 .\tests\Test-InstallTransaction.ps1
 .\scripts\Test-NuGetVulnerabilities.ps1 -SolutionPath .\EverVigil.sln
 .\scripts\New-PlaceholderIcon.ps1 -Check
-.\scripts\Test-ReleaseVersion.ps1 -Version 2.0.0
-.\scripts\Build-Release.ps1 -Version 2.0.0
+.\scripts\Test-ReleaseVersion.ps1 -Version 2.1.0
+.\scripts\Build-Release.ps1 -Version 2.1.0
 ```
 
 Release承認にはsource、staged file、binary、installer展開内容、VersionInfo、icon、notice、

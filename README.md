@@ -6,6 +6,8 @@ This is an independent community project. It is not an official Even Realities p
 
 An independent Windows tray utility that keeps Even Terminal running and available.
 
+Current source version: **2.1.0**. The latest published release remains v2.0.0.
+
 EverVigil supervises a separately installed copy of
 [`@evenrealities/even-terminal`](https://www.npmjs.com/package/@evenrealities/even-terminal)
 and separately installed Codex and Claude CLIs. It does not bundle or redistribute
@@ -69,7 +71,7 @@ In `Configuration`, set each provider's default folder and model, then choose
 opened while the service is running. After changing CLI paths or folders,
 save and restart before loading choices. An empty model uses the CLI default;
 model IDs can also be entered directly.
-These settings are part of the source changes for the next release.
+These settings are included in the 2.1.0 source.
 
 ## Install and update
 
@@ -86,6 +88,10 @@ SHA-256 before running an installer.
 Future EverVigil releases will use the same manual download and
 checksum-verification flow. Release-specific update requirements will be
 documented in each Release.
+
+To replace v2.0.0 with a 2.1.0 build, first uninstall v2.0.0 and choose to retain
+settings and the encrypted token, then install 2.1.0. Different protected Broker
+versions cannot coexist; direct installation over v2.0.0 is rejected.
 
 ## Connection credentials
 

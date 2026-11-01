@@ -1513,7 +1513,7 @@ function Get-EverVigilProtectedBrokerPath {
     }
     return [IO.Path]::GetFullPath((Join-Path `
             $commonApplicationData `
-            'EverVigil\Broker\2.0.0\EverVigil.Broker.exe'))
+            'EverVigil\Broker\2.1.0\EverVigil.Broker.exe'))
 }
 
 function Get-EverVigilProtectedBrokerRetirementPaths {
@@ -1796,7 +1796,7 @@ function Read-EverVigilProtectedBrokerRetirementReceipt {
             $OwnerSid,
             [StringComparison]::Ordinal) -or
         $version -isnot [string] -or
-        [string]$version -cne '2.0.0' -or
+        [string]$version -cne '2.1.0' -or
         $canonicalFileName -isnot [string] -or
         [string]$canonicalFileName -cne 'EverVigil.Broker.exe' -or
         ($length -isnot [int] -and $length -isnot [long]) -or
@@ -1882,7 +1882,7 @@ function Test-EverVigilProtectedBrokerReceipt {
         $fileName -isnot [string] -or
         [string]$fileName -cne 'EverVigil.Broker.exe' -or
         $version -isnot [string] -or
-        [string]$version -cne '2.0.0' -or
+        [string]$version -cne '2.1.0' -or
         $receiptSha256 -isnot [string] -or
         [string]$receiptSha256 -cnotmatch '\A[0-9a-f]{64}\z' -or
         $ExecutableSha256 -cnotmatch '\A[0-9a-f]{64}\z') {
@@ -1933,7 +1933,7 @@ function Complete-EverVigilProtectedBrokerRetirementFromReceipt {
     Assert-RetirementDirectory -Path $paths.ProductRoot -AllowedName @('Broker')
     Assert-RetirementDirectory `
         -Path $paths.BrokerRoot `
-        -AllowedName @('State', '2.0.0')
+        -AllowedName @('State', '2.1.0')
     Assert-RetirementDirectory `
         -Path $paths.VersionRoot `
         -AllowedName @(
@@ -2046,7 +2046,7 @@ function Complete-EverVigilProtectedBrokerRetirementFromReceipt {
     # It remains a known entry until that deletion has completed.
     Assert-RetirementDirectory `
         -Path $paths.BrokerRoot `
-        -AllowedName @('State', '2.0.0')
+        -AllowedName @('State', '2.1.0')
     Assert-RetirementDirectory -Path $paths.ProductRoot -AllowedName @('Broker')
     foreach ($retirementDirectory in @(
             $paths.StateRoot,

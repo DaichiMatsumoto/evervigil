@@ -3508,8 +3508,8 @@ if ($applicationProject.Project.PropertyGroup.OutputType -ne 'WinExe') {
 $applicationManifest = [xml](Get-Content -LiteralPath (Join-Path $RepositoryRoot 'src\EverVigil\app.manifest') -Raw)
 $manifestIdentity = $applicationManifest.assembly.assemblyIdentity
 $projectVersion = [string]$applicationProject.Project.PropertyGroup.Version
-if ($projectVersion -cne '2.0.0') {
-    $failures.Add("The EverVigil release version must be exactly 2.0.0, not '$projectVersion'.")
+if ($projectVersion -cne '2.1.0') {
+    $failures.Add("The EverVigil release version must be exactly 2.1.0, not '$projectVersion'.")
 }
 $expectedManifestVersion = ConvertTo-WindowsManifestVersion -Version $projectVersion
 if ($manifestIdentity.name -ne 'EverVigil.app' -or
@@ -3523,7 +3523,7 @@ if ($applicationProject.Project.PropertyGroup.PackageLicenseExpression -ne 'GPL-
     $applicationProject.Project.PropertyGroup.Copyright -ne 'Copyright © 2026 Daichi Matsumoto') {
     $failures.Add('Application metadata must identify Daichi Matsumoto and GPL-3.0-only.')
 }
-if ($applicationProject.Project.PropertyGroup.InformationalVersion -ne '2.0.0' -or
+if ($applicationProject.Project.PropertyGroup.InformationalVersion -ne '2.1.0' -or
     $applicationProject.Project.PropertyGroup.IncludeSourceRevisionInInformationalVersion -ne 'false') {
     $failures.Add('Release VersionInfo must not include the temporary pre-initialization Git revision.')
 }
@@ -3545,7 +3545,7 @@ foreach ($win32ResourceGuard in @(
         '1 RT_MANIFEST "app.manifest"'
         '32512 ICON "Assets\\evervigil-placeholder.ico"'
         'VALUE "OriginalFilename", "EverVigil.exe\0"'
-        'VALUE "ProductVersion", "2.0.0\0"'
+        'VALUE "ProductVersion", "2.1.0\0"'
     )) {
     if (-not $win32ResourceSource.Contains($win32ResourceGuard, [StringComparison]::Ordinal)) {
         $failures.Add("Custom Win32 resource guard is missing: $win32ResourceGuard")
@@ -4139,34 +4139,30 @@ if ($installerContent.Contains('ShellExec(', [StringComparison]::Ordinal) -or
     $failures.Add(
         'Setup must not launch EverVigil directly because child processes inherit the installer compatibility context.')
 }
-$initialReleaseDocuments = @(
+$versionedDocuments = @(
     [pscustomobject]@{
         Path = 'README.md'
-        Required = 'EverVigil v2.0.0 is the first public release:'
+        Required = 'Current source version: **2.1.0**.'
     }
     [pscustomobject]@{
         Path = 'docs\README.en.md'
-        Required = '## Install v2.0.0'
+        Required = 'Current source version: **2.1.0**.'
     }
     [pscustomobject]@{
         Path = 'docs\README.ja.md'
-        Required = '## v2.0.0のインストール'
+        Required = '対象ソース版: **2.1.0**。'
     }
 )
-foreach ($initialReleaseDocument in $initialReleaseDocuments) {
-    $initialReleaseContent = Get-Content `
-        -LiteralPath (Join-Path $RepositoryRoot $initialReleaseDocument.Path) `
+foreach ($versionedDocument in $versionedDocuments) {
+    $versionedContent = Get-Content `
+        -LiteralPath (Join-Path $RepositoryRoot $versionedDocument.Path) `
         -Raw `
         -Encoding UTF8
-    if (-not $initialReleaseContent.Contains(
-            $initialReleaseDocument.Required,
+    if (-not $versionedContent.Contains(
+            $versionedDocument.Required,
             [StringComparison]::Ordinal)) {
         $failures.Add(
-            "$($initialReleaseDocument.Path) does not identify EverVigil v2.0.0 as the initial public release.")
-    }
-    if ($initialReleaseContent.Contains('v2.1.', [StringComparison]::Ordinal)) {
-        $failures.Add(
-            "$($initialReleaseDocument.Path) retains an obsolete private v2.1 release reference.")
+            "$($versionedDocument.Path) does not identify the current source version as 2.1.0.")
     }
 }
 if ([regex]::Matches($installerContent, '(?m)^Source: ').Count -ne 10) {

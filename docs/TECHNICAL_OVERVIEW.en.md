@@ -2,7 +2,7 @@
 
 [日本語](TECHNICAL_OVERVIEW.ja.md) | [User guide](README.en.md) | [Technical reference](REFERENCE.en.md) | [Repository](https://github.com/DaichiMatsumoto/evervigil)
 
-This document describes the EverVigil v2.0.0 architecture and security model.
+This document describes the EverVigil v2.1.0 architecture and security model.
 
 ## 1. Architecture
 
@@ -218,6 +218,10 @@ SHA-256 with the published value, and runs it over a verified EverVigil
 installation. Community binaries are unsigned and may trigger Microsoft
 Defender SmartScreen.
 
+For 2.0.0 to 2.1.0, uninstall the old version while retaining settings and the
+encrypted token, then install 2.1.0. Direct replacement of a different protected
+Broker version is rejected.
+
 The checksum establishes that a file matches the value published by the
 repository. When the installer and checksum are obtained from the same Release,
 the checksum does not independently authenticate the publisher; users must also
@@ -302,7 +306,7 @@ ownership check stops cleanup before destructive work.
 - Provider settings depend on the exported modules in Even Terminal 0.10.5.
   Upstream upgrades require checking new/resumed sessions and model overrides.
 - Unsigned binaries may be blocked or warned about by Windows.
-- The v2.0.0 broker bootstrap is unsigned. Its first installation therefore
+- The v2.1.0 broker bootstrap is unsigned. Its first installation therefore
   cannot provide a publisher-authenticated trust anchor; future broker binary
   replacement requires an approved signing or OS-trusted installer design.
 - SHA-256 verifies file identity, not publisher identity or code safety.
