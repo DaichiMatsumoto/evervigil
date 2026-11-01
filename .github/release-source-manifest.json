@@ -58,8 +58,8 @@
     },
     {
       "path": "README.md",
-      "length": 6421,
-      "sha256": "b346f93c29e3c2ecdf157a9e9784649af381b3f392f3ec898e508e0e88bfb444"
+      "length": 6537,
+      "sha256": "0393bae026d124c87d6693350720686c9875732f392ff6202bc2243e55ac6a98"
     },
     {
       "path": "RELEASE_NOTES.md",
@@ -83,23 +83,23 @@
     },
     {
       "path": "docs/README.en.md",
-      "length": 9093,
-      "sha256": "35afa2c4c296ef4fb165ee33a3352959b1587e54ea95a753837def1672a60145"
+      "length": 9176,
+      "sha256": "9206ebbea6ce7478aba79b9bb9b42b6bfe2bd1015598b956c301c092e0cdc4ed"
     },
     {
       "path": "docs/README.ja.md",
-      "length": 10159,
-      "sha256": "87d462f0e4584e02750318ddf41f3d92270548d2b5edc2274b572c0eeac5249a"
+      "length": 10529,
+      "sha256": "a4f8a7387bab73593f7aa5e9b1fbeff20290db6fb178dc5fd9cee26b37a990d6"
     },
     {
       "path": "docs/REFERENCE.en.md",
-      "length": 11990,
-      "sha256": "14d002e299395636c3e9192966c089e7dfb4a11ca90b59d66110ffb0251a453b"
+      "length": 12258,
+      "sha256": "bb35e262203d8329061fb4b87d21533c5e92429d85094c1fccb4a102dcf1b827"
     },
     {
       "path": "docs/REFERENCE.ja.md",
-      "length": 12209,
-      "sha256": "5d79667ab6c553a137bd7f1df06b23d3ec0e55b2a21398197d4b4a033c26e514"
+      "length": 12596,
+      "sha256": "742f488f2736d0e817f7f6bad882d1c1711054095d1c989edd102faf0b672284"
     },
     {
       "path": "docs/SECURITY.en.md",
@@ -133,13 +133,13 @@
     },
     {
       "path": "docs/images/evervigil-config-en.png",
-      "length": 60704,
-      "sha256": "c640365363e379745bb1e17746d79a3236881a48db4c02ac14b32b836a70870b"
+      "length": 62494,
+      "sha256": "a7cf9bdcce1a05ef888b4d1a41d0bbdcea5f9c4b879e6741dad5a2c5c1223964"
     },
     {
       "path": "docs/images/evervigil-config-ja.png",
-      "length": 57335,
-      "sha256": "9d8448e75827d37e01ae4cfc4ff224d700b0f9501bd44bfaec809a952205207c"
+      "length": 60310,
+      "sha256": "e2d98610d70e022718ee810e06a6b9cb4f5c54f8b174be1e8170ef5313a0809a"
     },
     {
       "path": "docs/images/evervigil-overview-en.png",
@@ -433,13 +433,13 @@
     },
     {
       "path": "src/EverVigil.Core/Localization/AppResources.ja.resx",
-      "length": 16858,
-      "sha256": "e89285f5bbed0cb979f8f5313cce08c4a227964f7ccec139af47cf5e2b8665aa"
+      "length": 17438,
+      "sha256": "fbaee8f219b3511a14c59055895f96c870e4d8984cbb418a5b7d209a67595b08"
     },
     {
       "path": "src/EverVigil.Core/Localization/AppResources.resx",
-      "length": 15251,
-      "sha256": "e7288ff5e5e27f5fe475c24ff16d67cd4fcb52067f6c675814a3e42db0a333a2"
+      "length": 15731,
+      "sha256": "e70d95c62998ddd66f554af6121923c576acd4998c0e7737f6ebcc286e6a6158"
     },
     {
       "path": "src/EverVigil.Core/SecretRedactor.cs",
@@ -568,8 +568,8 @@
     },
     {
       "path": "src/EverVigil/Services/BridgeHost.mjs",
-      "length": 2450,
-      "sha256": "2ea3a5f0005c848bedc26c0ffe89175a76fdb5167d144f8a28b5aa8c961c2c38"
+      "length": 5154,
+      "sha256": "4a4fdf190321440599bad80927b491067b4ec9c327e0a8a0147d6b2ed77f22dc"
     },
     {
       "path": "src/EverVigil/Services/BridgeLauncher.cs",
@@ -595,6 +595,11 @@
       "path": "src/EverVigil/Services/PrivilegedBrokerClient.cs",
       "length": 13301,
       "sha256": "6b52f792164af49acd186f0b566f1999a6fb523c4b30d356534564238ffca42e"
+    },
+    {
+      "path": "src/EverVigil/Services/ProviderModelCatalog.cs",
+      "length": 1414,
+      "sha256": "4b60eba6913052816ae4a0fa60b765aae7e41f6d51730e3161523d5a77d4bb50"
     },
     {
       "path": "src/EverVigil/Services/SupervisorEngine.cs",
@@ -628,8 +633,8 @@
     },
     {
       "path": "src/EverVigil/UI/DashboardForm.cs",
-      "length": 76725,
-      "sha256": "a16b1d0e93d6507f896a2f2c833ea706df976869fdd04945afd388c61b98a3e6"
+      "length": 78181,
+      "sha256": "6960d9b3805f5f933235f56038dd14472e78c5361dc57e3f05ec1998bfb254a3"
     },
     {
       "path": "src/EverVigil/UI/QrCodeRenderer.cs",
@@ -688,8 +693,8 @@
     },
     {
       "path": "tests/EverVigil.Tests/Program.cs",
-      "length": 126688,
-      "sha256": "f4071005ced7caf9524914f221c6af90abcf6fd6b6b1281189b622fe99b64759"
+      "length": 129626,
+      "sha256": "c395dfcfe03198a9d78e51e3ede77cf0ebf22537364d3d9f8c99036c67437d59"
     },
     {
       "path": "tests/EverVigil.Tests/packages.lock.json",

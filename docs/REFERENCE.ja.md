@@ -57,7 +57,10 @@ EverVigilはCodex認証情報を読取り・保存しません。
 
 次回リリース向けの設定項目は`codexWorkingDirectory`、`claudeWorkingDirectory`、
 `claudePath`、`codexModel`、`claudeModel`です。設定画面から変更し、保存して再起動します。
-モデルは空白・制御文字を含まない200文字以内のIDです。Claudeは`opus`・`sonnet`・`haiku`も選べます。
+モデルは空白・制御文字を含まない200文字以内のIDです。両方のプルダウンで稼働中のCLIから候補を取得します。
+認証済みの`GET /api/models?provider=codex|claude`を使い、Codexの`model/list`は全ページを取得し、
+Claudeの`supportedModels()`は選択されたCLI・開始フォルダで照会します。Claudeへのプロンプト送信・
+セッション保存は行いません。取得できない場合は設定値を維持して失敗を表示します。
 
 対応するEven Terminalは0.10.5です。埋め込み起動スクリプトからインストール済みpackageの
 サーバーを起動し、packageのファイルは変更しません。新規リクエストの明示的な`cwd`を

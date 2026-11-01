@@ -51,8 +51,9 @@ system tree、一時tree、reparse point、SUBST drive、path aliasなど、安�
 
 1. `Codex`と`Claude`の各欄で、CLIの実行ファイルと新規セッションの開始フォルダを選びます。
    Claude CLIのパスが空欄の場合はEven Terminal同梱のSDK用CLIを使います。
-2. モデルを指定します。CodexはモデルID、Claudeは`opus`・`sonnet`・`haiku`または
-   モデルIDを入力できます。空欄なら各CLIの設定を使います。利用可能なモデルは契約とCLIに依存します。
+2. サービスの稼働中にモデルのプルダウンを開くと、各CLIのモデル候補を取得します。
+   CLIパス・開始フォルダを変更した場合は、一度保存して再起動してから候補を取得してください。
+   モデルIDの直接入力もできます。空欄なら各CLIの設定を使います。利用可能なモデルは契約とCLIに依存します。
 3. `保存して再起動`を押し、Evenから新規セッションを作成します。
 
 開始フォルダの既定値はWindowsユーザーフォルダです。リクエストにフォルダ指定があれば
@@ -63,6 +64,9 @@ system tree、一時tree、reparse point、SUBST drive、path aliasなど、安�
 EverVigilからの起動では`%USERPROFILE%\.even-terminal\config.json`のClaudeツール承認設定だけを
 引き継ぎます。起動パス・モデル・ポート等はEverVigilで設定し、認証と各CLI固有の設定は各CLIで管理してください。
 設定や診断画像を公開する際は、ユーザー名・実際のプロジェクトパス・接続情報を除いてください。
+
+モデル候補はCodexの`model/list`とClaude Agent SDKの`supportedModels()`で取得します。
+Claudeの候補取得はプロンプトを送らず、セッションを保存せずに終了します。
 
 ## ネットワーク構成
 

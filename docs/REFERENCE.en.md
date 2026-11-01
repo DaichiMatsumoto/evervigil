@@ -59,8 +59,11 @@ never release assets.
 The source for the next release adds `codexWorkingDirectory`,
 `claudeWorkingDirectory`, `claudePath`, `codexModel`, and `claudeModel`.
 Edit them in Configuration, then save and restart. Models are IDs up to 200
-characters without whitespace or control characters; Claude also offers the
-`opus`, `sonnet`, and `haiku` aliases.
+characters without whitespace or control characters. Both dropdowns query the
+running CLIs through authenticated `GET /api/models?provider=codex|claude`.
+Codex uses all pages of `model/list`; Claude uses `supportedModels()` with the
+configured executable and folder, without sending a prompt or persisting a
+session. Failed retrieval keeps the current setting and displays an error.
 
 The supported Even Terminal version is 0.10.5. An embedded startup script loads
 the installed package's server without modifying its files. An explicit `cwd`

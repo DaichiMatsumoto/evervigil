@@ -55,8 +55,9 @@ The source for the next release adds independent settings in `Configuration`:
 
 1. Select the CLI executable and default folder for new sessions in each
    provider section. An empty Claude CLI path uses the SDK's bundled CLI.
-2. Enter a Codex model ID, or select a Claude alias (`opus`, `sonnet`, `haiku`)
-   or enter a model ID. Leave the model empty to use the CLI default.
+2. Open either model dropdown while the service is running to load choices
+   from that CLI. After changing CLI paths or folders, save and restart first.
+   Model IDs can also be entered directly. Leave empty to use the CLI default.
    Availability depends on the account and CLI.
 3. Select `Save + restart`, then create a new session from Even.
 
