@@ -11,7 +11,7 @@ Tailnet client -> Tailscale Serve :3456
                -> 127.0.0.1:3457 Even Terminal
                -> 127.0.0.1:8765 Codex app-server
 
-EverVigil -> launcher -> Node.js -> 別途導入済みEven Terminal / Codex
+EverVigil -> launcher -> Node.js -> 別途導入済みEven Terminal / Codex / Claude
 ```
 
 Tailscale ServeはTailnet-onlyでFunnelを使わず、Tailnet ACLに依存します。
@@ -55,7 +55,7 @@ EverVigilはCodex認証情報を読取り・保存しません。
 | Secret reveal | 約60秒 |
 | Clipboard clear | 既定60秒 |
 
-次回リリース向けの設定項目は`codexWorkingDirectory`、`claudeWorkingDirectory`、
+プロバイダー別の設定項目は`codexWorkingDirectory`、`claudeWorkingDirectory`、
 `claudePath`、`codexModel`、`claudeModel`です。設定画面から変更し、保存して再起動します。
 モデルは空白・制御文字を含まない200文字以内のIDです。両方のプルダウンで稼働中のCLIから候補を取得します。
 認証済みの`GET /api/models?provider=codex|claude`を使い、Codexの`model/list`は全ページを取得し、
@@ -115,9 +115,9 @@ Bearer credential、既知token、32桁16進token形式値を秘匿化します�
 
 ## 手動更新
 
-EverVigil v2.0.0が最初で現在唯一の公開Releaseです。自動更新機能はありません。将来の
-Releaseでは、installerを手動取得し、公開SHA-256を確認して、検証済みEverVigilへ
-上書き実行します。binaryは未署名でSmartScreenが警告する場合があります。
+自動更新機能はありません。対象版のinstallerを手動取得し、公開SHA-256を確認します。
+2.0.0から2.1.0へは下記の保持アンインストール手順を使います。同じ版は検証済みの導入先へ
+再導入できます。binaryは未署名でSmartScreenが警告する場合があります。
 
 更新transactionは対応する設定、暗号化token bytes、自動起動設定を保持します。保護commit
 より前の失敗では、検証済みの更新前snapshotと稼働状態を復元します。所有権が曖昧な場合、
@@ -132,7 +132,7 @@ Releaseへ記載します。
 uninstallerは所有processを停止し、所有するServe、Firewall、Startup、shortcut、support、
 transaction、一時resource、検証済みprogramだけを削除し、設定とtokenの保持・削除を
 選択可能にします。保持時は`BridgeHost`も残します。削除を選んだ場合、空なら削除し、
-非空ならfileを消さず保持pathを報告します。Tailscale、Node.js、Codex、
+非空ならfileを消さず保持pathを報告します。Tailscale、Node.js、Codex、Claude、
 `@evenrealities/even-terminal`、無関係な経路・rule、
 未検証directoryは削除しません。
 

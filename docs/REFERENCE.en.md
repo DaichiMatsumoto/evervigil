@@ -11,7 +11,7 @@ Tailnet client -> Tailscale Serve :3456
                -> 127.0.0.1:3457 Even Terminal
                -> 127.0.0.1:8765 Codex app-server
 
-EverVigil -> launcher -> Node.js -> separately installed Even Terminal / Codex
+EverVigil -> launcher -> Node.js -> separately installed Even Terminal / Codex / Claude
 ```
 
 Tailscale Serve is Tailnet-only, uses no Funnel, and remains subject to Tailnet
@@ -56,7 +56,7 @@ never release assets.
 | Secret reveal | Approximately 60 seconds |
 | Clipboard clear | 60 seconds by default |
 
-The source for the next release adds `codexWorkingDirectory`,
+Provider settings include `codexWorkingDirectory`,
 `claudeWorkingDirectory`, `claudePath`, `codexModel`, and `claudeModel`.
 Edit them in Configuration, then save and restart. Models are IDs up to 200
 characters without whitespace or control characters. Both dropdowns query the
@@ -127,9 +127,9 @@ credentials, known token values, and 32-hex token-shaped values.
 
 ## Manual update
 
-EverVigil v2.0.0 is the first and currently only public Release. There is no
-automatic updater. For a future Release, users download its installer, verify
-the published SHA-256, and run it over a verified EverVigil installation.
+There is no automatic updater. Download the target version's installer and
+verify the published SHA-256. Use the retention-and-uninstall procedure below
+for 2.0.0 to 2.1.0. The same version can be reinstalled over a verified installation.
 Binaries are unsigned and may trigger SmartScreen.
 
 An update transaction preserves supported settings, encrypted token bytes, and
@@ -149,7 +149,7 @@ shortcut, support, transaction, temporary, and verified program resources; and
 lets the user retain or delete settings and token. Retention also keeps
 `BridgeHost`. When removal is chosen, an empty `BridgeHost` is removed; a
 non-empty one is retained and reported so its files are not deleted. It does
-not remove Tailscale, Node.js, Codex, `@evenrealities/even-terminal`,
+not remove Tailscale, Node.js, Codex, Claude, `@evenrealities/even-terminal`,
 unrelated routes/rules, or an unverified directory.
 
 ## Source validation

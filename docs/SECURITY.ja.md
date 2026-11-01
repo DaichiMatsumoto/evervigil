@@ -26,10 +26,16 @@ DPAPI `CurrentUser`は、同じWindowsユーザーで動く悪意あるsoftware�
 ## Codex認証情報
 
 EverVigilはCodex認証情報を要求、調査、読取り、保存、copy、export、送信しません。
-認証はユーザーが別途導入したCodex CLIが管理します。EverVigilが保存するのは、子processを
-起動・health-checkするために必要な実行pathとlocal app-server portだけです。
+認証はユーザーが別途導入したCodex CLIが管理します。CLIの実行path、開始フォルダ、
+モデル指定、local app-server portは通常のローカル設定として保存します。
 managed bridge環境は非secretな明示allowlistから再構築し、親processのAPI key、Codex認証
 環境変数、proxy変数、継承search pathをthird-party Node processへ渡しません。
+
+Claudeの認証とモデルへのaccessも、別途導入したCLI・SDKとproviderが管理します。
+CLIはWindowsユーザーの権限で実行されるため、信頼できる実行ファイルだけを指定してください。
+開始フォルダやCLI pathには個人情報が含まれ得るため、設定や診断情報を公開する前に除いてください。
+モデル候補の取得でも設定されたCLIを起動します。Claudeの候補取得ではプロンプト送信や
+セッション保存を行いません。モデルの利用可否は各CLIと契約に依存します。
 
 ## QR・表示・clipboard
 
@@ -101,6 +107,8 @@ network到達制御はbridge-token認証の代替ではなく、same-host softwa
 ## Install・手動更新・rollback・removal
 
 - 自動更新機能はありません。GitHub Releaseを手動取得し、SHA-256を検証して実行します。
+- セキュリティ修正の対象は2.1.0です。2.0.0からは旧版を設定・暗号化token保持で
+  アンインストールしてから2.1.0を導入します。異版の保護Brokerへの直接上書きは拒否します。
 - コミュニティbinaryは未署名でMicrosoft Defender SmartScreenが警告する場合があります。
 - 未署名v2.1.0 brokerの初回bootstrapはpublisher認証済みtrust anchorではありません。将来の
   broker置換には承認済みcode signingまたはOS-trusted installer設計が必要です。
@@ -117,11 +125,11 @@ network到達制御はbridge-token認証の代替ではなく、same-host softwa
 - 設定とDPAPI tokenを保持・削除するかをユーザーが選択します。
 - 保持を選ぶと暗号化tokenと設定をdata directoryへ意図的に残します。削除を選んでも
   非空の内部`BridgeHost`はpathを報告して保持し、空の場合だけ所有確認後に削除します。
-- Tailscale、Node.js、Codex、`@evenrealities/even-terminal`、無関係な経路・rule、
+- Tailscale、Node.js、Codex、Claude、`@evenrealities/even-terminal`、無関係な経路・rule、
   独自作成されたuser dataは削除しません。
 
 ## 外部dependencyの制限
 
-EverVigilはWindows、Tailscale、Node.js、Even Terminal、Codexに依存します。各製品は独自の
+EverVigilはWindows、Tailscale、Node.js、Even Terminal、Codex、Claudeに依存します。各製品は独自の
 update、availability、authentication、security modelを持ちます。EverVigilのhealth checkと
 所有権検査は、それらの製品を認定するものではありません。
