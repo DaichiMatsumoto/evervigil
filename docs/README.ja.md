@@ -1,5 +1,7 @@
 # EverVigil 利用ガイド
 
+対象ソース版: **2.1.0**。公開済みの最新版はv2.0.0です。
+
 [English](README.en.md) | [技術概要](TECHNICAL_OVERVIEW.ja.md) | [技術リファレンス](REFERENCE.ja.md) | [ルートREADME](../README.md)
 
 This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.
@@ -141,6 +143,10 @@ SHA-256を確認してください。検証済みEverVigilを更新する場合�
 設定、DPAPI保護済みtoken、自動起動選択を保持します。保護commit境界より前の失敗では
 検証済みの更新前状態を復元し、状態が曖昧または検証不能ならfail-closedで停止します。
 Release固有の更新要件は、そのReleaseへ記載します。
+
+2.0.0から2.1.0へ更新する場合は、2.0.0をアンインストールするときに設定と暗号化tokenの
+保持を選び、その後2.1.0をインストールしてください。異なる版の保護Brokerは併存できず、
+2.0.0への直接上書きは拒否されます。
 
 ## アンインストール
 

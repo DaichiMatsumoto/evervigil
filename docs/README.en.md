@@ -1,5 +1,7 @@
 # EverVigil User Guide
 
+Current source version: **2.1.0**. The latest published release remains v2.0.0.
+
 [日本語](README.ja.md) | [Technical overview](TECHNICAL_OVERVIEW.en.md) | [Technical reference](REFERENCE.en.md) | [Root README](../README.md)
 
 This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.
@@ -151,6 +153,10 @@ when updating a verified EverVigil installation. A failure before the protected
 commit boundary restores the verified pre-update state; ambiguous or unverified
 state fails closed. Release-specific requirements will be documented in that
 Release.
+
+For 2.0.0 to 2.1.0, uninstall the old version while retaining settings and the
+encrypted token, then install 2.1.0. Different protected Broker versions cannot
+coexist; direct installation over 2.0.0 is rejected.
 
 ## Uninstall
 
