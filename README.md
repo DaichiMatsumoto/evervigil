@@ -6,7 +6,7 @@ This is an independent community project. It is not an official Even Realities p
 
 An independent Windows tray utility that keeps Even Terminal running and available.
 
-Latest release: [**v2.1.0**](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0).
+Current source version: **2.1.0**. [Latest release](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0).
 
 EverVigil supervises a separately installed copy of
 [`@evenrealities/even-terminal`](https://www.npmjs.com/package/@evenrealities/even-terminal)
@@ -15,7 +15,7 @@ those products or modify their installed files.
 
 ## What it does
 
-- Starts Even Terminal and the Codex app-server without opening a console window.
+- Starts Even Terminal, the Codex app-server, and Claude CLI without opening a console window.
 - Configures separate default folders and models for new Codex and Claude sessions,
   preserving each existing session's saved working directory.
 - Lets users select the Codex and Claude CLI executable paths.

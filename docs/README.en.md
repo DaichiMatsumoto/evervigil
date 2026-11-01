@@ -1,6 +1,6 @@
 # EverVigil User Guide
 
-Target release: [**v2.1.0**](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0).
+Current source version: **2.1.0**. [Release](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0).
 
 [日本語](README.ja.md) | [Technical overview](TECHNICAL_OVERVIEW.en.md) | [Technical reference](REFERENCE.en.md) | [Root README](../README.md)
 
@@ -8,7 +8,7 @@ This is an independent community project. It is not an official Even Realities p
 
 EverVigil is an independent Windows tray utility that keeps Even Terminal
 running and available. It manages a separately installed Even Terminal package
-and Codex app-server; those dependencies are not part of EverVigil.
+and Codex and Claude CLIs; those dependencies are not part of EverVigil.
 
 ## Requirements
 

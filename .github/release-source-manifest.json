@@ -58,8 +58,8 @@
     },
     {
       "path": "README.md",
-      "length": 6900,
-      "sha256": "28790c6e7253f0b6d6986d69d930a4149a70add7a9aac6efc8003bd1aa167931"
+      "length": 6936,
+      "sha256": "26009c92ec6e08194e2044d99b2b5c38af8f9c06a86d0e6805b4414568922e7a"
     },
     {
       "path": "RELEASE_NOTES.md",
@@ -73,8 +73,8 @@
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
-      "length": 1236,
-      "sha256": "fb8b0ce05c42830f1f83eea5c2dc8f3b76167c5a8ff4e4d63f7c68fa8b2f4c1b"
+      "length": 1249,
+      "sha256": "25f493bbdb59ed951447e2c1238489baf70a2cfec23947c216ddee344176b270"
     },
     {
       "path": "Uninstall.ps1",
@@ -83,13 +83,13 @@
     },
     {
       "path": "docs/README.en.md",
-      "length": 9481,
-      "sha256": "bd522fe88fb85b9e3f28b17a0f827300d3ae7a8ad4767aea2dbff3a601326d60"
+      "length": 9502,
+      "sha256": "7f2747d53818779dd80b9de0218ffc79eff913ddf52cc47b4959e921a806569a"
     },
     {
       "path": "docs/README.ja.md",
-      "length": 10916,
-      "sha256": "4735368cc1269abc65e0ae03618de0795cb1fa3c206da19ec84e6ae8a4e68dd8"
+      "length": 10938,
+      "sha256": "cf555b6852ec5a30312abf219819f6b977e112f2977c379c2f2d800739d2325c"
     },
     {
       "path": "docs/REFERENCE.en.md",

@@ -1,14 +1,14 @@
 # EverVigil 利用ガイド
 
-対象版: [**v2.1.0**](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0)。
+対象ソース版: **2.1.0**。[リリース](https://github.com/DaichiMatsumoto/evervigil/releases/tag/v2.1.0)
 
 [English](README.en.md) | [技術概要](TECHNICAL_OVERVIEW.ja.md) | [技術リファレンス](REFERENCE.ja.md) | [ルートREADME](../README.md)
 
 This is an independent community project. It is not an official Even Realities product and is not developed, operated, maintained, certified, security-reviewed, or supported by Even Realities.
 
 EverVigilは、Even Terminalを起動可能な状態に保つ独立したWindows通知領域
-ユーティリティです。ユーザーが別途導入したEven Terminal packageとCodex
-app-serverを管理し、これらの依存製品をEverVigilへ同梱しません。
+ユーティリティです。ユーザーが別途導入したEven Terminal packageとCodex・Claude
+CLIを管理し、これらの依存製品をEverVigilへ同梱しません。
 
 ## 前提
 

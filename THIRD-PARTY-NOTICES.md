@@ -28,7 +28,7 @@ Project information: <https://jrsoftware.org/isinfo.php>
 
 ## Separately installed dependencies
 
-Even Terminal, Codex CLI, Node.js, and Tailscale are external applications
+Even Terminal, Codex CLI, Claude Code, Node.js, and Tailscale are external applications
 invoked from the user's installation. They are not bundled in the EverVigil
 release package. In particular, EverVigil does not fork, patch, or redistribute
 `@evenrealities/even-terminal`.
