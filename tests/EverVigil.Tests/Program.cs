@@ -32,6 +32,8 @@ if (args.Length is >= 2 and <= 4 &&
 var tests = new (string Name, Action Run)[]
 {
     ("default settings are structurally valid", DefaultSettingsAreValid),
+    ("provider defaults validate and persist independently", ProviderDefaultsValidateAndPersist),
+    ("provider defaults reach new sessions and model requests", ProviderDefaultsReachSessions),
     ("English and Japanese resources have matching complete keys", LocalizationResourcesAreComplete),
     ("application localization smoke check resolves both languages", ApplicationLocalizationSmokeCheck),
     ("display language selection is strict and switches at runtime", DisplayLanguageContract),
@@ -127,6 +129,105 @@ static void DefaultSettingsAreValid()
 {
     var errors = AppSettingsValidator.Validate(AppSettings.CreateDefault(), requireExistingPaths: false);
     Assert(errors.Count == 0, string.Join(" | ", errors));
+}
+
+static void ProviderDefaultsValidateAndPersist()
+{
+    var root = Path.Combine(Path.GetTempPath(), $"EverVigil.ProviderSettings-{Guid.NewGuid():N}");
+    try
+    {
+        Directory.CreateDirectory(root);
+        var settings = WithExistingDependencyFixtures(AppSettings.CreateDefault(), root) with
+        {
+            ClaudePath = Path.Combine(root, "claude.exe"),
+            CodexWorkingDirectory = Directory.CreateDirectory(Path.Combine(root, "Codex Project")).FullName,
+            ClaudeWorkingDirectory = Directory.CreateDirectory(Path.Combine(root, "Claude Project")).FullName,
+            CodexModel = "test-codex-model",
+            ClaudeModel = "sonnet"
+        };
+        File.WriteAllBytes(settings.ClaudePath, [0x4d, 0x5a]);
+        var paths = new DataPaths(root, Path.Combine(root, "settings.json"), Path.Combine(root, "token.dat"),
+            Path.Combine(root, "Logs"), Path.Combine(root, "Logs", "evervigil.log"), Path.Combine(root, "startup.lnk"));
+        var store = new SettingsStore(paths);
+        store.MarkSystemConfigurationApplied(store.Current);
+        store.Save(settings);
+        var reloaded = new SettingsStore(paths);
+        Assert(reloaded.Current == settings, "Provider settings did not round-trip.");
+        Assert(!reloaded.RequiresSystemConfiguration, "Provider settings unnecessarily required a system configuration change.");
+        foreach (var invalid in new[]
+                 {
+                     settings with { CodexWorkingDirectory = "relative" },
+                     settings with { ClaudeWorkingDirectory = settings.ClaudePath },
+                     settings with { ClaudePath = Path.Combine(root, "missing.exe") },
+                     settings with { CodexModel = "invalid\nmodel" },
+                     settings with { ClaudeModel = new string('a', 201) }
+                 })
+        {
+            Assert(AppSettingsValidator.Validate(invalid, requireTrustedTailscalePath: false).Count > 0, "An invalid provider setting was accepted.");
+        }
+        Assert(AppSettingsValidator.Validate(settings with { ClaudePath = string.Empty }, requireTrustedTailscalePath: false).Count == 0,
+            "The bundled Claude CLI should remain available without a custom executable.");
+    }
+    finally { DeleteDirectoryWithRetry(root); }
+}
+
+static void ProviderDefaultsReachSessions()
+{
+    using var source = typeof(EverVigil.Services.BridgeLauncher).Assembly.GetManifestResourceStream("EverVigil.Services.BridgeHost.mjs")!;
+    using var reader = new StreamReader(source);
+    var startInfo = new System.Diagnostics.ProcessStartInfo(FindExecutable("node.exe"))
+    {
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    };
+    startInfo.ArgumentList.Add("--input-type=module");
+    startInfo.ArgumentList.Add("--eval");
+    startInfo.ArgumentList.Add(reader.ReadToEnd() + "\n" + """
+        import assert from 'node:assert/strict';
+        import { tmpdir } from 'node:os';
+        const calls = [];
+        const providers = Object.fromEntries(['codex', 'claude'].map(name => [name, {
+            prompt: (...args) => calls.push({ name, args })
+        }]));
+        providers['claude-sync'] = providers.claude;
+        const core = {
+            getProvider: name => providers[name],
+            codexClient: {
+                threadStart(params) { assert.equal(this, core.codexClient); return params; },
+                turnStart(params) { assert.equal(this, core.codexClient); return params; }
+            }
+        };
+        configureProviders(core, {
+            CodexWorkingDirectory: tmpdir(), ClaudeWorkingDirectory: process.cwd(), CodexModel: 'test-model'
+        });
+        for (const name of ['codex', 'claude', 'claude-sync']) {
+            providers[name].prompt(undefined, 'new');
+            assert.equal(calls.at(-1).args[2], name === 'codex' ? tmpdir() : process.cwd());
+            providers[name].prompt(undefined, 'explicit', process.cwd());
+            assert.equal(calls.at(-1).args[2], process.cwd());
+            providers[name].prompt('existing-session', 'resume', tmpdir());
+            assert.equal(calls.at(-1).args[2], undefined);
+            assert.throws(() => providers[name].prompt(undefined, 'invalid', 'relative'), { statusCode: 400 });
+            assert.throws(() => providers[name].prompt(undefined, 'invalid', process.execPath), { statusCode: 400 });
+        }
+        for (const method of ['threadStart', 'turnStart']) {
+            assert.deepEqual(core.codexClient[method]({ cwd: tmpdir(), model: 'other' }), { cwd: tmpdir(), model: 'test-model' });
+        }
+        const nativeDefaults = { ...core, codexClient: { threadStart: params => params, turnStart: params => params } };
+        configureProviders(nativeDefaults, { CodexWorkingDirectory: tmpdir(), ClaudeWorkingDirectory: tmpdir(), CodexModel: '' });
+        assert.deepEqual(nativeDefaults.codexClient.turnStart({ threadId: 'saved' }), { threadId: 'saved' });
+        """);
+    using var process = System.Diagnostics.Process.Start(startInfo)!;
+    var output = process.StandardOutput.ReadToEndAsync();
+    var error = process.StandardError.ReadToEndAsync();
+    if (!process.WaitForExit(15_000))
+    {
+        process.Kill(entireProcessTree: true);
+        throw new InvalidOperationException("The provider routing check timed out.");
+    }
+    Assert(process.ExitCode == 0, error.GetAwaiter().GetResult() + output.GetAwaiter().GetResult());
 }
 
 static void LocalizationResourcesAreComplete()
@@ -631,6 +732,11 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
         NodePath = @"C:\Fixtures\Node\node.exe",
         EvenTerminalCliPath = @"C:\Fixtures\EvenTerminal\cli.js",
         CodexPath = @"C:\Fixtures\Codex\codex.exe",
+        ClaudePath = @"C:\Fixtures\Claude\claude.exe",
+        CodexWorkingDirectory = @"C:\Projects\Codex Example",
+        ClaudeWorkingDirectory = @"C:\Projects\Claude Example",
+        CodexModel = "test-codex-model",
+        ClaudeModel = "sonnet",
         TailscalePath = @"C:\Program Files\Tailscale\tailscale.exe"
     };
     var launcher = new System.Diagnostics.ProcessStartInfo();
@@ -659,6 +765,10 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
             @"C:\Fixtures\UnrelatedParentPath",
             StringComparison.OrdinalIgnoreCase),
         "The bridge launcher retained an unrelated user PATH entry.");
+    Assert(launcher.Environment["PATH"]!.Split(Path.PathSeparator)[0] == Path.GetDirectoryName(settings.CodexPath),
+        "The selected Codex executable directory must precede other tools.");
+    Assert(launcher.Environment["PATH"]!.Split(Path.PathSeparator).Contains(Path.GetDirectoryName(settings.ClaudePath)),
+        "The selected Claude executable directory is missing from PATH.");
 
     var inherited = launcher.Environment.ToDictionary(
         entry => entry.Key,
@@ -686,6 +796,15 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
         !child.Environment.ContainsKey("PROJECT_DIR") &&
         string.Equals(child.Environment["BRIDGE_TOKEN"], token, StringComparison.Ordinal),
         "The Node bridge inherited a parent credential or lost its application token.");
+    using var providerSettings = System.Text.Json.JsonDocument.Parse(child.Environment["EVERVIGIL_PROVIDER_SETTINGS"]!);
+    var provider = providerSettings.RootElement;
+    Assert(provider.EnumerateObject().Count() == 5 &&
+           provider.GetProperty("CodexWorkingDirectory").GetString() == settings.CodexWorkingDirectory &&
+           provider.GetProperty("ClaudeWorkingDirectory").GetString() == settings.ClaudeWorkingDirectory &&
+           provider.GetProperty("ClaudePath").GetString() == settings.ClaudePath &&
+           provider.GetProperty("CodexModel").GetString() == settings.CodexModel &&
+           provider.GetProperty("ClaudeModel").GetString() == settings.ClaudeModel,
+        "Provider settings changed or unrelated settings crossed the launcher boundary.");
 
     var tampered = new Dictionary<string, string?>(inherited, StringComparer.OrdinalIgnoreCase)
     {
@@ -697,6 +816,14 @@ static void BridgeChildrenInheritOnlyExplicitRuntimeEnvironment()
             tampered,
             settings.BackendPort.ToString(CultureInfo.InvariantCulture),
             settings.DisplayName));
+    tampered = new Dictionary<string, string?>(inherited, StringComparer.OrdinalIgnoreCase)
+    {
+        ["EVERVIGIL_PROVIDER_SETTINGS"] = "{\"CodexWorkingDirectory\":\"relative\"}"
+    };
+    AssertThrows<InvalidOperationException>(() =>
+        EverVigil.Services.BridgeProcessEnvironment.ConfigureBridgeChild(
+            new System.Diagnostics.ProcessStartInfo(), tampered,
+            settings.BackendPort.ToString(CultureInfo.InvariantCulture), settings.DisplayName));
 }
 
 static void BridgeUsesPrivateInternalHostDirectory()
@@ -2335,14 +2462,13 @@ static void QrRendererProducesBitmap()
 static void ConcurrentBridgeStopsShareOneLifecycleTask()
 {
     var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-{Guid.NewGuid():N}");
-    var scriptPath = Path.Combine(root, "long-running.js");
     var applicationPath = Path.Combine(AppContext.BaseDirectory, "EverVigil.exe");
     var nodePath = FindExecutable("node.exe");
     EverVigil.Services.ManagedBridgeProcess? managed = null;
     try
     {
         Directory.CreateDirectory(root);
-        File.WriteAllText(scriptPath, "setInterval(()=>{},1000);");
+        var scriptPath = CreateEvenTerminalFixture(root, "setInterval(()=>{},1000);");
         Assert(File.Exists(applicationPath), $"Application executable was not built: {applicationPath}");
         var settings = AppSettings.CreateDefault() with
         {
@@ -2457,10 +2583,33 @@ static void BridgePidPipeRejectsDifferentProcess()
     }
 }
 
+static string CreateEvenTerminalFixture(string root, string serverScript)
+{
+    Directory.CreateDirectory(Path.Combine(root, "bin"));
+    Directory.CreateDirectory(Path.Combine(root, "dist", "routes"));
+    Directory.CreateDirectory(Path.Combine(root, "dist", "expose"));
+    File.WriteAllText(Path.Combine(root, "package.json"), "{\"type\":\"module\"}");
+    var cliPath = Path.Combine(root, "bin", "cli.js");
+    File.WriteAllText(cliPath, "throw new Error('The interactive CLI must not run.');");
+    File.WriteAllText(Path.Combine(root, "bin", "config.js"), """
+        export const resolveConfigPath = () => 'fixture';
+        export const loadConfig = () => ({ claude: { allowedTools: [] } });
+        """);
+    File.WriteAllText(Path.Combine(root, "dist", "expose", "registry.js"),
+        "export const getExposeProviderNames = () => [];");
+    File.WriteAllText(Path.Combine(root, "dist", "routes", "core.js"), """
+        const provider = { prompt() {} };
+        export const getProvider = () => provider;
+        export const codexClient = { threadStart() {}, turnStart() {} };
+        """);
+    File.WriteAllText(Path.Combine(root, "dist", "index.js"),
+        "import { createRequire } from 'node:module';const require = createRequire(import.meta.url);\n" + serverScript);
+    return cliPath;
+}
+
 static void BridgeLauncherContainsImmediateDescendants()
 {
     var root = Path.Combine(Path.GetTempPath(), $"EverVigil.Tests-{Guid.NewGuid():N}");
-    var scriptPath = Path.Combine(root, "spawn-child.js");
     var childPidPath = Path.Combine(root, "child.pid");
     var contractPath = Path.Combine(root, "bridge-contract.json");
     var applicationPath = Path.Combine(AppContext.BaseDirectory, "EverVigil.exe");
@@ -2479,15 +2628,17 @@ static void BridgeLauncherContainsImmediateDescendants()
     try
     {
         Directory.CreateDirectory(root);
-        File.WriteAllText(
-            scriptPath,
+        var scriptPath = CreateEvenTerminalFixture(
+            root,
             "const {spawn}=require('child_process');const fs=require('fs');const path=require('path');" +
             $"process.stdout.write('{stdoutCredential}\\n');" +
             $"process.stderr.write('{stderrCredential}\\n');" +
             "const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});" +
             "fs.writeFileSync(path.join(process.cwd(),'bridge-contract.json'),JSON.stringify({" +
             "cwd:process.cwd(),hasProjectDir:Object.prototype.hasOwnProperty.call(process.env,'PROJECT_DIR')," +
-            "argv:process.argv.slice(2)}));" +
+            "argv:process.argv.slice(2),claudePath:process.env.EVEN_TERMINAL_CLAUDE_CODE_EXECUTABLE," +
+            "claudeModel:process.env.ANTHROPIC_MODEL,allowedTools:process.env.EVEN_TERMINAL_CLAUDE_ALLOWED_TOOLS," +
+            "hasProviderSettings:'EVERVIGIL_PROVIDER_SETTINGS' in process.env}));" +
             "fs.writeFileSync(path.join(process.cwd(),'child.pid'),String(c.pid));" +
             "setInterval(()=>{},1000);");
         Assert(File.Exists(applicationPath), $"Application executable was not built: {applicationPath}");
@@ -2532,6 +2683,11 @@ static void BridgeLauncherContainsImmediateDescendants()
                 NodePath = nodePath,
                 EvenTerminalCliPath = scriptPath,
                 CodexPath = nodePath,
+                ClaudePath = nodePath,
+                CodexWorkingDirectory = root,
+                ClaudeWorkingDirectory = root,
+                CodexModel = "test-codex-model",
+                ClaudeModel = "sonnet",
                 TailscalePath = AppSettings.FixedTailscalePath
             },
             new string('a', 32));
@@ -2577,6 +2733,11 @@ static void BridgeLauncherContainsImmediateDescendants()
         Assert(
             !contract.RootElement.GetProperty("hasProjectDir").GetBoolean(),
             "The bridge process inherited the obsolete PROJECT_DIR variable.");
+        Assert(contract.RootElement.GetProperty("claudePath").GetString() == nodePath &&
+               contract.RootElement.GetProperty("claudeModel").GetString() == "sonnet" &&
+               contract.RootElement.GetProperty("allowedTools").GetString() == "[]" &&
+               !contract.RootElement.GetProperty("hasProviderSettings").GetBoolean(),
+            "Claude settings were not applied before loading the server or the settings payload was inherited by providers.");
         Assert(
             !contract.RootElement.GetProperty("argv").EnumerateArray().Any(argument =>
                 string.Equals(argument.GetString(), "--cwd", StringComparison.OrdinalIgnoreCase)),

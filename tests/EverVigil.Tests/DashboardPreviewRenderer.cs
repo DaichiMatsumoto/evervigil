@@ -53,6 +53,7 @@ internal static class DashboardPreviewRenderer
             var nodePath = CreatePlaceholder(dependencyRoot, "node.exe");
             var cliPath = CreatePlaceholder(dependencyRoot, "cli.js");
             var codexPath = CreatePlaceholder(dependencyRoot, "codex.exe");
+            var claudePath = CreatePlaceholder(dependencyRoot, "claude.exe");
             var tailscalePath = CreatePlaceholder(dependencyRoot, "tailscale.exe");
 
             var settingsStore = new SettingsStore(paths);
@@ -63,6 +64,9 @@ internal static class DashboardPreviewRenderer
                 NodePath = nodePath,
                 EvenTerminalCliPath = cliPath,
                 CodexPath = codexPath,
+                ClaudePath = claudePath,
+                CodexWorkingDirectory = root,
+                ClaudeWorkingDirectory = root,
                 TailscalePath = tailscalePath
             };
             settingsStore.Save(settings);
@@ -92,6 +96,27 @@ internal static class DashboardPreviewRenderer
                     .GetField("_tabs", BindingFlags.Instance | BindingFlags.NonPublic)?
                     .GetValue(form) ?? throw new InvalidOperationException("Dashboard tabs were not found."));
                 tabs.SelectedIndex = Math.Clamp(tabIndex, 0, tabs.TabPages.Count - 1);
+                // 公開画像には、実行環境のユーザー名やインストール先を含めない。
+                foreach (var (field, displayPath) in new[]
+                         {
+                             ("_nodePathInput", @"C:\Tools\Node\node.exe"),
+                             ("_cliPathInput", @"C:\Tools\EvenTerminal\bin\cli.js"),
+                             ("_codexPathInput", @"C:\Tools\Codex\codex.exe"),
+                             ("_claudePathInput", @"C:\Tools\Claude\claude.exe"),
+                             ("_tailscalePathInput", @"C:\Program Files\Tailscale\tailscale.exe"),
+                             ("_codexWorkingDirectoryInput", @"C:\Projects\Example"),
+                             ("_claudeWorkingDirectoryInput", @"C:\Projects\Example")
+                         })
+                {
+                    var input = (TextBox)(typeof(DashboardForm)
+                        .GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)?
+                        .GetValue(form) ?? throw new InvalidOperationException($"Preview field was not found: {field}"));
+                    input.Text = displayPath;
+                }
+                if (tabs.SelectedIndex == 2)
+                {
+                    form.ClientSize = new Size(form.ClientSize.Width, 1_250);
+                }
                 if (tabs.SelectedIndex == 1)
                 {
                     typeof(DashboardForm)

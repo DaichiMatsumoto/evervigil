@@ -137,4 +137,14 @@
   <data name="AppliedStateInvalid" xml:space="preserve"><value>The applied system configuration is invalid.</value></data>
   <data name="AppliedStateUnreadable" xml:space="preserve"><value>The last applied system configuration could not be read safely.</value></data>
   <data name="TokenQuarantinedRecovery" xml:space="preserve"><value>The unreadable saved token was quarantined and a new access token was generated.</value></data>
+  <data name="SectionCodex" xml:space="preserve"><value>CODEX / SESSION SETTINGS</value></data>
+  <data name="SectionClaude" xml:space="preserve"><value>CLAUDE / SESSION SETTINGS</value></data>
+  <data name="FieldClaudePath" xml:space="preserve"><value>Claude CLI path</value></data>
+  <data name="FieldCodexWorkingDirectory" xml:space="preserve"><value>Codex start folder</value></data>
+  <data name="FieldClaudeWorkingDirectory" xml:space="preserve"><value>Claude start folder</value></data>
+  <data name="FieldModel" xml:space="preserve"><value>Model ID / alias</value></data>
+  <data name="ProviderSettingsHint" xml:space="preserve"><value>Start folders apply to new sessions. Existing sessions keep their saved folder.
+Leave the model blank for CLI defaults. Claude also accepts aliases and model IDs.
+Leave the Claude CLI path blank to use the bundled CLI. Save and restart to apply.</value></data>
+  <data name="ValidationModel" xml:space="preserve"><value>Use an empty model or an ID of up to 200 characters without whitespace or control characters.</value></data>
 </root>

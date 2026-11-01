@@ -53,9 +53,9 @@ accessibility software、clipboard manager、same-user processが、意図的に
   `127.0.0.1:3457` -> `127.0.0.1:8765`です。
 - Serve転送先とCodex app-serverはloopback addressを使用します。アプリ所有・SID識別可能な
   Windows Firewall ruleでEven Terminal backendへの直接受信を遮断します。
-- 検証対象の公式`@evenrealities/even-terminal` 0.8.1はlistenerを`0.0.0.0`へbindします。
-  EverVigilはこれをpatchしないため、現時点で厳密なloopback-only bindを保証できません。
-  所有Firewall ruleは必須の緩和策であり、この点はRelease riskとして残ります。
+- 対応する公式`@evenrealities/even-terminal` 0.10.5はTailscaleモードでTailscale IPv4と
+  loopbackに待ち受けます。loopback限定ではないため、backendへの直接受信を遮断する
+  所有Firewall ruleは引き続き必要です。
 - Tailscale ServeはTailnet-onlyで、Tailnet ACL policyに依存し、Funnelを使いません。
 - public-Internet listener、telemetry endpoint、独自cloud backend、外部relayを追加しません。
 - Serve経路とFirewall ruleは、保護broker台帳、user identity、target、期待属性が一致した

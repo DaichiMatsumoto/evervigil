@@ -65,10 +65,10 @@ a deliberately revealed secret.
 - Serve targets and the Codex app-server use loopback addresses. An
   application-owned, SID-identifiable Windows Firewall rule blocks direct
   inbound access to the Even Terminal backend.
-- The tested upstream `@evenrealities/even-terminal` 0.8.1 listener binds to
-  `0.0.0.0`. EverVigil does not patch it and therefore cannot currently
-  guarantee a strict loopback-only bind. The owned Firewall rule is required
-  mitigation; this remains an explicit release risk.
+- The supported upstream `@evenrealities/even-terminal` 0.10.5 listens on the
+  Tailscale IPv4 address and loopback in Tailscale mode. It is not bound exclusively
+  to loopback, so the owned Firewall rule remains required to block direct
+  backend access.
 - Tailscale Serve is Tailnet-only, depends on the Tailnet ACL policy, and does
   not use Funnel.
 - EverVigil does not configure a public-Internet listener, telemetry endpoint,

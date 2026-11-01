@@ -8,14 +8,15 @@ An independent Windows tray utility that keeps Even Terminal running and availab
 
 EverVigil supervises a separately installed copy of
 [`@evenrealities/even-terminal`](https://www.npmjs.com/package/@evenrealities/even-terminal)
-and a separately installed Codex CLI. It does not bundle, fork, patch, or
-redistribute either product.
+and separately installed Codex and Claude CLIs. It does not bundle or redistribute
+those products or modify their installed files.
 
 ## What it does
 
 - Starts Even Terminal and the Codex app-server without opening a console window.
-- Leaves each Codex task's requested or saved working directory to the separately
-  installed provider instead of injecting an application-wide workspace.
+- Configures separate default folders and models for new Codex and Claude sessions,
+  preserving each existing session's saved working directory.
+- Lets users select the Codex and Claude CLI executable paths.
 - Supervises child processes and applies bounded restart backoff after failures.
 - Starts in the Windows notification area at login when the user enables startup.
 - Configures an ownership-checked, Tailnet-only Tailscale Serve route.
@@ -58,11 +59,15 @@ Tailnet's identity and ACL policy. Serve forwards to the loopback address shown
 above, and an owned Windows Firewall rule blocks direct inbound access to the
 Even Terminal backend.
 
-The currently tested upstream package, `@evenrealities/even-terminal` 0.8.1,
-binds its HTTP listener to `0.0.0.0`. EverVigil does not patch that package, so
-a strict loopback-only backend bind is not currently achievable. The Firewall
-rule is required mitigation; this upstream limitation remains an explicit
-release risk rather than being treated as a completed loopback-bind guarantee.
+The supported upstream package is `@evenrealities/even-terminal` 0.10.5.
+In Tailscale mode it listens on the Tailscale IPv4 address and loopback.
+The owned Firewall rule remains required to block direct backend access;
+the backend is not bound exclusively to loopback.
+
+In `Configuration`, set each provider's default folder and model, then choose
+`Save + restart`. An empty model uses the CLI default. Claude accepts the
+`opus`, `sonnet`, and `haiku` aliases or a model ID; Codex accepts a model ID.
+These settings are part of the source changes for the next release.
 
 ## Install and update
 

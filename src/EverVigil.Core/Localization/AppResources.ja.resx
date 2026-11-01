@@ -137,4 +137,14 @@
   <data name="AppliedStateInvalid" xml:space="preserve"><value>適用済みシステム設定が無効です。</value></data>
   <data name="AppliedStateUnreadable" xml:space="preserve"><value>最後に適用したシステム設定を安全に読み取れませんでした。</value></data>
   <data name="TokenQuarantinedRecovery" xml:space="preserve"><value>保存済みトークンを読み取れなかったため隔離し、新しいアクセストークンを生成しました。</value></data>
+  <data name="SectionCodex" xml:space="preserve"><value>CODEX / セッション設定</value></data>
+  <data name="SectionClaude" xml:space="preserve"><value>CLAUDE / セッション設定</value></data>
+  <data name="FieldClaudePath" xml:space="preserve"><value>Claude CLIパス</value></data>
+  <data name="FieldCodexWorkingDirectory" xml:space="preserve"><value>Codex開始フォルダ</value></data>
+  <data name="FieldClaudeWorkingDirectory" xml:space="preserve"><value>Claude開始フォルダ</value></data>
+  <data name="FieldModel" xml:space="preserve"><value>モデルID / 別名</value></data>
+  <data name="ProviderSettingsHint" xml:space="preserve"><value>開始フォルダは新規セッション用です。既存セッションは保存済みフォルダを維持します。
+モデルの空欄はCLIの既定値です。Claudeは別名の選択やモデルIDの入力もできます。
+Claude CLIパスが空欄の場合はEven Terminal同梱CLIを使用します。保存して再起動すると反映されます。</value></data>
+  <data name="ValidationModel" xml:space="preserve"><value>モデルIDは空欄、または空白・制御文字を含まない200文字以内で指定してください。</value></data>
 </root>

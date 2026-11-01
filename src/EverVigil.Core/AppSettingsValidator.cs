@@ -49,6 +49,19 @@ public static class AppSettingsValidator
         ValidatePath(settings.NodePath, AppLocalizer.Text("FieldNodePath", culture), requireExistingPaths, File.Exists, culture, errors);
         ValidatePath(settings.EvenTerminalCliPath, AppLocalizer.Text("FieldEvenTerminalPath", culture), requireExistingPaths, File.Exists, culture, errors);
         ValidatePath(settings.CodexPath, AppLocalizer.Text("FieldCodexPath", culture), requireExistingPaths, File.Exists, culture, errors);
+        if (!string.IsNullOrEmpty(settings.ClaudePath))
+        {
+            ValidatePath(settings.ClaudePath, AppLocalizer.Text("FieldClaudePath", culture), requireExistingPaths, File.Exists, culture, errors);
+        }
+        ValidatePath(settings.CodexWorkingDirectory, AppLocalizer.Text("FieldCodexWorkingDirectory", culture), requireExistingPaths, Directory.Exists, culture, errors);
+        ValidatePath(settings.ClaudeWorkingDirectory, AppLocalizer.Text("FieldClaudeWorkingDirectory", culture), requireExistingPaths, Directory.Exists, culture, errors);
+        foreach (var model in new[] { settings.CodexModel, settings.ClaudeModel })
+        {
+            if (model is null || model.Length > 200 || model.Any(character => char.IsControl(character) || char.IsWhiteSpace(character)))
+            {
+                errors.Add(AppLocalizer.Text("ValidationModel", culture));
+            }
+        }
         ValidatePath(settings.TailscalePath, AppLocalizer.Text("FieldTailscalePath", culture), requireExistingPaths, File.Exists, culture, errors);
         if (requireTrustedTailscalePath &&
             (string.IsNullOrWhiteSpace(settings.TailscalePath) ||
@@ -96,7 +109,7 @@ public static class AppSettingsValidator
         CultureInfo culture,
         List<string> errors)
     {
-        if (string.IsNullOrWhiteSpace(value) || !Path.IsPathFullyQualified(value))
+        if (string.IsNullOrWhiteSpace(value) || value.Any(char.IsControl) || value.Contains('"') || !Path.IsPathFullyQualified(value))
         {
             errors.Add(AppLocalizer.Format(culture, "ValidationAbsolutePath", label));
             return;

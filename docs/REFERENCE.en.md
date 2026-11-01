@@ -44,6 +44,9 @@ never release assets.
 | Serve port | `3456` |
 | Even Terminal backend | `127.0.0.1:3457` |
 | Codex app-server | `127.0.0.1:8765` |
+| Codex / Claude default folders | Windows user profile, independently; new sessions only |
+| Claude CLI path | Discovered `claude.exe`; empty uses the SDK-bundled CLI |
+| Codex / Claude models | Empty, independently; each CLI's defaults |
 | Health interval | 30 seconds |
 | Provider / Tailnet check | 300 seconds |
 | Startup timeout | 120 seconds |
@@ -53,12 +56,25 @@ never release assets.
 | Secret reveal | Approximately 60 seconds |
 | Clipboard clear | 60 seconds by default |
 
-EverVigil exports neither `PROJECT_DIR` nor a global `--cwd`. Existing Codex
-threads normally retain their saved working directory, and an explicitly
-requested directory remains provider-owned. With the tested separately installed
-Even Terminal 0.8.1, a request with neither an explicit nor a saved usable working
-directory may fall back to the private `BridgeHost` process directory; EverVigil
-cannot make that upstream request field mandatory.
+The source for the next release adds `codexWorkingDirectory`,
+`claudeWorkingDirectory`, `claudePath`, `codexModel`, and `claudeModel`.
+Edit them in Configuration, then save and restart. Models are IDs up to 200
+characters without whitespace or control characters; Claude also offers the
+`opus`, `sonnet`, and `haiku` aliases.
+
+The supported Even Terminal version is 0.10.5. An embedded startup script loads
+the installed package's server without modifying its files. An explicit `cwd`
+on a new request takes precedence over the provider's configured default folder.
+Relative or missing folders return an error. Existing sessions keep their saved
+folders. Neither `PROJECT_DIR` nor a global `--cwd` is used; the private process
+current directory remains `BridgeHost`.
+
+Codex models are supplied to `thread/start` and `turn/start`; Claude models use
+`ANTHROPIC_MODEL`. The Claude CLI path uses
+`EVEN_TERMINAL_CLAUDE_CODE_EXECUTABLE`. Existing Claude terminals outside SDK
+management retain their own settings. EverVigil-managed startup bypasses upstream
+interactive setup and retains only the Claude tool-approval policy from
+`%USERPROFILE%\.even-terminal\config.json`.
 
 ## Command line
 

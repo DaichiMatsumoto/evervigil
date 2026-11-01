@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using EverVigil.Core;
 
 namespace EverVigil.Services;
@@ -35,6 +36,7 @@ internal static class BridgeProcessEnvironment
         "DEFAULT_PROVIDER",
         "EVEN_HOST_MODE",
         "CODEX_APP_SERVER_PORT",
+        "EVERVIGIL_PROVIDER_SETTINGS",
         "PATH"
     ];
 
@@ -66,6 +68,7 @@ internal static class BridgeProcessEnvironment
         environment["CODEX_APP_SERVER_PORT"] = ValidatePort(
             settings.CodexAppServerPort).ToString();
         environment["PATH"] = BuildExecutablePath(settings, environment);
+        environment["EVERVIGIL_PROVIDER_SETTINGS"] = SerializeProviderSettings(settings);
         ReplaceEnvironment(startInfo, environment);
     }
 
@@ -119,11 +122,33 @@ internal static class BridgeProcessEnvironment
             throw new InvalidOperationException("The bridge environment does not match its launch request.");
         }
         ValidateSearchPath(environment["PATH"]);
+        var providerSettings = JsonSerializer.Deserialize<AppSettings>(environment["EVERVIGIL_PROVIDER_SETTINGS"])
+            ?? throw new InvalidOperationException("The provider settings are missing.");
+        environment["EVERVIGIL_PROVIDER_SETTINGS"] = SerializeProviderSettings(providerSettings);
         ReplaceEnvironment(startInfo, environment);
     }
 
     internal static bool IsAllowedVariableName(string name) =>
         AllowedVariableNames.Contains(name);
+
+    private static string SerializeProviderSettings(AppSettings settings)
+    {
+        foreach (var model in new[] { settings.CodexModel, settings.ClaudeModel })
+        {
+            if (model is null || model.Length > 200 || model.Any(character => char.IsControl(character) || char.IsWhiteSpace(character)))
+            {
+                throw new InvalidOperationException("The provider model is invalid.");
+            }
+        }
+        return JsonSerializer.Serialize(new
+        {
+            CodexWorkingDirectory = ValidateFullPath(settings.CodexWorkingDirectory),
+            ClaudeWorkingDirectory = ValidateFullPath(settings.ClaudeWorkingDirectory),
+            ClaudePath = string.IsNullOrEmpty(settings.ClaudePath) ? string.Empty : ValidateFullPath(settings.ClaudePath),
+            settings.CodexModel,
+            settings.ClaudeModel
+        });
+    }
 
     private static Dictionary<string, string> BuildBaseEnvironment()
     {
@@ -195,9 +220,10 @@ internal static class BridgeProcessEnvironment
         var systemDirectory = Path.Combine(windows, "System32");
         var directories = new[]
         {
+            GetExecutableDirectory(settings.CodexPath),
+            string.IsNullOrEmpty(settings.ClaudePath) ? null : GetExecutableDirectory(settings.ClaudePath),
             GetExecutableDirectory(settings.EvenTerminalCliPath),
             GetExecutableDirectory(settings.NodePath),
-            GetExecutableDirectory(settings.CodexPath),
             GetExecutableDirectory(settings.TailscalePath),
             systemDirectory,
             windows,
@@ -206,6 +232,7 @@ internal static class BridgeProcessEnvironment
         var path = string.Join(
             Path.PathSeparator,
             directories
+                .OfType<string>()
                 .Select(ValidateFullPath)
                 .Distinct(StringComparer.OrdinalIgnoreCase));
         ValidateSearchPath(path);

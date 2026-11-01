@@ -43,6 +43,9 @@ EverVigilはCodex認証情報を読取り・保存しません。
 | Serve port | `3456` |
 | Even Terminal backend | `127.0.0.1:3457` |
 | Codex app-server | `127.0.0.1:8765` |
+| Codex / Claude開始フォルダ | それぞれWindowsユーザーフォルダ。新規セッションだけに適用 |
+| Claude CLIパス | 導入済み`claude.exe`を検出。未検出・空欄はSDK同梱CLI |
+| Codex / Claudeモデル | それぞれ空欄。各CLIの設定を使用 |
 | Health interval | 30秒 |
 | Provider / Tailnet check | 300秒 |
 | Startup timeout | 120秒 |
@@ -52,12 +55,20 @@ EverVigilはCodex認証情報を読取り・保存しません。
 | Secret reveal | 約60秒 |
 | Clipboard clear | 既定60秒 |
 
-EverVigilは`PROJECT_DIR`をexportせず、global `--cwd`も指定しません。既存Codex
-threadは通常、保存済みworking directoryを維持し、明示的に要求されたdirectoryは
-providerが管理します。検証対象の別途導入済みEven Terminal 0.8.1では、明示済みまたは
-保存済みの利用可能なworking directoryがないrequestが、非公開の`BridgeHost` process
-directoryへfallbackする場合があります。EverVigil単体では、この上流request fieldを
-必須化できません。
+次回リリース向けの設定項目は`codexWorkingDirectory`、`claudeWorkingDirectory`、
+`claudePath`、`codexModel`、`claudeModel`です。設定画面から変更し、保存して再起動します。
+モデルは空白・制御文字を含まない200文字以内のIDです。Claudeは`opus`・`sonnet`・`haiku`も選べます。
+
+対応するEven Terminalは0.10.5です。埋め込み起動スクリプトからインストール済みpackageの
+サーバーを起動し、packageのファイルは変更しません。新規リクエストの明示的な`cwd`を
+優先し、省略時にprovider別の開始フォルダを渡します。相対パスや存在しないフォルダは
+エラーにします。既存セッションのフォルダは変更しません。`PROJECT_DIR`とglobal `--cwd`は
+使用せず、内部process current directoryは非公開の`BridgeHost`のままです。
+
+Codexモデルは`thread/start`と`turn/start`へ、Claudeモデルは`ANTHROPIC_MODEL`へ渡します。
+Claude CLIパスは`EVEN_TERMINAL_CLAUDE_CODE_EXECUTABLE`で渡します。SDK管理外の既存Claude
+端末は、その端末の設定に従います。上流CLIの対話セットアップは使わず、
+`%USERPROFILE%\.even-terminal\config.json`からはClaudeツール承認設定だけを引き継ぎます。
 
 ## Command line
 

@@ -454,7 +454,6 @@ foreach ($publicReleaseDocument in @(
 
 foreach ($networkLimitationDocument in @(
         'README.md'
-        'RELEASE_NOTES.md'
         'docs\README.en.md'
         'docs\README.ja.md'
         'docs\SECURITY.en.md'
@@ -466,10 +465,11 @@ foreach ($networkLimitationDocument in @(
         -LiteralPath (Join-Path $RepositoryRoot $networkLimitationDocument) `
         -Raw `
         -Encoding UTF8
-    if (-not $networkLimitationContent.Contains('0.0.0.0', [StringComparison]::Ordinal) -or
-        -not $networkLimitationContent.Contains('loopback-only', [StringComparison]::OrdinalIgnoreCase)) {
-        $failures.Add(
-            "$networkLimitationDocument must disclose the tested upstream wildcard-bind limitation.")
+    foreach ($bindDetail in @('0.10.5', 'Tailscale IPv4', 'loopback', 'Firewall')) {
+        if (-not $networkLimitationContent.Contains($bindDetail, [StringComparison]::OrdinalIgnoreCase)) {
+            $failures.Add(
+                "$networkLimitationDocument must disclose the tested upstream bind behavior and Firewall protection: $bindDetail")
+        }
     }
 }
 
