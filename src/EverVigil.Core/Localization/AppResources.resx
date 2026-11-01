@@ -144,7 +144,11 @@
   <data name="FieldClaudeWorkingDirectory" xml:space="preserve"><value>Claude start folder</value></data>
   <data name="FieldModel" xml:space="preserve"><value>Model ID / alias</value></data>
   <data name="ProviderSettingsHint" xml:space="preserve"><value>Start folders apply to new sessions. Existing sessions keep their saved folder.
-Leave the model blank for CLI defaults. Claude also accepts aliases and model IDs.
+Model choices come from the running CLIs. Leave blank for CLI defaults, or enter an ID directly.
+After changing CLI paths or folders, save and restart before loading model choices.
 Leave the Claude CLI path blank to use the bundled CLI. Save and restart to apply.</value></data>
   <data name="ValidationModel" xml:space="preserve"><value>Use an empty model or an ID of up to 200 characters without whitespace or control characters.</value></data>
+  <data name="ModelsLoading" xml:space="preserve"><value>Loading model choices from the CLI…</value></data>
+  <data name="ModelsLoaded" xml:space="preserve"><value>Model choices loaded from the CLI.</value></data>
+  <data name="ModelsUnavailable" xml:space="preserve"><value>Could not load model choices. Check that the service is running and the CLI is signed in.</value></data>
 </root>

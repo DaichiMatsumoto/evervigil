@@ -65,8 +65,10 @@ The owned Firewall rule remains required to block direct backend access;
 the backend is not bound exclusively to loopback.
 
 In `Configuration`, set each provider's default folder and model, then choose
-`Save + restart`. An empty model uses the CLI default. Claude accepts the
-`opus`, `sonnet`, and `haiku` aliases or a model ID; Codex accepts a model ID.
+`Save + restart`. Both model dropdowns load the CLI's available choices when
+opened while the service is running. After changing CLI paths or folders,
+save and restart before loading choices. An empty model uses the CLI default;
+model IDs can also be entered directly.
 These settings are part of the source changes for the next release.
 
 ## Install and update

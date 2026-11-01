@@ -218,6 +218,55 @@ static void ProviderDefaultsReachSessions()
         const nativeDefaults = { ...core, codexClient: { threadStart: params => params, turnStart: params => params } };
         configureProviders(nativeDefaults, { CodexWorkingDirectory: tmpdir(), ClaudeWorkingDirectory: tmpdir(), CodexModel: '' });
         assert.deepEqual(nativeDefaults.codexClient.turnStart({ threadId: 'saved' }), { threadId: 'saved' });
+        let handler;
+        const callsToCatalog = [];
+        const catalogCore = {
+            default: { get(path, callback) { assert.equal(path, '/models'); handler = callback; } },
+            codexClient: { async call(method, params) {
+                assert.equal(method, 'model/list');
+                assert.equal(params.includeHidden, false);
+                callsToCatalog.push(params.cursor);
+                return params.cursor
+                    ? { data: [{ model: 'second-model' }], nextCursor: null }
+                    : { data: [{ model: 'first-model' }, { model: 'hidden-model', hidden: true }], nextCursor: 'next' };
+            } }
+        };
+        let closed = 0;
+        let fail = false;
+        let stream;
+        const query = ({ prompt, options }) => {
+            stream = prompt;
+            assert.equal(stream.readableLength, 0);
+            assert.equal(options.cwd, tmpdir());
+            assert.equal(options.pathToClaudeCodeExecutable, process.execPath);
+            assert.equal(options.persistSession, false);
+            assert.deepEqual(options.tools, []);
+            assert.equal('BRIDGE_TOKEN' in options.env, false);
+            return {
+                async supportedModels() {
+                    if (fail) throw new Error('private-error-must-not-leak');
+                    return [{ value: 'test-alias' }, { value: 'new-cli-model' }];
+                },
+                close() { closed++; }
+            };
+        };
+        configureModelCatalog(catalogCore, { ClaudeWorkingDirectory: tmpdir(), ClaudePath: process.execPath }, query);
+        async function catalog(provider) {
+            const response = { code: 200, status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+            await handler({ query: { provider } }, response);
+            return response;
+        }
+        assert.deepEqual((await catalog('codex')).body.models, ['first-model', 'second-model']);
+        assert.deepEqual(callsToCatalog, [undefined, 'next']);
+        assert.deepEqual((await catalog('claude')).body.models, ['test-alias', 'new-cli-model']);
+        assert.equal(closed, 1);
+        assert.equal(stream.writableEnded, true);
+        fail = true;
+        const rejected = await catalog('claude');
+        assert.equal(rejected.code, 503);
+        assert.equal(JSON.stringify(rejected.body).includes('private-error-must-not-leak'), false);
+        assert.equal(closed, 2);
+        assert.equal((await catalog('unknown')).code, 400);
         """);
     using var process = System.Diagnostics.Process.Start(startInfo)!;
     var output = process.StandardOutput.ReadToEndAsync();
@@ -2601,7 +2650,12 @@ static string CreateEvenTerminalFixture(string root, string serverScript)
         const provider = { prompt() {} };
         export const getProvider = () => provider;
         export const codexClient = { threadStart() {}, turnStart() {} };
+        export default { get() {} };
         """);
+    var sdkRoot = Path.Combine(root, "node_modules", "@anthropic-ai", "claude-agent-sdk");
+    Directory.CreateDirectory(sdkRoot);
+    File.WriteAllText(Path.Combine(sdkRoot, "package.json"), "{\"type\":\"module\",\"exports\":\"./sdk.mjs\"}");
+    File.WriteAllText(Path.Combine(sdkRoot, "sdk.mjs"), "export const query = () => { throw new Error('Unexpected inference'); };");
     File.WriteAllText(Path.Combine(root, "dist", "index.js"),
         "import { createRequire } from 'node:module';const require = createRequire(import.meta.url);\n" + serverScript);
     return cliPath;

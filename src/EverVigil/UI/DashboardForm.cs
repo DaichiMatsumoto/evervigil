@@ -59,8 +59,9 @@ internal sealed class DashboardForm : Form
     private readonly TextBox _claudePathInput = new();
     private readonly TextBox _codexWorkingDirectoryInput = new();
     private readonly TextBox _claudeWorkingDirectoryInput = new();
-    private readonly TextBox _codexModelInput = new();
+    private readonly ComboBox _codexModelInput = new() { DropDownStyle = ComboBoxStyle.DropDown };
     private readonly ComboBox _claudeModelInput = new() { DropDownStyle = ComboBoxStyle.DropDown };
+    private readonly HashSet<ComboBox> _loadingModels = [];
     private readonly TextBox _tailscalePathInput = new();
     private readonly NumericUpDown _healthIntervalInput = NewNumberInput(5, 3600);
     private readonly NumericUpDown _providerIntervalInput = NewNumberInput(15, 3600);
@@ -552,6 +553,7 @@ internal sealed class DashboardForm : Form
         AddPathRow(codex, "FieldCodexPath", _codexPathInput, () => SelectExecutable(_codexPathInput, "codex.exe"));
         AddPathRow(codex, "FieldCodexWorkingDirectory", _codexWorkingDirectoryInput, () => SelectFolder(_codexWorkingDirectoryInput));
         AddSettingsRow(codex, "FieldModel", _codexModelInput);
+        _codexModelInput.DropDown += async (_, _) => await LoadModelsAsync("codex", _codexModelInput);
         codex.SetColumnSpan(_codexModelInput, 2);
         grid.Controls.Add(codexPanel, 0, 3);
         grid.SetColumnSpan(codexPanel, 2);
@@ -559,7 +561,7 @@ internal sealed class DashboardForm : Form
         var claudePanel = BuildSettingsSection("SectionClaude", AppTheme.Neon, out var claude, includeBrowseColumn: true);
         AddPathRow(claude, "FieldClaudePath", _claudePathInput, () => SelectExecutable(_claudePathInput, "claude.exe"));
         AddPathRow(claude, "FieldClaudeWorkingDirectory", _claudeWorkingDirectoryInput, () => SelectFolder(_claudeWorkingDirectoryInput));
-        _claudeModelInput.Items.AddRange([string.Empty, "opus", "sonnet", "haiku"]);
+        _claudeModelInput.DropDown += async (_, _) => await LoadModelsAsync("claude", _claudeModelInput);
         AddSettingsRow(claude, "FieldModel", _claudeModelInput);
         claude.SetColumnSpan(_claudeModelInput, 2);
         var providerHint = new Label
@@ -799,6 +801,45 @@ internal sealed class DashboardForm : Form
         _autoStartServiceInput.Checked = settings.AutoStartService;
         _startOnLoginInput.Checked = _startupRegistration.IsRegistered;
         RefreshTrustedTailnetEndpoint(settings);
+    }
+
+    private async Task LoadModelsAsync(string provider, ComboBox input)
+    {
+        if (!_loadingModels.Add(input))
+        {
+            return;
+        }
+        try
+        {
+            SetSettingsStatus("ModelsLoading");
+            var models = await ProviderModelCatalog.LoadAsync(_settingsStore.Current, _tokenStore.GetOrCreate(), provider);
+            if (IsDisposed || input.IsDisposed)
+            {
+                return;
+            }
+            var selected = input.Text;
+            var wasOpen = input.DroppedDown;
+            input.BeginUpdate();
+            input.Items.Clear();
+            input.Items.Add(string.Empty);
+            input.Items.AddRange(models);
+            input.Text = selected;
+            input.EndUpdate();
+            input.DroppedDown = wasOpen && input.Focused;
+            SetSettingsStatus("ModelsLoaded");
+        }
+        catch (Exception exception)
+        {
+            if (!IsDisposed)
+            {
+                SetSettingsStatus("ModelsUnavailable");
+                _logger.Warn($"{provider} model catalog retrieval failed ({exception.GetType().Name}).");
+            }
+        }
+        finally
+        {
+            _loadingModels.Remove(input);
+        }
     }
 
     private async Task SaveSettingsAsync()
